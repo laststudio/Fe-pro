@@ -10,6 +10,9 @@ import java.io.DataOutputStream
 import java.io.InputStreamReader
 import java.io.File
 import java.security.MessageDigest
+import java.io.FileInputStream
+import java.io.InputStream
+import java.nio.file.Files
 
 /**
  * ETS100 文件读取管理器
@@ -64,6 +67,28 @@ object ETS100FileReader {
             done
         """.trimIndent()
     }
+
+    private fun buildDirectorySizeCommand(path: String): String {
+        val quotedPath = shellQuote(path)
+        return "[ -d $quotedPath ] && du -sk $quotedPath 2>/dev/null | cut -f1 || echo 0"
+    }
+
+    internal fun parseDirectorySizeKib(output: String?): Long = output
+        ?.lineSequence()
+        ?.firstOrNull()
+        ?.trim()
+        ?.substringBeforeAnyWhitespace()
+        ?.toLongOrNull()
+        ?.coerceAtLeast(0L)
+        ?.coerceAtMost(Long.MAX_VALUE / 1024L)
+        ?.times(1024L)
+        ?: 0L
+
+    private fun String.substringBeforeAnyWhitespace(): String =
+        indexOfFirst { it.isWhitespace() }
+            .takeIf { it >= 0 }
+            ?.let { substring(0, it) }
+            ?: this
 
     private fun parseFastListOutput(output: String): List<FileItem> {
         return output.lineSequence()
@@ -175,6 +200,10 @@ object ETS100FileReader {
          * 读取文件内容
          */
         fun readFile(path: String): String?
+
+        fun openInputStream(path: String): InputStream?
+
+        fun isSymbolicLink(path: String): Boolean
         
         /**
          * 检查文件是否存在
@@ -185,6 +214,12 @@ object ETS100FileReader {
          * 获取文件大小
          */
         fun getFileSize(path: String): Long
+
+        /**
+         * 获取目录中全部文件的总字节数。
+         * 目录不存在或无法读取时返回 0。
+         */
+        fun getDirectorySize(path: String): Long
         
         /**
          * 获取文件修改时间(Unix timestamp)
@@ -245,6 +280,12 @@ object ETS100FileReader {
                 null
             }
         }
+
+        override fun openInputStream(path: String): InputStream? =
+            ShizukuManager.openCommandInputStream("cat ${shellQuote(path)}")
+
+        override fun isSymbolicLink(path: String): Boolean =
+            execShizukuCommand("test -L ${shellQuote(path)} && echo link")?.trim() == "link"
         
         override fun exists(path: String): Boolean {
             return try {
@@ -261,6 +302,13 @@ object ETS100FileReader {
             } catch (e: Exception) {
                 0L
             }
+        }
+
+        override fun getDirectorySize(path: String): Long = try {
+            parseDirectorySizeKib(execShizukuCommand(buildDirectorySizeCommand(path)))
+        } catch (e: Exception) {
+            Log.e(TAG, "Shizuku getDirectorySize failed", e)
+            0L
         }
         
         override fun getFileModifiedTime(path: String): Long {
@@ -462,6 +510,12 @@ object ETS100FileReader {
                 null
             }
         }
+
+        override fun openInputStream(path: String): InputStream? =
+            RootManager.openInputStreamAsRoot("cat ${shellQuote(path)}")
+
+        override fun isSymbolicLink(path: String): Boolean =
+            RootManager.execAsRoot("test -L ${shellQuote(path)} && echo link")?.trim() == "link"
         
         override fun exists(path: String): Boolean {
             return try {
@@ -478,6 +532,13 @@ object ETS100FileReader {
             } catch (e: Exception) {
                 0L
             }
+        }
+
+        override fun getDirectorySize(path: String): Long = try {
+            parseDirectorySizeKib(RootManager.execAsRoot(buildDirectorySizeCommand(path)))
+        } catch (e: Exception) {
+            Log.e(TAG, "Root getDirectorySize failed", e)
+            0L
         }
         
         override fun getFileModifiedTime(path: String): Long {
@@ -602,6 +663,15 @@ object ETS100FileReader {
                 null
             }
         }
+
+        override fun openInputStream(path: String): InputStream? {
+            return runCatching { FileInputStream(toZWCPath(path)) }
+                .onFailure { Log.e(TAG, "DirectRead openInputStream failed: $path", it) }
+                .getOrNull()
+        }
+
+        override fun isSymbolicLink(path: String): Boolean =
+            runCatching { Files.isSymbolicLink(File(toZWCPath(path)).toPath()) }.getOrDefault(false)
         
         override fun exists(path: String): Boolean {
             // 宝贝这里先把路径转换成 ZWC 绕过路径喵~
@@ -617,6 +687,15 @@ object ETS100FileReader {
             } catch (e: Exception) {
                 0L
             }
+        }
+
+        override fun getDirectorySize(path: String): Long = try {
+            File(toZWCPath(path)).walkTopDown()
+                .filter { it.isFile }
+                .sumOf { it.length().coerceAtLeast(0L) }
+        } catch (e: Exception) {
+            Log.e(TAG, "DirectRead getDirectorySize failed", e)
+            0L
         }
         
         override fun getFileModifiedTime(path: String): Long {

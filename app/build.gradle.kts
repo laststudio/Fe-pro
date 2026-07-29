@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -5,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.shuaiqiu.fuckets100"
-    compileSdk = 37
+    compileSdk = 35
 
     val releaseKeystorePath = System.getenv("ANDROID_KEYSTORE_PATH")
     val releaseKeystorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
@@ -22,8 +24,8 @@ android {
         applicationId = "com.shuaiqiu.fuckets100"
         minSdk = 26
         targetSdk = 37
-        versionCode = 15
-        versionName = "1.3.9"
+        versionCode = 17
+        versionName = "1.3.11"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -57,6 +59,11 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+    kotlin {
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_11)
+        }
+    }
     buildFeatures {
         compose = true
         // Remote update checks read version information from BuildConfig.
@@ -75,6 +82,7 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.navigation.compose)
+    implementation(libs.kotlinx.coroutines.android)
 
     // Shizuku support allows file access without root where available.
     implementation(libs.shizuku.api)
