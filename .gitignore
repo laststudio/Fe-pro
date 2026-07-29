@@ -101,3 +101,6 @@ pwd.json
 config/__pycache__/sync_manual_config.cpython-313.pyc
 scripts/release/__pycache__/upload_lanzou.cpython-313.pyc
 .codegraph/
+
+*.__pycache__
+*.pyc
