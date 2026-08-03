@@ -192,9 +192,6 @@ jobs:
             "GITEE_TOKEN"
             "LANZOU_USERNAME"
             "LANZOU_PASSWORD"
-            "ONEBOT_HTTP_URL"
-            "ONEBOT_GROUP_ID"
-            "ONEBOT_ACCESS_TOKEN"
           )
           for secret_name in "${required_secrets[@]}"; do
             if [ -z "${!secret_name:-}" ]; then
@@ -276,10 +273,12 @@ jobs:
 
       # ========== 新增：安装 sshpass（用于密码认证的 SFTP） ==========
       - name: 安装 sshpass
+        continue-on-error: true
         run: sudo apt-get update && sudo apt-get install -y sshpass
 
       # ========== 新增：上传到服务器 A（密码验证） ==========
       - name: 上传 APK 到服务器 A (SFTP 密码验证)
+        continue-on-error: true
         env:
           SFTP_HOST_A: ${{ secrets.SFTP_HOST_A }}
           SFTP_USER_A: ${{ secrets.SFTP_USER_A }}
@@ -287,6 +286,10 @@ jobs:
           SFTP_TARGET_DIR_A: ${{ vars.SFTP_TARGET_DIR_A || '/path/to/release' }}
         run: |
           set -euo pipefail
+          if [ -z "${SFTP_HOST_A:-}" ] || [ -z "${SFTP_USER_A:-}" ] || [ -z "${SFTP_PASSWORD_A:-}" ]; then
+            echo "服务器 A 的 SFTP 配置不完整，跳过上传。"
+            exit 0
+          fi
           sshpass -p "$SFTP_PASSWORD_A" sftp -o StrictHostKeyChecking=no -P 22 "$SFTP_USER_A@$SFTP_HOST_A" <<EOF
           put "${{ steps.artifact.outputs.apk_path }}" "$SFTP_TARGET_DIR_A/${{ needs.build.outputs.apk_name }}"
           bye
@@ -294,6 +297,7 @@ jobs:
 
       # ========== 新增：上传到服务器 B（密钥验证） ==========
       - name: 上传 APK 到服务器 B (SFTP 密钥验证)
+        continue-on-error: true
         env:
           SFTP_HOST_B: ${{ secrets.SFTP_HOST_B }}
           SFTP_USER_B: ${{ secrets.SFTP_USER_B }}
@@ -301,16 +305,18 @@ jobs:
           SFTP_TARGET_DIR_B: ${{ vars.SFTP_TARGET_DIR_B || '/path/to/release' }}
         run: |
           set -euo pipefail
-          # 写入私钥文件
+          if [ -z "${SFTP_HOST_B:-}" ] || [ -z "${SFTP_USER_B:-}" ] || [ -z "${SFTP_PRIVATE_KEY_B:-}" ]; then
+            echo "服务器 B 的 SFTP 配置不完整，跳过上传。"
+            exit 0
+          fi
           mkdir -p ~/.ssh
+          trap 'rm -f ~/.ssh/id_rsa_b' EXIT
           echo "$SFTP_PRIVATE_KEY_B" > ~/.ssh/id_rsa_b
           chmod 600 ~/.ssh/id_rsa_b
           sftp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa_b -P 22 "$SFTP_USER_B@$SFTP_HOST_B" <<EOF
           put "${{ steps.artifact.outputs.apk_path }}" "$SFTP_TARGET_DIR_B/${{ needs.build.outputs.apk_name }}"
           bye
           EOF
-          # 清理私钥
-          rm -f ~/.ssh/id_rsa_b
 
       # ====================================================
 
@@ -337,6 +343,7 @@ jobs:
           REMOTE_CHANGELOG_FILE: ${{ vars.REMOTE_CHANGELOG_FILE || 'update.md' }}
 
       - name: 发送 OneBot 群通知
+        continue-on-error: true
         shell: bash
         env:
           ONEBOT_HTTP_URL: ${{ secrets.ONEBOT_HTTP_URL }}
@@ -344,6 +351,10 @@ jobs:
           ONEBOT_ACCESS_TOKEN: ${{ secrets.ONEBOT_ACCESS_TOKEN }}
         run: |
           set -euo pipefail
+          if [ -z "${ONEBOT_HTTP_URL:-}" ] || [ -z "${ONEBOT_GROUP_ID:-}" ]; then
+            echo "OneBot 配置不完整，跳过群通知。"
+            exit 0
+          fi
           {
             echo "新版本发布啦喵~"
             echo "最新版本为${{ needs.build.outputs.version_name }}"
