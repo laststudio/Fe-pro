@@ -4,7 +4,10 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+
+env:
+  PUBLIC_RELEASE_REPOSITORY: laststudio/Fuck_ets100
 
 concurrency:
   group: deploy-apk-${{ github.ref }}
@@ -183,6 +186,7 @@ jobs:
         run: |
           set -euo pipefail
           required_secrets=(
+            "PUBLIC_RELEASE_TOKEN"
             "CONFIG_GITHUB_TOKEN"
             "GITEE_USERNAME"
             "GITEE_TOKEN"
@@ -200,6 +204,7 @@ jobs:
           done
           echo "发布密钥校验通过。"
         env:
+          PUBLIC_RELEASE_TOKEN: ${{ secrets.PUBLIC_RELEASE_TOKEN }}
           CONFIG_GITHUB_TOKEN: ${{ secrets.CONFIG_GITHUB_TOKEN }}
           GITEE_USERNAME: ${{ secrets.GITEE_USERNAME }}
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
@@ -256,16 +261,18 @@ jobs:
           LANZOU_FOLDER_NAME: ${{ vars.LANZOU_FOLDER_NAME || 'fe' }}
 
       - name: 发布 GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ needs.build.outputs.tag_name }}
-          name: Fe v${{ needs.build.outputs.version_name }}
-          body_path: release_notes.md
-          files: ${{ steps.artifact.outputs.apk_path }}
-          fail_on_unmatched_files: true
-          make_latest: true
+        shell: bash
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.PUBLIC_RELEASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh release create "${{ needs.build.outputs.tag_name }}" \
+            --repo "${PUBLIC_RELEASE_REPOSITORY}" \
+            --target public \
+            --title "Fe v${{ needs.build.outputs.version_name }}" \
+            --notes-file release_notes.md \
+            --latest \
+            "${{ steps.artifact.outputs.apk_path }}"
 
       # ========== 新增：安装 sshpass（用于密码认证的 SFTP） ==========
       - name: 安装 sshpass
@@ -349,6 +356,6 @@ jobs:
             --api-url "${ONEBOT_HTTP_URL}" \
             --group-id "${ONEBOT_GROUP_ID}" \
             --message-file onebot_message.txt \
-            --upload-file "https://github.com/${{ github.repository }}/releases/download/${{ needs.build.outputs.tag_name }}/${{ needs.build.outputs.apk_name }}" \
+            --upload-file "https://github.com/${PUBLIC_RELEASE_REPOSITORY}/releases/download/${{ needs.build.outputs.tag_name }}/${{ needs.build.outputs.apk_name }}" \
             --upload-name "${{ needs.build.outputs.apk_name }}" \
             --access-token "${ONEBOT_ACCESS_TOKEN:-}"
