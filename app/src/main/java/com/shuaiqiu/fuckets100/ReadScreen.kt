@@ -648,25 +648,21 @@ fun ReadScreen(
 
             if (phone != null && savedPassword != null) {
                 try {
-                    val loginResult = ETS100ApiClient.login(phone, savedPassword, deviceCode)
-                    loginResult.onSuccess { loginResponse ->
-                        val ecardResult = ETS100ApiClient.getEcardList(loginResponse.token)
-                        ecardResult.onSuccess { parentAccountId ->
-                            ETS100AuthManager.saveLoginInfo(context, phone, loginResponse.token, parentAccountId)
-                            addLog(LogLevel.INFO, LogCategory.SYSTEM, "✓ 登录成功，Token 已更新，正在重试作业列表")
-                            responses = requestHomeworkLists(loginResponse.token)
-                        }.onFailure { e ->
-                            lastError = e
-                            addLog(LogLevel.ERROR, LogCategory.SYSTEM, "✗ 获取父账户ID失败: ${e.message}")
-                        }
-                    }.onFailure { e ->
-                        lastError = e
-                        addLog(LogLevel.ERROR, LogCategory.SYSTEM, "✗ 登录失败: ${e.message}")
-                        addLog(LogLevel.ERROR, LogCategory.SYSTEM, "请在设置中重新登录")
-                    }
+                    val loginResponse = ETS100ApiClient.login(phone, savedPassword, deviceCode).getOrThrow()
+                    val parentAccountId = ETS100ApiClient.getEcardList(loginResponse.token).getOrThrow()
+                    ETS100AuthManager.saveLoginInfo(context, phone, loginResponse.token, parentAccountId)
+                    addLog(LogLevel.INFO, LogCategory.SYSTEM, "✓ 登录成功，Token 已更新，正在重试作业列表")
+                    responses = requestHomeworkLists(loginResponse.token)
+                } catch (e: ETS100ApiClient.SmsVerificationRequiredException) {
+                    lastError = e
+                    addLog(LogLevel.ERROR, LogCategory.SYSTEM, "✗ 账号需要短信验证，请在设置中重新登录")
                 } catch (e: ETS100ApiClient.DeviceBindRequiredException) {
                     lastError = e
                     addLog(LogLevel.ERROR, LogCategory.SYSTEM, "✗ 设备需要重新绑定，请在设置中重新登录")
+                } catch (e: Exception) {
+                    lastError = e
+                    addLog(LogLevel.ERROR, LogCategory.SYSTEM, "✗ 登录失败: ${e.message}")
+                    addLog(LogLevel.ERROR, LogCategory.SYSTEM, "请在设置中重新登录")
                 }
             } else {
                 addLog(LogLevel.ERROR, LogCategory.SYSTEM, "✗ 未保存密码，请先在设置中登录")

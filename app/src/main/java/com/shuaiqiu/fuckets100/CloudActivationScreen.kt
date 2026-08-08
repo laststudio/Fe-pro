@@ -25,9 +25,14 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+
+private data class PendingDeviceBinding(
+    val phone: String,
+    val password: String,
+    val deviceCode: String
+)
 
 /**
  * 云端激活/登录页面
@@ -54,6 +59,13 @@ fun CloudActivationScreen(
     var password by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var passwordVisible by remember { mutableStateOf(false) }
+    var pendingBinding by remember { mutableStateOf<PendingDeviceBinding?>(null) }
+    var verificationCode by remember { mutableStateOf("") }
+    var verificationError by remember { mutableStateOf<String?>(null) }
+    var isSendingCode by remember { mutableStateOf(false) }
+    var isVerifyingCode by remember { mutableStateOf(false) }
+    var verificationCodeSent by remember { mutableStateOf(false) }
+    var resendSeconds by remember { mutableIntStateOf(0) }
     
     // 登录状态检查
     LaunchedEffect(Unit) {
@@ -63,123 +75,130 @@ fun CloudActivationScreen(
         }
     }
     
-    // 登录处理
+    LaunchedEffect(pendingBinding, resendSeconds > 0) {
+        if (pendingBinding != null && resendSeconds > 0) {
+            while (resendSeconds > 0) {
+                delay(1_000)
+                resendSeconds--
+            }
+        }
+    }
+
+    suspend fun completeLogin(
+        loginResponse: ETS100ApiClient.LoginResponse,
+        loginPhone: String,
+        loginPassword: String,
+        successMessage: String
+    ) {
+        try {
+            val parentAccountId = ETS100ApiClient.getEcardList(loginResponse.token).getOrThrow()
+            ETS100AuthManager.saveLoginInfo(context, loginPhone, loginResponse.token, parentAccountId)
+            ETS100AuthManager.saveLoginMethod(context, ETS100AuthManager.LOGIN_METHOD_PASSWORD)
+            ETS100AuthManager.savePassword(context, loginPassword)
+            Toast.makeText(context, successMessage, Toast.LENGTH_SHORT).show()
+            onLoginSuccess()
+        } catch (e: Exception) {
+            Log.e("CloudActivationScreen", "获取账户信息失败", e)
+            Toast.makeText(context, "获取账户信息失败: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
     fun handleLogin() {
         if (phone.isBlank() || password.isBlank()) {
             Toast.makeText(context, "请输入手机号和密码", Toast.LENGTH_SHORT).show()
             return
         }
-        
+
         scope.launch {
             isLoading = true
-            
+            val loginPhone = phone.trim()
+            val loginPassword = password
+
             try {
-                // 获取机器码
                 val deviceCode = ETS100AuthManager.getDeviceCode(context)
-                Log.d("CloudActivationScreen", "使用机器码: ${deviceCode.take(8)}...")
-                
-                // 调用登录 API
-                Log.d("CloudActivationScreen", "===== 开始登录 =====")
-                Log.d("CloudActivationScreen", "手机号: ${phone}")
-                Log.d("CloudActivationScreen", "机器码: ${deviceCode}")
-                
-                val loginResult = ETS100ApiClient.login(phone, password, deviceCode)
-                
-                loginResult.onSuccess { loginResponse ->
-                    Log.i("CloudActivationScreen", "✓ 登录成功！")
-                    Log.d("CloudActivationScreen", "Token: ${loginResponse.token}")
-                    
-                    // 获取父账户 ID
-                    Log.d("CloudActivationScreen", "----- 获取父账户ID -----")
-                    val ecardResult = ETS100ApiClient.getEcardList(loginResponse.token)
-                    
-                    ecardResult.onSuccess { parentAccountId ->
-                        Log.i("CloudActivationScreen", "✓ 获取父账户ID成功: $parentAccountId")
-                        
-                        // 保存登录信息
-                        ETS100AuthManager.saveLoginInfo(context, phone, loginResponse.token, parentAccountId)
-                        ETS100AuthManager.saveLoginMethod(context, ETS100AuthManager.LOGIN_METHOD_PASSWORD)
-                        ETS100AuthManager.savePassword(context, password)
-                        
-                        withContext(Dispatchers.Main) {
-                            Toast.makeText(context, "登录成功！", Toast.LENGTH_SHORT).show()
-                            onLoginSuccess()
-                        }
-                    }.onFailure { e ->
-                        Log.e("CloudActivationScreen", "✗ 获取父账户ID失败")
-                        Log.e("CloudActivationScreen", "错误信息: ${e.message}")
-                        e.stackTrace.forEach { Log.e("CloudActivationScreen", "  at ${it}") }
-                        withContext(Dispatchers.Main) {
-                            Toast.makeText(context, "获取账户信息失败: ${e.message}", Toast.LENGTH_LONG).show()
-                        }
-                    }
-                }.onFailure { e ->
-                    Log.e("CloudActivationScreen", "✗ 登录失败！")
-                    Log.e("CloudActivationScreen", "错误类型: ${e::class.java.simpleName}")
-                    Log.e("CloudActivationScreen", "错误信息: ${e.message}")
-                    
-                    when (e) {
-                        is ETS100ApiClient.DeviceBindRequiredException -> {
-                            // 喵~ 检测到设备需要绑定，开始自动绑定喵！
-                            Log.i("CloudActivationScreen", "检测到设备需要绑定，开始自动绑定...")
-                            withContext(Dispatchers.Main) {
-                                Toast.makeText(context, "设备需要绑定，正在自动绑定...", Toast.LENGTH_SHORT).show()
-                            }
-                            
-                            val bindResult = ETS100ApiClient.bindDevice(e.phone, e.password, e.deviceCode)
-                            
-                            bindResult.onSuccess { bindResponse ->
-                                Log.i("CloudActivationScreen", "✓ 设备绑定成功！")
-                                Log.d("CloudActivationScreen", "绑定 Token: ${bindResponse.token}")
-                                
-                                // 绑定成功后，获取父账户 ID
-                                val ecardResult = ETS100ApiClient.getEcardList(bindResponse.token)
-                                
-                                ecardResult.onSuccess { parentAccountId ->
-                                    Log.i("CloudActivationScreen", "✓ 获取父账户ID成功: $parentAccountId")
-                                    
-                                    // 保存登录信息
-                                    ETS100AuthManager.saveLoginInfo(context, e.phone, bindResponse.token, parentAccountId)
-                                    ETS100AuthManager.saveLoginMethod(context, ETS100AuthManager.LOGIN_METHOD_PASSWORD)
-                                    ETS100AuthManager.savePassword(context, e.password)
-                                    
-                                    withContext(Dispatchers.Main) {
-                                        Toast.makeText(context, "设备绑定并登录成功！", Toast.LENGTH_SHORT).show()
-                                        onLoginSuccess()
-                                    }
-                                }.onFailure { ecardError ->
-                                    Log.e("CloudActivationScreen", "✗ 获取父账户ID失败: ${ecardError.message}")
-                                    withContext(Dispatchers.Main) {
-                                        Toast.makeText(context, "绑定成功但获取账户信息失败: ${ecardError.message}", Toast.LENGTH_LONG).show()
-                                    }
-                                }
-                            }.onFailure { bindError ->
-                                Log.e("CloudActivationScreen", "✗ 设备绑定失败: ${bindError.message}")
-                                withContext(Dispatchers.Main) {
-                                    Toast.makeText(context, "设备绑定失败: ${bindError.message}", Toast.LENGTH_LONG).show()
-                                }
-                            }
-                        }
-                        else -> {
-                            withContext(Dispatchers.Main) {
-                                Toast.makeText(context, "登录失败: ${e.message}", Toast.LENGTH_LONG).show()
-                            }
-                        }
-                    }
+                val loginResponse = ETS100ApiClient.login(loginPhone, loginPassword, deviceCode).getOrThrow()
+                completeLogin(loginResponse, loginPhone, loginPassword, "登录成功！")
+            } catch (e: ETS100ApiClient.SmsVerificationRequiredException) {
+                pendingBinding = PendingDeviceBinding(e.phone, e.password, e.deviceCode)
+                verificationCode = ""
+                verificationError = null
+                verificationCodeSent = false
+                isSendingCode = true
+                try {
+                    ETS100ApiClient.sendDeviceBindingCode(e.phone).getOrThrow()
+                    verificationCodeSent = true
+                    resendSeconds = 60
+                    Toast.makeText(context, "验证码已发送", Toast.LENGTH_SHORT).show()
+                } catch (sendError: Exception) {
+                    Log.e("CloudActivationScreen", "发送验证码失败", sendError)
+                    verificationError = "发送验证码失败: ${sendError.message}"
+                } finally {
+                    isSendingCode = false
                 }
-                
-                Log.d("CloudActivationScreen", "===== 登录流程结束 =====")
+            } catch (e: ETS100ApiClient.DeviceBindRequiredException) {
+                try {
+                    Toast.makeText(context, "设备需要绑定，正在自动绑定...", Toast.LENGTH_SHORT).show()
+                    val bindResponse = ETS100ApiClient.bindDevice(e.phone, e.password, e.deviceCode).getOrThrow()
+                    completeLogin(bindResponse, e.phone, e.password, "设备绑定并登录成功！")
+                } catch (bindError: Exception) {
+                    Log.e("CloudActivationScreen", "设备绑定失败", bindError)
+                    Toast.makeText(context, "设备绑定失败: ${bindError.message}", Toast.LENGTH_LONG).show()
+                }
             } catch (e: Exception) {
-                Log.e("CloudActivationScreen", "✗ 登录过程发生异常！")
-                Log.e("CloudActivationScreen", "异常类型: ${e::class.java.simpleName}")
-                Log.e("CloudActivationScreen", "异常信息: ${e.message}")
-                e.stackTrace.forEach { Log.e("CloudActivationScreen", "  at ${it}") }
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(context, "登录异常: ${e.message}", Toast.LENGTH_LONG).show()
-                }
+                Log.e("CloudActivationScreen", "登录失败", e)
+                Toast.makeText(context, "登录失败: ${e.message}", Toast.LENGTH_LONG).show()
+            } finally {
+                isLoading = false
             }
-            
-            isLoading = false
+        }
+    }
+
+    fun resendVerificationCode() {
+        val binding = pendingBinding ?: return
+        scope.launch {
+            isSendingCode = true
+            verificationError = null
+            try {
+                ETS100ApiClient.sendDeviceBindingCode(binding.phone).getOrThrow()
+                verificationCodeSent = true
+                resendSeconds = 60
+                Toast.makeText(context, "验证码已重新发送", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                verificationError = "发送验证码失败: ${e.message}"
+            } finally {
+                isSendingCode = false
+            }
+        }
+    }
+
+    fun verifyAndBindDevice() {
+        val binding = pendingBinding ?: return
+        val normalizedCode = verificationCode.trim()
+        if (normalizedCode.isEmpty()) {
+            verificationError = "请输入短信验证码"
+            return
+        }
+
+        scope.launch {
+            isVerifyingCode = true
+            verificationError = null
+            try {
+                val bindResponse = ETS100ApiClient.bindDevice(
+                    binding.phone,
+                    binding.password,
+                    binding.deviceCode,
+                    normalizedCode
+                ).getOrThrow()
+                pendingBinding = null
+                completeLogin(bindResponse, binding.phone, binding.password, "设备绑定并登录成功！")
+            } catch (e: ETS100ApiClient.InvalidVerificationCodeException) {
+                verificationError = e.message
+            } catch (e: Exception) {
+                Log.e("CloudActivationScreen", "验证码绑定失败", e)
+                verificationError = "设备绑定失败: ${e.message}"
+            } finally {
+                isVerifyingCode = false
+            }
         }
     }
     
@@ -365,5 +384,137 @@ fun CloudActivationScreen(
                 }
             }
         }
+    }
+
+    pendingBinding?.let { binding ->
+        DeviceVerificationDialog(
+            phone = binding.phone,
+            verificationCode = verificationCode,
+            errorText = verificationError,
+            isSendingCode = isSendingCode,
+            isVerifyingCode = isVerifyingCode,
+            verificationCodeSent = verificationCodeSent,
+            resendSeconds = resendSeconds,
+            onCodeChange = {
+                verificationCode = it
+                verificationError = null
+            },
+            onResend = ::resendVerificationCode,
+            onConfirm = ::verifyAndBindDevice,
+            onDismiss = {
+                pendingBinding = null
+                verificationCode = ""
+                verificationError = null
+                verificationCodeSent = false
+                resendSeconds = 0
+            }
+        )
+    }
+}
+
+@Composable
+private fun DeviceVerificationDialog(
+    phone: String,
+    verificationCode: String,
+    errorText: String?,
+    isSendingCode: Boolean,
+    isVerifyingCode: Boolean,
+    verificationCodeSent: Boolean,
+    resendSeconds: Int,
+    onCodeChange: (String) -> Unit,
+    onResend: () -> Unit,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val isBusy = isSendingCode || isVerifyingCode
+
+    AlertDialog(
+        onDismissRequest = {
+            if (!isBusy) onDismiss()
+        },
+        icon = {
+            Icon(Icons.Default.Sms, contentDescription = null)
+        },
+        title = { Text("验证手机号") },
+        text = {
+            Column {
+                Text(
+                    if (verificationCodeSent) {
+                        "验证码已发送至 ${maskPhone(phone)}，验证后将绑定当前设备。"
+                    } else {
+                        "需要验证 ${maskPhone(phone)}，请重新发送短信验证码。"
+                    }
+                )
+                OutlinedTextField(
+                    value = verificationCode,
+                    onValueChange = onCodeChange,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 16.dp),
+                    label = { Text("短信验证码") },
+                    leadingIcon = {
+                        Icon(Icons.Default.Pin, contentDescription = null)
+                    },
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Number,
+                        imeAction = ImeAction.Done
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onDone = {
+                            if (!isBusy && verificationCode.isNotBlank()) onConfirm()
+                        }
+                    ),
+                    singleLine = true,
+                    enabled = !isVerifyingCode,
+                    isError = errorText != null,
+                    supportingText = errorText?.let { message ->
+                        { Text(message) }
+                    }
+                )
+                TextButton(
+                    onClick = onResend,
+                    enabled = !isBusy && resendSeconds == 0,
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    if (isSendingCode) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(Modifier.width(8.dp))
+                    }
+                    Text(if (resendSeconds > 0) "${resendSeconds} 秒后重新发送" else "重新发送验证码")
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                enabled = !isBusy && verificationCode.isNotBlank()
+            ) {
+                if (isVerifyingCode) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(Modifier.width(8.dp))
+                }
+                Text("验证并绑定")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !isBusy) {
+                Text("取消")
+            }
+        }
+    )
+}
+
+private fun maskPhone(phone: String): String {
+    return if (phone.length >= 7) {
+        phone.replaceRange(3, phone.length - 4, "****")
+    } else {
+        phone
     }
 }

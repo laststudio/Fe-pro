@@ -42,6 +42,7 @@ object ETS100ApiClient {
         const val LOGIN_ZT = "/user/login-zt"
         const val ECARD_LIST = "/m/ecard/list"
         const val HOMEWORK_LIST = "/g/homework/list"
+        const val SEND_USER_EXIST = "/code/send-user-exist"
         const val REBIND_CODE = "/user/rebind-code"  // 设备绑定端点
     }
 
@@ -122,23 +123,15 @@ object ETS100ApiClient {
             // 注意：根据 API 文档，body_data 是一个数组格式：[{"r": "...", "params": {...}}]
             val timestamp = System.currentTimeMillis() / 1000
             val bodyArrayJson = "[${bodyData.toJson()}]"  // 包装成数组
-            Log.d(TAG, "bodyArrayJson: $bodyArrayJson")
             val bodyBase64 = Base64.encodeToString(bodyArrayJson.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
             val sign = generateSign(timestamp, bodyBase64)
 
             // 构建 head JSON（紧凑格式，无空格）
             val headJson = "{\"version\":\"1.0\",\"sign\":\"$sign\",\"pid\":\"${Config.PID}\",\"time\":$timestamp}"
 
-            Log.d(TAG, "===== 请求详情 =====")
-            Log.d(TAG, "body_json: $bodyArrayJson")
-            Log.d(TAG, "body_base64: $bodyBase64")
-            Log.d(TAG, "sign: $sign")
-            Log.d(TAG, "head_json: $headJson")
-
             // 构建完整的请求数据 (JSON 格式，直接发送给服务器)
             // 注意：Python 参考代码使用 data=payload_json，所以这里要直接发送 JSON 字符串
             val requestJson = "{\"body\":\"$bodyBase64\",\"head\":$headJson}"
-            Log.d(TAG, "完整请求JSON: $requestJson")
 
             // 发送请求
             connection.outputStream.use { os ->
@@ -162,7 +155,6 @@ object ETS100ApiClient {
                 Log.e(TAG, "HTTP Error $responseCode，尝试读取 errorStream")
                 try {
                     val errorContent = connection.errorStream?.bufferedReader()?.use { it.readText() }
-                    Log.d(TAG, "errorStream 内容: ${errorContent ?: "为空"}")
                     errorContent ?: "无 errorStream 内容"
                 } catch (e: Exception) {
                     Log.e(TAG, "读取 errorStream 失败: ${e.message}")
@@ -171,13 +163,12 @@ object ETS100ApiClient {
             }
 
             Log.d(TAG, "POST $endpoint -> $responseCode")
-            Log.d(TAG, "Response body: $responseBody")
             
             if (responseCode == HttpURLConnection.HTTP_OK) {
                 Result.success(responseBody)
             } else {
-                Log.e(TAG, "HTTP Error: $responseCode, body: $responseBody")
-                Result.failure(Exception("HTTP Error $responseCode: $responseBody"))
+                Log.e(TAG, "HTTP Error: $responseCode")
+                Result.failure(Exception("HTTP Error $responseCode"))
             }
         } catch (e: Exception) {
             Log.e(TAG, "Request failed: ${e.message}", e)
@@ -200,12 +191,49 @@ object ETS100ApiClient {
         val deviceCode: String
     ) : Exception("设备需要绑定验证")
 
+    class SmsVerificationRequiredException(
+        val phone: String,
+        val password: String,
+        val deviceCode: String
+    ) : Exception("需要短信验证码")
+
+    class InvalidVerificationCodeException : Exception("验证码错误，请重新输入")
+
     // ============================================================================
     // API 方法
     // ============================================================================
 
     /**
-     * 设备绑定（自动绑定当前设备）
+     * 发送设备绑定短信验证码
+     * POST /code/send-user-exist
+     */
+    suspend fun sendDeviceBindingCode(phone: String): Result<Unit> {
+        val bodyData = mapOf(
+            "r" to "code/send-user-exist",
+            "params" to mapOf(
+                "sn" to RequestConfig.DEFAULT_SN,
+                "phone" to phone,
+                "email" to "",
+                "class_id" to "1",
+                "use" to "3",
+                "system" to RequestConfig.DEFAULT_SYSTEM,
+                "global_client_version" to "",
+                "sign_response" to 1
+            )
+        )
+
+        return postRequest(Endpoints.SEND_USER_EXIST, bodyData).mapCatching { responseBody ->
+            val json = responseBody.parseJson()
+            val code = json.optInt("code", -999)
+            if (code != 0) {
+                val message = json.optString("msg").ifBlank { "发送验证码失败，错误码: $code" }
+                throw Exception(message)
+            }
+        }
+    }
+
+    /**
+     * 设备绑定（自动绑定当前设备或使用短信验证码绑定）
      * POST /user/rebind-code
      *
      * 喵~ 当登录返回 code=30014 时调用此接口进行设备绑定
@@ -214,10 +242,16 @@ object ETS100ApiClient {
      * @param phone 手机号
      * @param password 密码（明文）
      * @param deviceCode 机器码
+     * @param verificationCode 短信验证码；无需短信验证时使用默认值 "0"
      * @return 绑定结果，包含 token
      */
-    suspend fun bindDevice(phone: String, password: String, deviceCode: String): Result<LoginResponse> {
-        Log.d(TAG, "bindDevice: phone=$phone, deviceCode=$deviceCode")
+    suspend fun bindDevice(
+        phone: String,
+        password: String,
+        deviceCode: String,
+        verificationCode: String = "0"
+    ): Result<LoginResponse> {
+        Log.d(TAG, "bindDevice: 开始绑定设备")
 
         val bodyData = mapOf(
             "r" to "user/rebind-code",
@@ -226,7 +260,7 @@ object ETS100ApiClient {
                 "phone" to phone,
                 "email" to "",            // 空邮箱
                 "password" to password,
-                "code" to "0",            // 固定为 "0"
+                "code" to verificationCode,
                 "version" to RequestConfig.DEFAULT_REBIND_VERSION,  // "2"
                 "device_name" to RequestConfig.DEFAULT_REBIND_DEVICE_NAME,  // "1337"
                 "device_code" to deviceCode,
@@ -238,15 +272,15 @@ object ETS100ApiClient {
         )
 
         return postRequest(Endpoints.REBIND_CODE, bodyData).mapCatching { responseBody ->
-            Log.d(TAG, "===== 设备绑定 API 响应 =====")
-            Log.d(TAG, "原始响应: $responseBody")
-
             val json = responseBody.parseJson()
             val code = json.optInt("code", -999)
 
             if (code != 0) {
                 val msg = json.optString("msg", "设备绑定失败")
                 Log.e(TAG, "绑定失败! code=$code, msg=$msg")
+                if (code == 60001) {
+                    throw InvalidVerificationCodeException()
+                }
                 throw Exception("设备绑定失败: $msg")
             }
 
@@ -286,7 +320,6 @@ object ETS100ApiClient {
             )
             
             postRequest(Endpoints.REBIND_CODE, bodyData).mapCatching { responseBody ->
-                Log.d(TAG, "refreshToken response: $responseBody")
                 val json = responseBody.parseJson()
                 val bodyObj = json.optJSONObject("body")
                 bodyObj?.optString("token") ?: throw Exception("刷新 token 失败")
@@ -307,7 +340,7 @@ object ETS100ApiClient {
      * @return 登录结果，包含 token
      */
     suspend fun login(phone: String, password: String, deviceCode: String): Result<LoginResponse> {
-        Log.d(TAG, "login: phone=$phone, deviceCode=$deviceCode")
+        Log.d(TAG, "login: 开始账号登录")
         
         val bodyData = mapOf(
             "r" to "user/login",
@@ -326,14 +359,9 @@ object ETS100ApiClient {
         )
 
         return postRequest(Endpoints.LOGIN, bodyData).mapCatching { responseBody ->
-            Log.d(TAG, "===== 登录 API 响应 =====")
-            Log.d(TAG, "原始响应: $responseBody")
-            
             // 喵~ 按照 Python 版本的逻辑：response[0]["body"]["token"]
             val json = responseBody.parseJson()
             val bodyObj = json.optJSONObject("body")
-            
-            Log.d(TAG, "body 对象: $bodyObj")
             
             // 喵~ Python 版本没有 code 检查，直接读取 token 喵！
             // 但为了兼容性，我们检查 code（如果存在且非0才报错）
@@ -342,9 +370,9 @@ object ETS100ApiClient {
                 // 只有当 code 字段存在且非0时才报错
                 val msg = json.optString("msg", "")
                 Log.e(TAG, "登录失败! code=$code, msg=$msg")
-                if (code == 30014) {
-                    // 喵~ 设备需要绑定，抛出特殊异常喵！
-                    throw DeviceBindRequiredException(phone, password, deviceCode)
+                when (code) {
+                    30008 -> throw SmsVerificationRequiredException(phone, password, deviceCode)
+                    30014 -> throw DeviceBindRequiredException(phone, password, deviceCode)
                 }
                 val errorMsg = msg.ifEmpty { "登录失败，错误码: $code" }
                 throw Exception(errorMsg)
@@ -352,17 +380,8 @@ object ETS100ApiClient {
             
             // 喵~ 直接从 body 读取 token，与 Python 版本一致喵！
             val token = bodyObj?.optString("token") ?: ""
-            Log.d(TAG, "解析到的 token: ${if (token.isEmpty()) "(空)" else token.take(20) + "..."}")
-            
             if (token.isEmpty()) {
-                Log.e(TAG, "❌ token 为空！打印 body 所有字段进行调试...")
-                bodyObj?.let { obj ->
-                    val iterator = obj.keys()
-                    while (iterator.hasNext()) {
-                        val key = iterator.next()
-                        Log.d(TAG, "  $key = ${obj.opt(key)}")
-                    }
-                }
+                Log.e(TAG, "登录成功响应中 token 为空")
                 throw Exception("登录失败：未获取到 token")
             }
             
@@ -387,7 +406,7 @@ object ETS100ApiClient {
         sucUserToken: String,
         deviceCode: String
     ): Result<LoginResponse> {
-        Log.d(TAG, "loginZt: login=$login, userId=$userId, deviceCode=$deviceCode")
+        Log.d(TAG, "loginZt: 开始讯飞网页登录")
 
         val bodyData = mapOf(
             "r" to "user/login-zt",
@@ -407,9 +426,6 @@ object ETS100ApiClient {
         )
 
         return postRequest(Endpoints.LOGIN_ZT, bodyData).mapCatching { responseBody ->
-            Log.d(TAG, "===== 讯飞网页登录 API 响应 =====")
-            Log.d(TAG, "原始响应: $responseBody")
-
             val json = responseBody.parseJson()
             val code = json.optInt("code", -999)
             Log.d(TAG, "login-zt 响应 code=$code, bodyKeys=${json.optJSONObject("body")?.keys()?.asSequence()?.toList().orEmpty()}")
@@ -421,10 +437,6 @@ object ETS100ApiClient {
 
             val bodyObj = json.optJSONObject("body")
             val token = bodyObj?.optString("token") ?: ""
-            Log.d(
-                TAG,
-                "login-zt token 解析结果: token=${maskSensitiveToken(token)}, tokenLength=${token.length}"
-            )
             if (token.isEmpty()) {
                 throw Exception("讯飞登录失败：未获取到 token")
             }
