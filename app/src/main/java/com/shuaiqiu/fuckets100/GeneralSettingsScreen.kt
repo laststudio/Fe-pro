@@ -1,263 +1,141 @@
 package com.shuaiqiu.fuckets100
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ShortText
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
+import com.shuaiqiu.fuckets100.component.material.ExpressiveScaffold
+import com.shuaiqiu.fuckets100.component.material.ExpressiveSegmentedListItem
+import com.shuaiqiu.fuckets100.component.material.ExpressiveSegmentedSwitchItem
+import com.shuaiqiu.fuckets100.component.material.SegmentedColumn
+import com.shuaiqiu.fuckets100.component.material.TopBarBackButton
+import com.shuaiqiu.fuckets100.component.material.expressiveTopAppBarColors
 
 /**
  * 通用设置页面
  * 包含语言设置、时区设置等通用选项
  * 喵~ 现在还包含调试模式和强执读取模式的开关喵！
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun GeneralSettingsScreen(onBack: () -> Unit) {
-    val context = LocalContext.current
     var debugModeEnabled by remember { mutableStateOf(SettingsManager.getDebugMode()) }
     var forceReadModeEnabled by remember { mutableStateOf(SettingsManager.getForceReadMode()) }
     var hideDebugButton by remember { mutableStateOf(SettingsManager.getHideDebugButton()) }
     var compactAnswerDisplay by remember { mutableStateOf(SettingsManager.getCompactAnswerDisplay()) }
-    
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.surface,
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+
+    ExpressiveScaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
         topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text("通用设置", style = MaterialTheme.typography.titleMedium) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-                    }
-                }
+            LargeFlexibleTopAppBar(
+                title = { Text("通用设置") },
+                subtitle = { Text("语言、时区与阅读行为") },
+                navigationIcon = { TopBarBackButton(onClick = onBack) },
+                windowInsets = WindowInsets.safeDrawing.only(
+                    WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
+                ),
+                colors = expressiveTopAppBarColors(),
+                scrollBehavior = scrollBehavior,
             )
-        }
+        },
     ) { paddingValues ->
         Column(
             Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(16.dp)
+                .padding(horizontal = 16.dp)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            Spacer(Modifier.height(16.dp))
             // 喵~ 调试设置分组（默认开启的隐藏功能）
             if (debugModeEnabled) {
-                Text("调试设置", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainer
-                    )
-                ) {
-                    Column {
-                        // 隐藏调试按钮开关（保留，因为 ReadScreen 还在用）
-                        GeneralSettingsSwitchRow(
-                            icon = Icons.Default.VisibilityOff,
-                            title = "隐藏调试按钮",
-                            sub = "隐藏 ReadScreen 右下角的调试按钮",
-                            checked = hideDebugButton,
+                SegmentedColumn(
+                    title = "调试设置",
+                    items = listOf(
+                        {
+                            ExpressiveSegmentedSwitchItem(
+                                index = 0,
+                                count = 2,
+                                checked = hideDebugButton,
+                                onCheckedChange = { enabled ->
+                                    hideDebugButton = enabled
+                                    SettingsManager.saveHideDebugButton(enabled)
+                                },
+                                headlineContent = { Text("隐藏调试按钮") },
+                                supportingContent = { Text("隐藏 ReadScreen 右下角的调试按钮") },
+                                leadingContent = { Icon(Icons.Default.VisibilityOff, null, tint = MaterialTheme.colorScheme.primary) },
+                            )
+                        },
+                        {
+                            ExpressiveSegmentedSwitchItem(
+                                index = 1,
+                                count = 2,
+                                checked = forceReadModeEnabled,
+                                onCheckedChange = { enabled ->
+                                    forceReadModeEnabled = enabled
+                                    SettingsManager.saveForceReadMode(enabled)
+                                },
+                                headlineContent = { Text("强执读取模式") },
+                                supportingContent = { Text("跳过权限检查，强制读取数据（仅特殊情况下使用）") },
+                                leadingContent = { Icon(Icons.Default.Bolt, null, tint = MaterialTheme.colorScheme.primary) },
+                            )
+                        },
+                    ),
+                )
+                Spacer(Modifier.height(24.dp))
+            }
+
+            SegmentedColumn(
+                title = "通用设置",
+                items = listOf(
+                    {
+                        ExpressiveSegmentedSwitchItem(
+                            index = 0,
+                            count = 3,
+                            checked = compactAnswerDisplay,
                             onCheckedChange = { enabled ->
-                                hideDebugButton = enabled
-                                SettingsManager.saveHideDebugButton(enabled)
-                            }
+                                compactAnswerDisplay = enabled
+                                SettingsManager.saveCompactAnswerDisplay(enabled)
+                            },
+                            headlineContent = { Text("精简答案") },
+                            supportingContent = { Text("开启后按题型只显示最常用的 1-2 个参考答案") },
+                            leadingContent = { Icon(Icons.AutoMirrored.Filled.ShortText, null, tint = MaterialTheme.colorScheme.primary) },
                         )
-                        HorizontalDivider(
-                            modifier = Modifier.padding(horizontal = 16.dp), 
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
+                    },
+                    {
+                        ExpressiveSegmentedListItem(
+                            index = 1,
+                            count = 3,
+                            onClick = { /* TODO: 语言设置功能待实现 */ },
+                            headlineContent = { Text("语言设置 (Language)") },
+                            supportingContent = { Text("简体中文 (zh-CN)") },
+                            leadingContent = { Icon(Icons.Default.Language, null, tint = MaterialTheme.colorScheme.primary) },
+                            trailingContent = { Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.outlineVariant) },
                         )
-                        // 强执读取模式
-                        GeneralSettingsSwitchRow(
-                            icon = Icons.Default.Bolt, 
-                            title = "强执读取模式", 
-                            sub = "跳过权限检查，强制读取数据（仅特殊情况下使用）",
-                            checked = forceReadModeEnabled,
-                            onCheckedChange = { enabled ->
-                                forceReadModeEnabled = enabled
-                                SettingsManager.saveForceReadMode(enabled)
-                            }
+                    },
+                    {
+                        ExpressiveSegmentedListItem(
+                            index = 2,
+                            count = 3,
+                            onClick = { /* TODO: 时区设置功能待实现 */ },
+                            headlineContent = { Text("时区设置") },
+                            supportingContent = { Text("自动获取设备时区 (Asia/Shanghai)") },
+                            leadingContent = { Icon(Icons.Default.Schedule, null, tint = MaterialTheme.colorScheme.primary) },
+                            trailingContent = { Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.outlineVariant) },
                         )
-                    }
-                }
-            }
-            
-            // 通用设置分组标题
-            Text("通用设置", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer
-                )
-            ) {
-                Column {
-                    GeneralSettingsSwitchRow(
-                        icon = Icons.AutoMirrored.Filled.ShortText,
-                        title = "精简答案",
-                        sub = "开启后按题型只显示最常用的 1-2 个参考答案",
-                        checked = compactAnswerDisplay,
-                        onCheckedChange = { enabled ->
-                            compactAnswerDisplay = enabled
-                            SettingsManager.saveCompactAnswerDisplay(enabled)
-                        }
-                    )
-                    HorizontalDivider(
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
-                    )
-                    // 语言设置
-                    GeneralSettingsRow(
-                        icon = Icons.Default.Language, 
-                        title = "语言设置 (Language)", 
-                        sub = "简体中文 (zh-CN)"
-                    ) {
-                        // TODO: 语言设置功能待实现
-                    }
-                    HorizontalDivider(
-                        modifier = Modifier.padding(horizontal = 16.dp), 
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
-                    )
-                    // 时区设置
-                    GeneralSettingsRow(
-                        icon = Icons.Default.Schedule, 
-                        title = "时区设置", 
-                        sub = "自动获取设备时区 (Asia/Shanghai)"
-                    ) {
-                        // TODO: 时区设置功能待实现
-                    }
-                }
-            }
-            
-        }
-    }
-}
-
-/**
- * 通用设置行组件
- * 用于显示单个设置项
- *
- * @param icon 设置项图标
- * @param title 设置项标题
- * @param sub 设置项副标题/描述
- * @param onClick 点击事件处理
- */
-@Composable
-private fun GeneralSettingsRow(
-    icon: ImageVector,
-    title: String,
-    sub: String,
-    onClick: () -> Unit = {}
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // 图标容器
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(24.dp)
-        )
-        
-        // 标题和副标题
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .padding(start = 16.dp)
-        ) {
-            Text(
-                title, 
-                style = MaterialTheme.typography.titleMedium, 
-                color = MaterialTheme.colorScheme.onSurface
+                    },
+                ),
             )
-            if (sub.isNotEmpty()) {
-                Text(
-                    sub, 
-                    style = MaterialTheme.typography.bodySmall, 
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+            Spacer(Modifier.height(88.dp))
         }
-        
-        // 箭头指示
-        Icon(
-            Icons.Default.ChevronRight, 
-            null, 
-            tint = MaterialTheme.colorScheme.outlineVariant
-        )
-    }
-}
-
-/**
- * 喵~ 通用设置开关行组件
- * 用于显示带开关的设置项
- */
-@Composable
-private fun GeneralSettingsSwitchRow(
-    icon: ImageVector,
-    title: String,
-    sub: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // 图标容器
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(24.dp)
-        )
-        
-        // 标题和副标题
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .padding(start = 16.dp)
-        ) {
-            Text(
-                title, 
-                style = MaterialTheme.typography.titleMedium, 
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            if (sub.isNotEmpty()) {
-                Text(
-                    sub, 
-                    style = MaterialTheme.typography.bodySmall, 
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-        
-        // 开关
-        Switch(
-            checked = checked,
-            onCheckedChange = onCheckedChange
-        )
     }
 }
