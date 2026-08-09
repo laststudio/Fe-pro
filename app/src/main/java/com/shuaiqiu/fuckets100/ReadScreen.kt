@@ -1342,7 +1342,7 @@ fun ReadScreen(
     ExpressiveScaffold(
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
         contentWindowInsets = WindowInsets.safeDrawing.only(
-            WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom
+            WindowInsetsSides.Horizontal
         ),
         topBar = {
             LargeFlexibleTopAppBar(

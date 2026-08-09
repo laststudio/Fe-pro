@@ -64,9 +64,7 @@ fun FeRootNavigationScaffold(
             RootNavigationRail(currentRoute = currentRoute, onNavigate = onNavigate)
             ExpressiveScaffold(
                 modifier = Modifier.weight(1f),
-                contentWindowInsets = WindowInsets.safeDrawing.only(
-                    WindowInsetsSides.Top + WindowInsetsSides.End + WindowInsetsSides.Bottom,
-                ),
+                contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom),
                 content = content,
             )
         }
@@ -77,9 +75,7 @@ fun FeRootNavigationScaffold(
                     RootBottomBar(currentRoute = currentRoute, onNavigate = onNavigate)
                 }
             },
-            contentWindowInsets = WindowInsets.safeDrawing.only(
-                WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
-            ),
+            contentWindowInsets = WindowInsets(0, 0, 0, 0),
             content = content,
         )
     }

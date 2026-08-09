@@ -52,6 +52,9 @@ fun SettingsScreen(navController: NavHostController) {
             )
         },
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        contentWindowInsets = WindowInsets.safeDrawing.only(
+            WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
+        ),
     ) { p ->
         Column(
             Modifier
