@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.shuaiqiu.fuckets100"
-    compileSdk = 35
+    compileSdk = 37
 
     val releaseKeystorePath = System.getenv("ANDROID_KEYSTORE_PATH")
     val releaseKeystorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
@@ -83,6 +83,7 @@ dependencies {
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.material.kolor)
 
     // Shizuku support allows file access without root where available.
     implementation(libs.shizuku.api)
@@ -98,4 +99,13 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+}
+
+kotlin {
+    compilerOptions {
+        freeCompilerArgs.addAll(
+            "-opt-in=androidx.compose.material3.ExperimentalMaterial3Api",
+            "-opt-in=androidx.compose.material3.ExperimentalMaterial3ExpressiveApi",
+        )
+    }
 }
