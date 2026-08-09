@@ -3,6 +3,9 @@ package com.shuaiqiu.fuckets100
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.compose.ui.graphics.Color
+import androidx.core.content.edit
+import com.materialkolor.PaletteStyle
+import com.materialkolor.dynamiccolor.ColorSpec
 
 /**
  * 应用主题枚举类
@@ -106,6 +109,9 @@ object ThemeManager {
     private const val KEY_DARK_MODE = "dark_mode"
     private const val KEY_AUTO_DARK_MODE = "auto_dark_mode"
     private const val KEY_DYNAMIC_COLOR = "dynamic_color"
+    private const val KEY_PALETTE_STYLE = "palette_style"
+    private const val KEY_COLOR_SPEC = "color_spec"
+    private const val KEY_AMOLED = "amoled"
     
     private var prefs: SharedPreferences? = null
     
@@ -124,7 +130,7 @@ object ThemeManager {
     }
     
     fun saveTheme(theme: AppTheme) {
-        prefs?.edit()?.putString(KEY_THEME, theme.name)?.apply()
+        prefs?.edit { putString(KEY_THEME, theme.name) }
     }
 
     fun getSavedDarkMode(): Boolean {
@@ -132,7 +138,7 @@ object ThemeManager {
     }
 
     fun saveDarkMode(isDarkMode: Boolean) {
-        prefs?.edit()?.putBoolean(KEY_DARK_MODE, isDarkMode)?.apply()
+        prefs?.edit { putBoolean(KEY_DARK_MODE, isDarkMode) }
     }
 
     fun getSavedAutoDarkMode(): Boolean {
@@ -140,7 +146,7 @@ object ThemeManager {
     }
 
     fun saveAutoDarkMode(isAutoDarkMode: Boolean) {
-        prefs?.edit()?.putBoolean(KEY_AUTO_DARK_MODE, isAutoDarkMode)?.apply()
+        prefs?.edit { putBoolean(KEY_AUTO_DARK_MODE, isAutoDarkMode) }
     }
 
     fun getSavedDynamicColor(): Boolean {
@@ -148,7 +154,31 @@ object ThemeManager {
     }
 
     fun saveDynamicColor(useDynamicColor: Boolean) {
-        prefs?.edit()?.putBoolean(KEY_DYNAMIC_COLOR, useDynamicColor)?.apply()
+        prefs?.edit { putBoolean(KEY_DYNAMIC_COLOR, useDynamicColor) }
+    }
+
+    fun getSavedPaletteStyle(): PaletteStyle = enumValueOrDefault(
+        prefs?.getString(KEY_PALETTE_STYLE, PaletteStyle.TonalSpot.name),
+        PaletteStyle.TonalSpot,
+    )
+
+    fun savePaletteStyle(paletteStyle: PaletteStyle) {
+        prefs?.edit { putString(KEY_PALETTE_STYLE, paletteStyle.name) }
+    }
+
+    fun getSavedColorSpec(): ColorSpec.SpecVersion = enumValueOrDefault(
+        prefs?.getString(KEY_COLOR_SPEC, ColorSpec.SpecVersion.SPEC_2025.name),
+        ColorSpec.SpecVersion.SPEC_2025,
+    )
+
+    fun saveColorSpec(colorSpec: ColorSpec.SpecVersion) {
+        prefs?.edit { putString(KEY_COLOR_SPEC, colorSpec.name) }
+    }
+
+    fun getSavedAmoled(): Boolean = prefs?.getBoolean(KEY_AMOLED, false) ?: false
+
+    fun saveAmoled(isAmoled: Boolean) {
+        prefs?.edit { putBoolean(KEY_AMOLED, isAmoled) }
     }
     
     // 获取莫奈系列主题
@@ -158,4 +188,8 @@ object ThemeManager {
     
     // 获取黑白系列主题
     fun getMonoThemes(): List<AppTheme> = AppTheme.values().filter { it.name.startsWith("MONO_") }
+
+    private inline fun <reified T : Enum<T>> enumValueOrDefault(value: String?, default: T): T {
+        return value?.let { name -> enumValues<T>().firstOrNull { it.name == name } } ?: default
+    }
 }

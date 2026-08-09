@@ -24,6 +24,9 @@ open class ThemeSettingsActivity : ComponentActivity() {
             var isDarkMode by remember { mutableStateOf(ThemeManager.getSavedDarkMode()) }
             var isAutoDarkMode by remember { mutableStateOf(ThemeManager.getSavedAutoDarkMode()) }
             var useDynamicColor by remember { mutableStateOf(ThemeManager.getSavedDynamicColor()) }
+            var paletteStyle by remember { mutableStateOf(ThemeManager.getSavedPaletteStyle()) }
+            var colorSpec by remember { mutableStateOf(ThemeManager.getSavedColorSpec()) }
+            var isAmoled by remember { mutableStateOf(ThemeManager.getSavedAmoled()) }
             var predictiveBackMode by remember { mutableStateOf(SettingsManager.getPredictiveBackMode()) }
             val systemDarkMode = isSystemInDarkTheme()
             val effectiveDarkMode = if (isAutoDarkMode) systemDarkMode else isDarkMode
@@ -31,7 +34,10 @@ open class ThemeSettingsActivity : ComponentActivity() {
             FeThemeWrapper(
                 theme = currentTheme,
                 isDarkMode = effectiveDarkMode,
-                useDynamicColor = useDynamicColor
+                useDynamicColor = useDynamicColor,
+                paletteStyle = paletteStyle,
+                colorSpec = colorSpec,
+                isAmoled = isAmoled,
             ) {
                 PredictiveBackContent(onBack = { finish() }) {
                     ThemeSettingsScreen(
@@ -40,6 +46,9 @@ open class ThemeSettingsActivity : ComponentActivity() {
                         onDarkModeChanged = { isDarkMode = it },
                         onAutoDarkModeChanged = { isAutoDarkMode = it },
                         onDynamicColorChanged = { useDynamicColor = it },
+                        onPaletteStyleChanged = { paletteStyle = it },
+                        onColorSpecChanged = { colorSpec = it },
+                        onAmoledChanged = { isAmoled = it },
                         onPredictiveBackChanged = {
                             predictiveBackMode = it
                             startActivity(

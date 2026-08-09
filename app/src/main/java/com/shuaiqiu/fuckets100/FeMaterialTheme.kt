@@ -43,6 +43,9 @@ fun FeThemeWrapper(
     theme: AppTheme,
     isDarkMode: Boolean = ThemeManager.getSavedDarkMode(),
     useDynamicColor: Boolean = ThemeManager.getSavedDynamicColor(),
+    paletteStyle: PaletteStyle = ThemeManager.getSavedPaletteStyle(),
+    colorSpec: ColorSpec.SpecVersion = ThemeManager.getSavedColorSpec(),
+    isAmoled: Boolean = ThemeManager.getSavedAmoled(),
     content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
@@ -51,13 +54,23 @@ fun FeThemeWrapper(
     } else {
         theme.primary
     }
+    val effectiveColorSpec = if (
+        colorSpec == ColorSpec.SpecVersion.SPEC_2025 && paletteStyle.supportsSpec2025()
+    ) {
+        colorSpec
+    } else {
+        ColorSpec.SpecVersion.SPEC_2021
+    }
     val colorScheme = rememberDynamicColorScheme(
         seedColor = seed,
         isDark = isDarkMode,
-        style = PaletteStyle.TonalSpot,
-        specVersion = ColorSpec.SpecVersion.SPEC_2025,
+        style = paletteStyle,
+        specVersion = effectiveColorSpec,
+        isAmoled = isDarkMode && isAmoled,
     )
-    val animatedColorScheme = colorScheme.animateAsState()
+    val animatedColorScheme = colorScheme
+        .withAmoledSurfaces(isDarkMode && isAmoled)
+        .animateAsState()
 
     LaunchedEffect(isDarkMode) {
         val window = (context as? Activity)?.window ?: return@LaunchedEffect
@@ -75,6 +88,29 @@ fun FeThemeWrapper(
             content = content,
         )
     }
+}
+
+private fun PaletteStyle.supportsSpec2025(): Boolean = this in setOf(
+    PaletteStyle.TonalSpot,
+    PaletteStyle.Neutral,
+    PaletteStyle.Vibrant,
+    PaletteStyle.Expressive,
+)
+
+private fun ColorScheme.withAmoledSurfaces(enabled: Boolean): ColorScheme {
+    if (!enabled) return this
+
+    return copy(
+        background = Color.Black,
+        surface = Color.Black,
+        surfaceBright = Color.Black,
+        surfaceDim = Color.Black,
+        surfaceContainerLowest = Color.Black,
+        surfaceContainerLow = Color.Black,
+        surfaceContainer = Color.Black,
+        surfaceContainerHigh = Color.Black,
+        surfaceContainerHighest = Color.Black,
+    )
 }
 
 // Keep theme changes continuous instead of replacing every color role in one frame.
