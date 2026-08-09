@@ -295,6 +295,9 @@ fun FeAppMain() {
     var isDarkMode by remember { mutableStateOf(ThemeManager.getSavedDarkMode()) }
     var isAutoDarkMode by remember { mutableStateOf(ThemeManager.getSavedAutoDarkMode()) }
     var useDynamicColor by remember { mutableStateOf(ThemeManager.getSavedDynamicColor()) }
+    var paletteStyle by remember { mutableStateOf(ThemeManager.getSavedPaletteStyle()) }
+    var colorSpec by remember { mutableStateOf(ThemeManager.getSavedColorSpec()) }
+    var isAmoled by remember { mutableStateOf(ThemeManager.getSavedAmoled()) }
     val systemDarkMode = isSystemInDarkTheme()
     val effectiveDarkMode = if (isAutoDarkMode) systemDarkMode else isDarkMode
     
@@ -337,6 +340,9 @@ fun FeAppMain() {
                 isDarkMode = ThemeManager.getSavedDarkMode()
                 isAutoDarkMode = ThemeManager.getSavedAutoDarkMode()
                 useDynamicColor = ThemeManager.getSavedDynamicColor()
+                paletteStyle = ThemeManager.getSavedPaletteStyle()
+                colorSpec = ThemeManager.getSavedColorSpec()
+                isAmoled = ThemeManager.getSavedAmoled()
                 predictiveBackMode = SettingsManager.getPredictiveBackMode()
                 compactAnswerDisplay = SettingsManager.getCompactAnswerDisplay()
                 MainActivity.pendingTargetRoute?.let { route ->
@@ -385,7 +391,10 @@ fun FeAppMain() {
     FeThemeWrapper(
         theme = currentTheme,
         isDarkMode = effectiveDarkMode,
-        useDynamicColor = useDynamicColor
+        useDynamicColor = useDynamicColor,
+        paletteStyle = paletteStyle,
+        colorSpec = colorSpec,
+        isAmoled = isAmoled,
     ) {
         FeRootNavigationScaffold(
             currentRoute = currentRoute,
