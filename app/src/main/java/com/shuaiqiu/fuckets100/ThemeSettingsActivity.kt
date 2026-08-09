@@ -20,10 +20,11 @@ open class ThemeSettingsActivity : ComponentActivity() {
         ThemeManager.init(this)
 
         setContent {
-            var currentTheme by remember { mutableStateOf(ThemeManager.getSavedTheme()) }
+            val currentTheme = remember { ThemeManager.getSavedTheme() }
             var isDarkMode by remember { mutableStateOf(ThemeManager.getSavedDarkMode()) }
             var isAutoDarkMode by remember { mutableStateOf(ThemeManager.getSavedAutoDarkMode()) }
             var useDynamicColor by remember { mutableStateOf(ThemeManager.getSavedDynamicColor()) }
+            var keyColor by remember { mutableStateOf(ThemeManager.getSavedKeyColor()) }
             var paletteStyle by remember { mutableStateOf(ThemeManager.getSavedPaletteStyle()) }
             var colorSpec by remember { mutableStateOf(ThemeManager.getSavedColorSpec()) }
             var isAmoled by remember { mutableStateOf(ThemeManager.getSavedAmoled()) }
@@ -35,6 +36,7 @@ open class ThemeSettingsActivity : ComponentActivity() {
                 theme = currentTheme,
                 isDarkMode = effectiveDarkMode,
                 useDynamicColor = useDynamicColor,
+                keyColor = keyColor,
                 paletteStyle = paletteStyle,
                 colorSpec = colorSpec,
                 isAmoled = isAmoled,
@@ -42,10 +44,10 @@ open class ThemeSettingsActivity : ComponentActivity() {
                 PredictiveBackContent(onBack = { finish() }) {
                     ThemeSettingsScreen(
                         onBack = { finish() },
-                        onThemeChanged = { currentTheme = it },
                         onDarkModeChanged = { isDarkMode = it },
                         onAutoDarkModeChanged = { isAutoDarkMode = it },
                         onDynamicColorChanged = { useDynamicColor = it },
+                        onKeyColorChanged = { keyColor = it },
                         onPaletteStyleChanged = { paletteStyle = it },
                         onColorSpecChanged = { colorSpec = it },
                         onAmoledChanged = { isAmoled = it },

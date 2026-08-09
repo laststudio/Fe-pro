@@ -3,6 +3,7 @@ package com.shuaiqiu.fuckets100
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.core.content.edit
 import com.materialkolor.PaletteStyle
 import com.materialkolor.dynamiccolor.ColorSpec
@@ -112,11 +113,15 @@ object ThemeManager {
     private const val KEY_PALETTE_STYLE = "palette_style"
     private const val KEY_COLOR_SPEC = "color_spec"
     private const val KEY_AMOLED = "amoled"
+    private const val KEY_KEY_COLOR = "key_color"
     
     private var prefs: SharedPreferences? = null
     
     fun init(context: Context) {
         prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        if (prefs?.contains(KEY_KEY_COLOR) == false) {
+            prefs?.edit { putInt(KEY_KEY_COLOR, getSavedTheme().primary.toArgb()) }
+        }
     }
     
     fun getSavedTheme(): AppTheme {
@@ -179,6 +184,15 @@ object ThemeManager {
 
     fun saveAmoled(isAmoled: Boolean) {
         prefs?.edit { putBoolean(KEY_AMOLED, isAmoled) }
+    }
+
+    fun getSavedKeyColor(): Int {
+        return prefs?.getInt(KEY_KEY_COLOR, AppTheme.MONET_SKY.primary.toArgb())
+            ?: AppTheme.MONET_SKY.primary.toArgb()
+    }
+
+    fun saveKeyColor(keyColor: Int) {
+        prefs?.edit { putInt(KEY_KEY_COLOR, keyColor) }
     }
     
     // 获取莫奈系列主题

@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -19,6 +20,8 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FabPosition
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ListItemColors
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
@@ -28,10 +31,18 @@ import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.ToggleButton
+import androidx.compose.material3.ToggleButtonColors
+import androidx.compose.material3.ToggleButtonDefaults
+import androidx.compose.material3.ToggleButtonShapes
 import androidx.compose.material3.TopAppBarColors
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.contentColorFor
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -161,6 +172,32 @@ fun ExpressiveSwitch(
 }
 
 @Composable
+fun ExpressiveToggleButton(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    shapes: ToggleButtonShapes,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    colors: ToggleButtonColors = ToggleButtonDefaults.toggleButtonColors(
+        checkedContainerColor = MaterialTheme.colorScheme.primary,
+        checkedContentColor = MaterialTheme.colorScheme.onPrimary,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+    ),
+    content: @Composable RowScope.() -> Unit,
+) {
+    ToggleButton(
+        checked = checked,
+        onCheckedChange = onCheckedChange,
+        shapes = shapes,
+        modifier = modifier,
+        enabled = enabled,
+        colors = colors,
+        content = content,
+    )
+}
+
+@Composable
 fun ExpressiveDialog(
     onDismissRequest: () -> Unit,
     confirmButton: @Composable () -> Unit,
@@ -261,6 +298,60 @@ fun ExpressiveSegmentedSwitchItem(
             )
         },
     )
+}
+
+@Composable
+fun ExpressiveSegmentedDropdownItem(
+    index: Int,
+    count: Int,
+    title: String,
+    items: List<String>,
+    selectedIndex: Int,
+    onItemSelected: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    supportingContent: @Composable (() -> Unit)? = null,
+    leadingContent: @Composable (() -> Unit)? = null,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val safeIndex = selectedIndex.coerceIn(0, (items.size - 1).coerceAtLeast(0))
+
+    androidx.compose.foundation.layout.Box(modifier) {
+        ExpressiveSegmentedListItem(
+            index = index,
+            count = count,
+            onClick = { expanded = true },
+            enabled = enabled && items.isNotEmpty(),
+            headlineContent = { Text(title) },
+            supportingContent = supportingContent,
+            leadingContent = leadingContent,
+            trailingContent = {
+                Text(
+                    text = items.getOrNull(safeIndex).orEmpty(),
+                    color = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            },
+        )
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            items.forEachIndexed { itemIndex, label ->
+                DropdownMenuItem(
+                    text = { Text(label) },
+                    onClick = {
+                        onItemSelected(itemIndex)
+                        expanded = false
+                    },
+                    leadingIcon = if (itemIndex == safeIndex) {
+                        { Icon(Icons.Default.Check, contentDescription = null) }
+                    } else {
+                        null
+                    },
+                )
+            }
+        }
+    }
 }
 
 @Composable

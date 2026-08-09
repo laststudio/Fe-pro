@@ -43,16 +43,18 @@ fun FeThemeWrapper(
     theme: AppTheme,
     isDarkMode: Boolean = ThemeManager.getSavedDarkMode(),
     useDynamicColor: Boolean = ThemeManager.getSavedDynamicColor(),
+    keyColor: Int = ThemeManager.getSavedKeyColor(),
     paletteStyle: PaletteStyle = ThemeManager.getSavedPaletteStyle(),
     colorSpec: ColorSpec.SpecVersion = ThemeManager.getSavedColorSpec(),
     isAmoled: Boolean = ThemeManager.getSavedAmoled(),
     content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
-    val seed = if (useDynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        if (isDarkMode) dynamicDarkColorScheme(context).primary else dynamicLightColorScheme(context).primary
-    } else {
-        theme.primary
+    val seed = when {
+        useDynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
+            if (isDarkMode) dynamicDarkColorScheme(context).primary else dynamicLightColorScheme(context).primary
+        keyColor != 0 -> Color(keyColor)
+        else -> theme.primary
     }
     val effectiveColorSpec = if (
         colorSpec == ColorSpec.SpecVersion.SPEC_2025 && paletteStyle.supportsSpec2025()

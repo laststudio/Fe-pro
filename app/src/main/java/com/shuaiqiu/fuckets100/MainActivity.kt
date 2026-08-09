@@ -295,6 +295,7 @@ fun FeAppMain() {
     var isDarkMode by remember { mutableStateOf(ThemeManager.getSavedDarkMode()) }
     var isAutoDarkMode by remember { mutableStateOf(ThemeManager.getSavedAutoDarkMode()) }
     var useDynamicColor by remember { mutableStateOf(ThemeManager.getSavedDynamicColor()) }
+    var keyColor by remember { mutableStateOf(ThemeManager.getSavedKeyColor()) }
     var paletteStyle by remember { mutableStateOf(ThemeManager.getSavedPaletteStyle()) }
     var colorSpec by remember { mutableStateOf(ThemeManager.getSavedColorSpec()) }
     var isAmoled by remember { mutableStateOf(ThemeManager.getSavedAmoled()) }
@@ -340,6 +341,7 @@ fun FeAppMain() {
                 isDarkMode = ThemeManager.getSavedDarkMode()
                 isAutoDarkMode = ThemeManager.getSavedAutoDarkMode()
                 useDynamicColor = ThemeManager.getSavedDynamicColor()
+                keyColor = ThemeManager.getSavedKeyColor()
                 paletteStyle = ThemeManager.getSavedPaletteStyle()
                 colorSpec = ThemeManager.getSavedColorSpec()
                 isAmoled = ThemeManager.getSavedAmoled()
@@ -392,6 +394,7 @@ fun FeAppMain() {
         theme = currentTheme,
         isDarkMode = effectiveDarkMode,
         useDynamicColor = useDynamicColor,
+        keyColor = keyColor,
         paletteStyle = paletteStyle,
         colorSpec = colorSpec,
         isAmoled = isAmoled,
