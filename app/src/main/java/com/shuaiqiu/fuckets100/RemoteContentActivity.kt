@@ -10,24 +10,23 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.Update
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CenterAlignedTopAppBar
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.LargeFlexibleTopAppBar
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
@@ -38,11 +37,16 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.shuaiqiu.fuckets100.component.material.ExpressiveScaffold
+import com.shuaiqiu.fuckets100.component.material.TonalCard
+import com.shuaiqiu.fuckets100.component.material.TopBarBackButton
+import com.shuaiqiu.fuckets100.component.material.expressiveTopAppBarColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -136,7 +140,7 @@ private data class RemoteContent(
     val changelogUrl: String
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun RemoteContentScreen(
     content: RemoteContent,
@@ -162,6 +166,7 @@ private fun RemoteContentScreen(
     var updateDialogStatus by remember {
         mutableStateOf<UpdateStatus?>(null)
     }
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     LaunchedEffect(content) {
         val announcementResult = fetchRemoteTextOrNull(content.announcementUrl)
@@ -183,16 +188,13 @@ private fun RemoteContentScreen(
         }
     }
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.surface,
+    ExpressiveScaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
         topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text("公告与更新", style = MaterialTheme.typography.titleMedium) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-                    }
-                },
+            LargeFlexibleTopAppBar(
+                title = { Text("公告与更新") },
+                navigationIcon = { TopBarBackButton(onClick = onBack) },
                 actions = {
                     TextButton(
                         onClick = {
@@ -214,11 +216,16 @@ private fun RemoteContentScreen(
                         Text("检测更新")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                )
+                windowInsets = WindowInsets.safeDrawing.only(
+                    WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
+                ),
+                colors = expressiveTopAppBarColors(),
+                scrollBehavior = scrollBehavior,
             )
-        }
+        },
+        contentWindowInsets = WindowInsets.safeDrawing.only(
+            WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
+        ),
     ) { padding ->
         Column(
             modifier = Modifier
@@ -265,12 +272,9 @@ private fun RemoteContentSection(
     body: String,
     meta: String
 ) {
-    ElevatedCard(
+    TonalCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer
-        )
+        shape = MaterialTheme.shapes.large,
     ) {
         Column(
             modifier = Modifier.padding(18.dp),

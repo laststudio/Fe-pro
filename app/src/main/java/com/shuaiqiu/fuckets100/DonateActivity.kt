@@ -9,37 +9,42 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CenterAlignedTopAppBar
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.LargeFlexibleTopAppBar
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.shuaiqiu.fuckets100.component.material.ExpressiveScaffold
+import com.shuaiqiu.fuckets100.component.material.TonalCard
+import com.shuaiqiu.fuckets100.component.material.TopBarBackButton
+import com.shuaiqiu.fuckets100.component.material.expressiveTopAppBarColors
 
 open class DonateActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -81,24 +86,28 @@ open class DonateActivity : ComponentActivity() {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun DonateScreen(onBack: () -> Unit) {
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.surface,
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+
+    ExpressiveScaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
         topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text("捐赠支持", style = MaterialTheme.typography.titleMedium) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                )
+            LargeFlexibleTopAppBar(
+                title = { Text("捐赠支持") },
+                navigationIcon = { TopBarBackButton(onClick = onBack) },
+                windowInsets = WindowInsets.safeDrawing.only(
+                    WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
+                ),
+                colors = expressiveTopAppBarColors(),
+                scrollBehavior = scrollBehavior,
             )
-        }
+        },
+        contentWindowInsets = WindowInsets.safeDrawing.only(
+            WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
+        ),
     ) { padding ->
         Column(
             modifier = Modifier
@@ -108,12 +117,9 @@ private fun DonateScreen(onBack: () -> Unit) {
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            ElevatedCard(
+            TonalCard(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.elevatedCardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
+                shape = MaterialTheme.shapes.extraLarge,
             ) {
                 Column(
                     modifier = Modifier
@@ -124,7 +130,7 @@ private fun DonateScreen(onBack: () -> Unit) {
                     Icon(
                         Icons.Default.Favorite,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(36.dp)
                     )
                     Spacer(Modifier.height(12.dp))
@@ -132,7 +138,7 @@ private fun DonateScreen(onBack: () -> Unit) {
                         "感谢支持 Fe",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        color = MaterialTheme.colorScheme.onSurface,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -140,27 +146,41 @@ private fun DonateScreen(onBack: () -> Unit) {
                     Text(
                         "如果这个项目帮到了你，可以请作者喝杯咖啡。",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.78f),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
             }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                DonateQrCard(
-                    title = "微信",
-                    imageRes = R.drawable.donate_wechat,
-                    modifier = Modifier.weight(1f)
-                )
-                DonateQrCard(
-                    title = "支付宝",
-                    imageRes = R.drawable.donate_alipay,
-                    modifier = Modifier.weight(1f)
-                )
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                if (maxWidth < 600.dp) {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        DonateQrCard(
+                            title = "微信",
+                            imageRes = R.drawable.donate_wechat,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        DonateQrCard(
+                            title = "支付宝",
+                            imageRes = R.drawable.donate_alipay,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                } else {
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        DonateQrCard(
+                            title = "微信",
+                            imageRes = R.drawable.donate_wechat,
+                            modifier = Modifier.weight(1f),
+                        )
+                        DonateQrCard(
+                            title = "支付宝",
+                            imageRes = R.drawable.donate_alipay,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
             }
         }
     }
@@ -172,12 +192,9 @@ private fun DonateQrCard(
     imageRes: Int,
     modifier: Modifier = Modifier
 ) {
-    ElevatedCard(
+    TonalCard(
         modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer
-        )
+        shape = MaterialTheme.shapes.large,
     ) {
         Column(
             modifier = Modifier
