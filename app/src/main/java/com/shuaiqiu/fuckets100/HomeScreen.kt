@@ -8,7 +8,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -16,7 +15,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
@@ -24,6 +23,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.shuaiqiu.fuckets100.component.material.ExpressiveScaffold
+import com.shuaiqiu.fuckets100.component.material.TonalCard
+import com.shuaiqiu.fuckets100.component.material.expressiveTopAppBarColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -138,34 +140,37 @@ fun HomeScreen(
 
     val sysLabel = if (isTrulyActivated) "SYS_READY" else "SYS_OFFLINE"
     val activeColor = if (isTrulyActivated) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val dotColor by animateColorAsState(targetValue = activeColor, animationSpec = tween(500), label = "statusDot")
 
-    Scaffold(
-        topBar = { FeTopAppBar(title = "Fe") },
-        containerColor = MaterialTheme.colorScheme.surface
+    ExpressiveScaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        topBar = {
+            LargeFlexibleTopAppBar(
+                title = { Text("Fe") },
+                subtitle = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(6.dp).background(dotColor, CircleShape))
+                        Spacer(Modifier.width(8.dp))
+                        Text(sysLabel)
+                    }
+                },
+                colors = expressiveTopAppBarColors(),
+                scrollBehavior = scrollBehavior,
+            )
+        },
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        contentWindowInsets = WindowInsets.safeDrawing.only(
+            WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
+        ),
     ) { paddingValues ->
         Column(
             Modifier
                 .padding(paddingValues)
-                .padding(24.dp)
+                .padding(horizontal = 16.dp, vertical = 13.dp)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+            verticalArrangement = Arrangement.spacedBy(13.dp)
         ) {
-            val dotColor by animateColorAsState(targetValue = activeColor, animationSpec = tween(500))
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(Modifier.size(6.dp).background(dotColor, CircleShape))
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    sysLabel,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            // 状态卡片 + 设备卡片
             StatusCard(
                 mode = mode, 
                 shizukuState = shizukuState, 
@@ -220,21 +225,12 @@ fun StatusCard(
     hasRootAvailable: Boolean,
     onNavigateToActivation: () -> Unit
 ) {
-    val statusContentColor = if (isTrulyActivated) {
-        Color.White
+    val statusContainerColor = if (isTrulyActivated) {
+        MaterialTheme.colorScheme.secondaryContainer
     } else {
-        MaterialTheme.colorScheme.onErrorContainer
+        MaterialTheme.colorScheme.errorContainer
     }
-    val statusIconContainerColor = if (isTrulyActivated) {
-        Color.White
-    } else {
-        MaterialTheme.colorScheme.error
-    }
-    val statusIconColor = if (isTrulyActivated) {
-        MaterialTheme.colorScheme.primary
-    } else {
-        MaterialTheme.colorScheme.onError
-    }
+    val statusContentColor = contentColorFor(statusContainerColor)
 
     // 根据当前状态显示不同的标题
     val displayTitle = when {
@@ -250,104 +246,75 @@ fun StatusCard(
 
     // 选择图标 - 激活时使用模式图标，未激活时使用警告图标
     val displayIcon = if (isTrulyActivated) mode.icon else Icons.Default.Warning
-
-    FeStatusCard(
-        modifier = Modifier
-            .fillMaxWidth(),
-        onClick = onNavigateToActivation,
-        active = isTrulyActivated
-    ) {
-        Box(modifier = Modifier.fillMaxWidth()) {
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 28.dp, vertical = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(24.dp)
-            ) {
-                // 顶部行 - 图标和设置按钮
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Box(
-                        Modifier
-                            .size(48.dp)
-                            .background(statusIconContainerColor, CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(displayIcon, null, tint = statusIconColor, modifier = Modifier.size(28.dp))
-                    }
-                    Icon(
-                        Icons.Default.Settings, 
-                        null, 
-                        tint = statusContentColor.copy(alpha = 0.88f)
-                    )
+    val summary = when {
+        mode == ActivationMode.CLOUD -> null
+        !hasAllBasicPermissions -> when {
+            !hasFilesPerm -> "需要文件访问权限才能读取题库，请授权"
+            !hasOverlayPerm -> "需要悬浮窗权限才能显示答题界面，请授权"
+            !hasAppListPerm -> "需要应用列表权限才能检测ETS应用，请授权"
+            else -> "请授权上述权限后即可使用"
+        }
+        mode == ActivationMode.SHIZUKU -> when {
+            !shizukuState.isRunning -> "请启动Shizuku后再返回此处"
+            !shizukuState.permissionGranted -> "请授予Shizuku权限后即可使用"
+            else -> {
+                val uidStr = when (shizukuState.uid) {
+                    0 -> "Root (0)"
+                    2000 -> "ADB (2000)"
+                    else -> shizukuState.uid.toString()
                 }
-
-                // 底部区域 - 状态信息
-                Column(horizontalAlignment = Alignment.Start, modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        displayTitle, 
-                        style = MaterialTheme.typography.headlineMedium, 
-                        fontWeight = FontWeight.Bold, 
-                        color = statusContentColor
-                    )
-
-                    // 详细说明文字
-                    if (mode == ActivationMode.CLOUD) {
-                        // 云端模式首页只保留主状态，避免暴露账号信息。
-                    } else if (!hasAllBasicPermissions) {
-                        val subText = when {
-                            !hasFilesPerm -> "需要文件访问权限才能读取题库，请授权"
-                            !hasOverlayPerm -> "需要悬浮窗权限才能显示答题界面，请授权"
-                            !hasAppListPerm -> "需要应用列表权限才能检测ETS应用，请授权"
-                            else -> "请授权上述权限后即可使用"
-                        }
-                        Text(
-                            text = subText, 
-                            style = MaterialTheme.typography.labelSmall, 
-                            color = statusContentColor.copy(alpha = 0.88f)
-                        )
-                    } else if (mode == ActivationMode.SHIZUKU) {
-                        val subText = when {
-                            !shizukuState.isRunning -> "请启动Shizuku后再返回此处"
-                            !shizukuState.permissionGranted -> "请授予Shizuku权限后即可使用"
-                            else -> {
-                                val uidStr = when (shizukuState.uid) {
-                                    0 -> "Root (0)"
-                                    2000 -> "ADB (2000)"
-                                    else -> shizukuState.uid.toString()
-                                }
-                                "${shizukuState.getRuntimeTypeName()} v${shizukuState.version} | UID: $uidStr"
-                            }
-                        }
-                        Text(
-                            text = subText, 
-                            style = MaterialTheme.typography.labelSmall, 
-                            color = statusContentColor.copy(alpha = 0.88f)
-                        )
-                    } else if (mode == ActivationMode.ROOT) {
-                        val subText = when {
-                            !hasRootAvailable -> "未检测到Root权限，请先获取Root"
-                            else -> "Root 权限已获取"
-                        }
-                        Text(
-                            text = subText, 
-                            style = MaterialTheme.typography.labelSmall, 
-                            color = statusContentColor.copy(alpha = 0.88f)
-                        )
-                    } else if (mode == ActivationMode.DIRECT_READ) {
-                        Text(
-                            text = "Direct Read 模式已就绪", 
-                            style = MaterialTheme.typography.labelSmall, 
-                            color = statusContentColor.copy(alpha = 0.88f)
-                        )
-                    } else if (mode == ActivationMode.DEFAULT) {
-                        Text(
-                            text = "请授权基础权限后选择激活模式", 
-                            style = MaterialTheme.typography.labelSmall, 
-                            color = statusContentColor.copy(alpha = 0.88f)
-                        )
-                    }
-                }
+                "${shizukuState.getRuntimeTypeName()} v${shizukuState.version} | UID: $uidStr"
             }
+        }
+        mode == ActivationMode.ROOT -> if (!hasRootAvailable) {
+            "未检测到Root权限，请先获取Root"
+        } else {
+            "Root 权限已获取"
+        }
+        mode == ActivationMode.DIRECT_READ -> "Direct Read 模式已就绪"
+        mode == ActivationMode.DEFAULT -> "请授权基础权限后选择激活模式"
+        else -> null
+    }
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onNavigateToActivation),
+        shape = MaterialTheme.shapes.large,
+        color = statusContainerColor,
+        contentColor = statusContentColor,
+    ) {
+        ListItem(
+            supportingContent = summary?.let {
+                {
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = statusContentColor.copy(alpha = 0.82f),
+                    )
+                }
+            },
+            leadingContent = {
+                Icon(
+                    imageVector = displayIcon,
+                    contentDescription = null,
+                    tint = statusContentColor,
+                )
+            },
+            trailingContent = {
+                Icon(
+                    imageVector = Icons.Default.Settings,
+                    contentDescription = null,
+                    tint = statusContentColor.copy(alpha = 0.82f),
+                )
+            },
+        ) {
+            Text(
+                text = displayTitle,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = statusContentColor,
+            )
         }
     }
 }
@@ -404,12 +371,11 @@ private fun RemoteOverviewCard(
     meta: String? = null,
     onClick: () -> Unit
 ) {
-    FeFilledCard(
+    TonalCard(
         modifier = Modifier
             .fillMaxWidth(),
         onClick = onClick,
-        shape = RoundedCornerShape(14.dp),
-        containerColor = MaterialTheme.colorScheme.surfaceContainer
+        containerColor = MaterialTheme.colorScheme.surfaceBright,
     ) {
         Column(
             modifier = Modifier.padding(18.dp),
@@ -487,12 +453,11 @@ private fun CompactDonateCard(
     title: String,
     onClick: () -> Unit
 ) {
-    FeFilledCard(
+    TonalCard(
         modifier = Modifier
             .fillMaxWidth(),
         onClick = onClick,
-        shape = RoundedCornerShape(12.dp),
-        containerColor = MaterialTheme.colorScheme.surfaceContainer
+        containerColor = MaterialTheme.colorScheme.surfaceBright,
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
