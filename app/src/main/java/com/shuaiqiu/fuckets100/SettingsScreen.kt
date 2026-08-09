@@ -6,7 +6,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Help
@@ -17,24 +16,42 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.platform.LocalContext
 import android.content.Intent
 import android.net.Uri
 import androidx.navigation.NavHostController
+import com.shuaiqiu.fuckets100.component.material.ExpressiveScaffold
+import com.shuaiqiu.fuckets100.component.material.ExpressiveSegmentedListItem
+import com.shuaiqiu.fuckets100.component.material.SegmentedColumn
+import com.shuaiqiu.fuckets100.component.material.expressiveTopAppBarColors
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun SettingsScreen(navController: NavHostController) {
     val context = LocalContext.current
     var showAboutDialog by remember { mutableStateOf(false) }
-    
-    Scaffold(
-        topBar = { FeTopAppBar(title = "Fe") },
-        containerColor = MaterialTheme.colorScheme.surface
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+
+    ExpressiveScaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        topBar = {
+            LargeFlexibleTopAppBar(
+                title = { Text("设置") },
+                subtitle = { Text("配置应用行为与个性化选项") },
+                windowInsets = WindowInsets.safeDrawing.only(
+                    WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
+                ),
+                colors = expressiveTopAppBarColors(),
+                scrollBehavior = scrollBehavior,
+            )
+        },
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
     ) { p ->
         Column(
             Modifier
@@ -43,58 +60,136 @@ fun SettingsScreen(navController: NavHostController) {
                 .padding(horizontal = 16.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            Spacer(Modifier.height(8.dp))
-            Text("设置", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Medium)
-            Text("配置应用行为与个性化选项", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(16.dp))
+
+            SegmentedColumn(
+                title = "应用设置",
+                items = listOf(
+                    {
+                        SettingsSegmentedItem(
+                            index = 0,
+                            count = 3,
+                            icon = Icons.Default.Build,
+                            title = "运行授权",
+                            supportingText = "配置 Shizuku、Root 或其他模式",
+                            onClick = {
+                                context.startActivity(ActivationActivity.createIntent(context))
+                            },
+                        )
+                    },
+                    {
+                        SettingsSegmentedItem(
+                            index = 1,
+                            count = 3,
+                            icon = Icons.Default.Tune,
+                            title = "通用设置",
+                            supportingText = "语言、时区等常规选项",
+                            onClick = {
+                                context.startActivity(GeneralSettingsActivity.createIntent(context))
+                            },
+                        )
+                    },
+                    {
+                        SettingsSegmentedItem(
+                            index = 2,
+                            count = 3,
+                            icon = Icons.Default.Palette,
+                            title = "主题",
+                            supportingText = "彩色主题与明暗模式",
+                            onClick = {
+                                context.startActivity(ThemeSettingsActivity.createIntent(context))
+                            },
+                        )
+                    },
+                ),
+            )
+
             Spacer(Modifier.height(24.dp))
 
-            // 运行授权设置
-            FeFilledCard(modifier = Modifier.fillMaxWidth()) {
-                Column {
-                    SettingsListItem(Icons.Default.Build, "运行授权", "配置 Shizuku、Root 或其他模式") {
-                        context.startActivity(ActivationActivity.createIntent(context))
-                    }
-                    FeThinDivider(modifier = Modifier.padding(horizontal = 16.dp))
-
-                    SettingsListItem(Icons.Default.Tune, "通用设置", "语言、时区等常规选项") {
-                        context.startActivity(GeneralSettingsActivity.createIntent(context))
-                    }
-                    FeThinDivider(modifier = Modifier.padding(horizontal = 16.dp))
-
-                    SettingsListItem(Icons.Default.Palette, "主题", "彩色主题与明暗模式") {
-                        context.startActivity(ThemeSettingsActivity.createIntent(context))
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(24.dp))
-
-            // 其他选项
-            FeFilledCard(modifier = Modifier.fillMaxWidth()) {
-                Column {
-                    SettingsListItem(Icons.Default.Info, "关于 Fe", "应用信息与致谢", hideChevron = true) {
-                        showAboutDialog = true
-                    }
-                    FeThinDivider(modifier = Modifier.padding(horizontal = 16.dp))
-                    SettingsListItem(Icons.Default.Gavel, "法律信息与使用守则", "使用前请阅读并遵守", hideChevron = false) {
-                        context.startActivity(LegalActivity.createIntent(context))
-                    }
-                    FeThinDivider(modifier = Modifier.padding(horizontal = 16.dp))
-                    SettingsListItem(Icons.AutoMirrored.Filled.Help, "访问官网", "lastudio.cc", hideChevron = true) {
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://lastudio.cc"))
-                        context.startActivity(intent)
-                    }
-                }
-            }
+            SegmentedColumn(
+                title = "其他",
+                items = listOf(
+                    {
+                        SettingsSegmentedItem(
+                            index = 0,
+                            count = 3,
+                            icon = Icons.Default.Info,
+                            title = "关于 Fe",
+                            supportingText = "应用信息与致谢",
+                            onClick = { showAboutDialog = true },
+                        )
+                    },
+                    {
+                        SettingsSegmentedItem(
+                            index = 1,
+                            count = 3,
+                            icon = Icons.Default.Gavel,
+                            title = "法律信息与使用守则",
+                            supportingText = "使用前请阅读并遵守",
+                            onClick = {
+                                context.startActivity(LegalActivity.createIntent(context))
+                            },
+                        )
+                    },
+                    {
+                        SettingsSegmentedItem(
+                            index = 2,
+                            count = 3,
+                            icon = Icons.AutoMirrored.Filled.Help,
+                            title = "访问官网",
+                            supportingText = "lastudio.cc",
+                            trailingIcon = Icons.AutoMirrored.Filled.OpenInNew,
+                            trailingContentDescription = "访问官网",
+                            onClick = {
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://lastudio.cc"))
+                                context.startActivity(intent)
+                            },
+                        )
+                    },
+                ),
+            )
 
             Spacer(Modifier.height(88.dp))
         }
     }
-    
-    // 关于对话框
+
     if (showAboutDialog) {
         AboutDialog(onDismiss = { showAboutDialog = false })
     }
+}
+
+@Composable
+private fun SettingsSegmentedItem(
+    index: Int,
+    count: Int,
+    icon: ImageVector,
+    title: String,
+    supportingText: String,
+    onClick: () -> Unit,
+    trailingIcon: ImageVector = Icons.Default.ChevronRight,
+    trailingContentDescription: String? = null,
+) {
+    ExpressiveSegmentedListItem(
+        index = index,
+        count = count,
+        onClick = onClick,
+        headlineContent = { Text(title) },
+        supportingContent = { Text(supportingText) },
+        leadingContent = {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+            )
+        },
+        trailingContent = {
+            Icon(
+                imageVector = trailingIcon,
+                contentDescription = trailingContentDescription,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        },
+    )
 }
 
 @Composable
@@ -102,10 +197,10 @@ fun AboutDialog(onDismiss: () -> Unit) {
     val context = LocalContext.current
 
     Dialog(onDismissRequest = onDismiss) {
-        FeFilledCard(
+        Surface(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(24.dp),
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+            shape = MaterialTheme.shapes.extraLarge,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
         ) {
             Column(
                 modifier = Modifier.padding(24.dp),
@@ -309,7 +404,6 @@ fun AboutDialog(onDismiss: () -> Unit) {
                 Button(
                     onClick = onDismiss,
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
                 ) {
                     Text("关闭")
                 }
