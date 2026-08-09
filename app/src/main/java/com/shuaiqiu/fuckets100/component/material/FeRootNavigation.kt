@@ -1,0 +1,171 @@
+package com.shuaiqiu.fuckets100.component.material
+
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.automirrored.outlined.MenuBook
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ShortNavigationBar
+import androidx.compose.material3.ShortNavigationBarItem
+import androidx.compose.material3.Text
+import androidx.compose.material3.WideNavigationRail
+import androidx.compose.material3.WideNavigationRailDefaults
+import androidx.compose.material3.WideNavigationRailItem
+import androidx.compose.material3.WideNavigationRailValue
+import androidx.compose.material3.rememberWideNavigationRailState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.unit.dp
+import com.shuaiqiu.fuckets100.Screen
+import kotlinx.coroutines.launch
+
+private data class RootDestination(
+    val screen: Screen,
+    val selectedIcon: ImageVector,
+    val unselectedIcon: ImageVector,
+)
+
+private val rootDestinations = listOf(
+    RootDestination(Screen.Home, Icons.Filled.Home, Icons.Outlined.Home),
+    RootDestination(Screen.Read, Icons.AutoMirrored.Filled.MenuBook, Icons.AutoMirrored.Outlined.MenuBook),
+    RootDestination(Screen.Settings, Icons.Filled.Settings, Icons.Outlined.Settings),
+)
+
+@Composable
+fun FeRootNavigationScaffold(
+    currentRoute: String?,
+    onNavigate: (String) -> Unit,
+    content: @Composable (PaddingValues) -> Unit,
+) {
+    val showRootNavigation = currentRoute in rootDestinations.map { it.screen.route }
+    if (showRootNavigation && shouldShowNavigationRail()) {
+        Row {
+            RootNavigationRail(currentRoute = currentRoute, onNavigate = onNavigate)
+            ExpressiveScaffold(
+                modifier = Modifier.weight(1f),
+                contentWindowInsets = WindowInsets.safeDrawing.only(
+                    WindowInsetsSides.Top + WindowInsetsSides.End + WindowInsetsSides.Bottom,
+                ),
+                content = content,
+            )
+        }
+    } else {
+        ExpressiveScaffold(
+            bottomBar = {
+                if (showRootNavigation) {
+                    RootBottomBar(currentRoute = currentRoute, onNavigate = onNavigate)
+                }
+            },
+            contentWindowInsets = WindowInsets.safeDrawing.only(
+                WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
+            ),
+            content = content,
+        )
+    }
+}
+
+@Composable
+private fun RootBottomBar(
+    currentRoute: String?,
+    onNavigate: (String) -> Unit,
+) {
+    ShortNavigationBar(
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        windowInsets = WindowInsets.systemBars.union(WindowInsets.displayCutout).only(
+            WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom,
+        ),
+    ) {
+        rootDestinations.forEach { destination ->
+            val selected = currentRoute == destination.screen.route
+            ShortNavigationBarItem(
+                selected = selected,
+                onClick = { if (!selected) onNavigate(destination.screen.route) },
+                icon = {
+                    Icon(
+                        if (selected) destination.selectedIcon else destination.unselectedIcon,
+                        contentDescription = destination.screen.label,
+                    )
+                },
+                label = { Text(destination.screen.label) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun RootNavigationRail(
+    currentRoute: String?,
+    onNavigate: (String) -> Unit,
+) {
+    val state = rememberWideNavigationRailState()
+    val scope = rememberCoroutineScope()
+    val expanded = state.targetValue == WideNavigationRailValue.Expanded
+
+    WideNavigationRail(
+        modifier = Modifier.fillMaxHeight(),
+        state = state,
+        colors = WideNavigationRailDefaults.colors().copy(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+        ),
+        windowInsets = WindowInsets.systemBars.union(WindowInsets.displayCutout).only(
+            WindowInsetsSides.Start + WindowInsetsSides.Vertical,
+        ),
+        contentPadding = PaddingValues(vertical = 20.dp),
+        header = {
+            IconButton(onClick = {
+                scope.launch {
+                    if (expanded) state.collapse() else state.expand()
+                }
+            }) {
+                Icon(Icons.Default.Menu, if (expanded) "收起导航" else "展开导航")
+            }
+        },
+    ) {
+        rootDestinations.forEach { destination ->
+            val selected = currentRoute == destination.screen.route
+            WideNavigationRailItem(
+                railExpanded = expanded,
+                selected = selected,
+                onClick = { if (!selected) onNavigate(destination.screen.route) },
+                icon = {
+                    Icon(
+                        if (selected) destination.selectedIcon else destination.unselectedIcon,
+                        contentDescription = destination.screen.label,
+                    )
+                },
+                label = { Text(destination.screen.label) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun shouldShowNavigationRail(): Boolean {
+    val windowInfo = LocalWindowInfo.current
+    val density = LocalResources.current.displayMetrics.density
+    val widthDp = windowInfo.containerSize.width / density
+    val heightDp = windowInfo.containerSize.height / density
+    return widthDp >= 840f || (widthDp >= 600f && heightDp / widthDp < 1.2f)
+}

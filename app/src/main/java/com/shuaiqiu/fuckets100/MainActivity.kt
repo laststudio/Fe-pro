@@ -44,6 +44,7 @@ import androidx.compose.animation.core.tween
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
+import com.shuaiqiu.fuckets100.component.material.FeRootNavigationScaffold
 
 // ============================================================================
 // 瀛椾綋瀹氫箟 - 鐢ㄤ簬搴旂敤鏍囬鐨勯啋鐩睍绀烘晥鏋?// ============================================================================
@@ -386,38 +387,10 @@ fun FeAppMain() {
         isDarkMode = effectiveDarkMode,
         useDynamicColor = useDynamicColor
     ) {
-        Scaffold(
-            containerColor = MaterialTheme.colorScheme.surface,
-            bottomBar = {
-                if (currentRoute in listOf(
-                Screen.Home.route,
-                Screen.Read.route,
-                Screen.Settings.route
-            )) {
-                    NavigationBar(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                        tonalElevation = 0.dp
-                    ) {
-                        listOf(Screen.Home, Screen.Read, Screen.Settings).forEach { screen ->
-                            NavigationBarItem(
-                                icon = { Icon(screen.icon, contentDescription = screen.label) },
-                                selected = currentRoute == screen.route,
-                                onClick = {
-                                    navController.navigateRootTab(screen.route)
-                                },
-                                colors = NavigationBarItemDefaults.colors(
-                                    selectedIconColor = MaterialTheme.colorScheme.primary,
-                                    selectedTextColor = MaterialTheme.colorScheme.onSurface,
-                                    indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            )
-                        }
-                    }
-                }
-            }
-            ) { innerPadding ->
+        FeRootNavigationScaffold(
+            currentRoute = currentRoute,
+            onNavigate = navController::navigateRootTab,
+        ) { innerPadding ->
             BoxWithConstraints(
                 modifier = Modifier
                     .padding(innerPadding)
