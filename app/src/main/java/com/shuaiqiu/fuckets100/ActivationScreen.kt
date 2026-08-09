@@ -12,7 +12,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Login
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
@@ -22,14 +21,21 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.shuaiqiu.fuckets100.component.material.ExpressiveScaffold
+import com.shuaiqiu.fuckets100.component.material.ExpressiveSegmentedListItem
+import com.shuaiqiu.fuckets100.component.material.SegmentedColumn
+import com.shuaiqiu.fuckets100.component.material.TonalCard
+import com.shuaiqiu.fuckets100.component.material.TopBarBackButton
+import com.shuaiqiu.fuckets100.component.material.expressiveTopAppBarColors
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun ActivationSettingsScreen(
     currentMode: ActivationMode,
@@ -91,17 +97,36 @@ fun ActivationSettingsScreen(
 
     val successColor = MaterialTheme.colorScheme.primary
     val hasLocalBasicPermissions = hasFilesPerm && hasAppListPerm
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val activationModes = ActivationMode.values().filter { it != ActivationMode.DEFAULT }
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.surface,
+    ExpressiveScaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        contentWindowInsets = WindowInsets.safeDrawing.only(
+            WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
+        ),
         topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text("运行授权与权限", style = MaterialTheme.typography.titleMedium) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) } }
+            LargeFlexibleTopAppBar(
+                title = { Text("运行授权与权限") },
+                subtitle = { Text("配置设备权限与工作模式") },
+                navigationIcon = { TopBarBackButton(onClick = onBack) },
+                windowInsets = WindowInsets.safeDrawing.only(
+                    WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
+                ),
+                colors = expressiveTopAppBarColors(),
+                scrollBehavior = scrollBehavior,
             )
         }
     ) { p ->
-        LazyColumn(Modifier.padding(p).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(p)
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            item { Spacer(Modifier.height(16.dp)) }
 
             // 当前模式状态卡片
             item {
@@ -122,73 +147,96 @@ fun ActivationSettingsScreen(
 
             // 基础权限申请区域
             item {
-                Text("系统基础权限", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                Spacer(Modifier.height(8.dp))
-                FeFilledCard(modifier = Modifier.fillMaxWidth()) {
-                    Column {
-                        // 权限 1：全文件访问
-                        SettingsListItem(
-                            icon = if (hasFilesPerm) Icons.Default.CheckCircle else Icons.Default.FolderSpecial,
-                            iconTint = if (hasFilesPerm) successColor else MaterialTheme.colorScheme.primary,
-                            title = "全文件访问",
-                            sub = if (hasFilesPerm) "已授权" else "读取设备底层目录结构"
-                        ) {
-                            if (!hasFilesPerm) PermissionsHelper.requestAllFilesAccess(context)
-                            else Toast.makeText(context, "已经拥有全文件访问权限啦！", Toast.LENGTH_SHORT).show()
-                        }
-                        FeThinDivider(Modifier.padding(horizontal = 16.dp))
-
-                        // 权限 2：悬浮窗
-                        SettingsListItem(
-                            icon = if (hasOverlayPerm) Icons.Default.CheckCircle else Icons.Default.WebAsset,
-                            iconTint = if (hasOverlayPerm) successColor else MaterialTheme.colorScheme.primary,
-                            title = "悬浮窗权限",
-                            sub = if (hasOverlayPerm) "已授权" else "允许在其他应用上层显示组件"
-                        ) {
-                            if (!hasOverlayPerm) PermissionsHelper.requestOverlayPermission(context)
-                            else Toast.makeText(context, "悬浮窗已经开启啦！", Toast.LENGTH_SHORT).show()
-                        }
-                        FeThinDivider(Modifier.padding(horizontal = 16.dp))
-
-                        // 权限 3：应用列表
-                        SettingsListItem(
-                            icon = if (hasAppListPerm) Icons.Default.CheckCircle else Icons.Default.Apps,
-                            iconTint = if (hasAppListPerm) successColor else MaterialTheme.colorScheme.primary,
-                            title = "应用列表权限",
-                            sub = if (hasAppListPerm) "已授权" else "获取设备已安装的软件包信息"
-                        ) {
-                            if (!hasAppListPerm) PermissionsHelper.requestAppListPermission(context)
-                            else Toast.makeText(context, "已经可以读取应用列表啦！", Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                }
-                Spacer(Modifier.height(16.dp))
+                SegmentedColumn(
+                    title = "系统基础权限",
+                    items = listOf(
+                        {
+                            ExpressiveSegmentedListItem(
+                                index = 0,
+                                count = 3,
+                                onClick = {
+                                    if (!hasFilesPerm) PermissionsHelper.requestAllFilesAccess(context)
+                                    else Toast.makeText(context, "已经拥有全文件访问权限啦！", Toast.LENGTH_SHORT).show()
+                                },
+                                headlineContent = { Text("全文件访问") },
+                                supportingContent = { Text(if (hasFilesPerm) "已授权" else "读取设备底层目录结构") },
+                                leadingContent = {
+                                    Icon(
+                                        if (hasFilesPerm) Icons.Default.CheckCircle else Icons.Default.FolderSpecial,
+                                        contentDescription = null,
+                                        tint = if (hasFilesPerm) successColor else MaterialTheme.colorScheme.primary,
+                                    )
+                                },
+                            )
+                        },
+                        {
+                            ExpressiveSegmentedListItem(
+                                index = 1,
+                                count = 3,
+                                onClick = {
+                                    if (!hasOverlayPerm) PermissionsHelper.requestOverlayPermission(context)
+                                    else Toast.makeText(context, "悬浮窗已经开启啦！", Toast.LENGTH_SHORT).show()
+                                },
+                                headlineContent = { Text("悬浮窗权限") },
+                                supportingContent = { Text(if (hasOverlayPerm) "已授权" else "允许在其他应用上层显示组件") },
+                                leadingContent = {
+                                    Icon(
+                                        if (hasOverlayPerm) Icons.Default.CheckCircle else Icons.Default.WebAsset,
+                                        contentDescription = null,
+                                        tint = if (hasOverlayPerm) successColor else MaterialTheme.colorScheme.primary,
+                                    )
+                                },
+                            )
+                        },
+                        {
+                            ExpressiveSegmentedListItem(
+                                index = 2,
+                                count = 3,
+                                onClick = {
+                                    if (!hasAppListPerm) PermissionsHelper.requestAppListPermission(context)
+                                    else Toast.makeText(context, "已经可以读取应用列表啦！", Toast.LENGTH_SHORT).show()
+                                },
+                                headlineContent = { Text("应用列表权限") },
+                                supportingContent = { Text(if (hasAppListPerm) "已授权" else "获取设备已安装的软件包信息") },
+                                leadingContent = {
+                                    Icon(
+                                        if (hasAppListPerm) Icons.Default.CheckCircle else Icons.Default.Apps,
+                                        contentDescription = null,
+                                        tint = if (hasAppListPerm) successColor else MaterialTheme.colorScheme.primary,
+                                    )
+                                },
+                            )
+                        },
+                    ),
+                )
             }
 
-            item { Text("选择工作授权模式", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary) }
-
             // 动态展开的授权模式卡片区
-            items(ActivationMode.values().filter { it != ActivationMode.DEFAULT }.size) { index ->
-                val mode = ActivationMode.values().filter { it != ActivationMode.DEFAULT }[index]
-                val isSelected = currentMode == mode
-
-                FeFilledCard(
-                    onClick = { onModeSelected(mode) },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(20.dp),
-                    containerColor = if (isSelected) {
-                        MaterialTheme.colorScheme.primaryContainer
-                    } else {
-                        MaterialTheme.colorScheme.surfaceContainer
-                    },
-                    borderColor = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent
-                ) {
-                    Column(Modifier.padding(16.dp)) {
-                        Row(verticalAlignment = Alignment.Top) {
-                            RadioButton(selected = isSelected, onClick = null, colors = RadioButtonDefaults.colors(selectedColor = MaterialTheme.colorScheme.primary))
-                            Column(Modifier.padding(start = 12.dp).weight(1f)) {
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                                    Text(mode.name, fontWeight = FontWeight.Bold, color = if(isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+            item {
+                SegmentedColumn(
+                    title = "选择工作授权模式",
+                    items = activationModes.mapIndexed { index, mode ->
+                        {
+                            val isSelected = currentMode == mode
+                            ExpressiveSegmentedListItem(
+                                index = index,
+                                count = activationModes.size,
+                                onClick = { onModeSelected(mode) },
+                                headlineContent = {
+                                    Text(
+                                        mode.name,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                    )
+                                },
+                                leadingContent = {
+                                    RadioButton(
+                                        selected = isSelected,
+                                        onClick = null,
+                                        colors = RadioButtonDefaults.colors(selectedColor = MaterialTheme.colorScheme.primary),
+                                    )
+                                },
+                                trailingContent = {
                                     val badgeContainerColor = when (mode) {
                                         ActivationMode.ROOT -> MaterialTheme.colorScheme.errorContainer
                                         ActivationMode.CLOUD -> if (cloudLoggedIn) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer
@@ -199,7 +247,7 @@ fun ActivationSettingsScreen(
                                         ActivationMode.CLOUD -> if (cloudLoggedIn) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onErrorContainer
                                         else -> MaterialTheme.colorScheme.onPrimaryContainer
                                     }
-                                    Surface(color = badgeContainerColor, contentColor = badgeContentColor, shape = RoundedCornerShape(50)) {
+                                    Surface(color = badgeContainerColor, contentColor = badgeContentColor, shape = MaterialTheme.shapes.small) {
                                         val displayBadge = when {
                                             mode == ActivationMode.SHIZUKU && shizukuState.isRunning && shizukuState.permissionGranted -> "UID: ${shizukuState.uid}"
                                             mode == ActivationMode.CLOUD && cloudLoggedIn -> "已激活"
@@ -208,71 +256,66 @@ fun ActivationSettingsScreen(
                                         }
                                         Text(displayBadge, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall)
                                     }
-                                }
-                                Spacer(Modifier.height(4.dp))
-                                Text(mode.desc, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
-
-                        // 核心交互：选中后丝滑展开的执行面板
-                        AnimatedVisibility(
-                            visible = isSelected,
-                            enter = expandVertically() + fadeIn(),
-                            exit = shrinkVertically() + fadeOut()
-                        ) {
-                            Column {
-                                FeThinDivider(modifier = Modifier.padding(vertical = 12.dp))
-
-                                when (mode) {
-                                    ActivationMode.SHIZUKU -> {
-                                        FeShizukuActivationPanel(
-                                            shizukuState = shizukuState,
-                                            onRequestPermission = {
-                                                if (shizukuState.isRunning) {
-                                                    if (ShizukuManager.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
-                                                        Toast.makeText(context, "Shizuku 已授权！", Toast.LENGTH_SHORT).show()
-                                                    } else {
-                                                        pendingPermissionRequest = true
-                                                        ShizukuManager.requestPermission(ShizukuManager.REQUEST_CODE_SHIZUKU_PERMISSION)
+                                },
+                                supportingContent = {
+                                    Column {
+                                        Text(mode.desc, style = MaterialTheme.typography.bodySmall)
+                                        AnimatedVisibility(
+                                            visible = isSelected,
+                                            enter = expandVertically() + fadeIn(),
+                                            exit = shrinkVertically() + fadeOut(),
+                                        ) {
+                                            Column {
+                                                FeThinDivider(modifier = Modifier.padding(vertical = 12.dp))
+                                                when (mode) {
+                                                    ActivationMode.SHIZUKU -> FeShizukuActivationPanel(
+                                                        shizukuState = shizukuState,
+                                                        onRequestPermission = {
+                                                            if (shizukuState.isRunning) {
+                                                                if (ShizukuManager.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
+                                                                    Toast.makeText(context, "Shizuku 已授权！", Toast.LENGTH_SHORT).show()
+                                                                } else {
+                                                                    pendingPermissionRequest = true
+                                                                    ShizukuManager.requestPermission(ShizukuManager.REQUEST_CODE_SHIZUKU_PERMISSION)
+                                                                }
+                                                            } else {
+                                                                ShizukuManager.openShizukuApp(context)
+                                                            }
+                                                        },
+                                                        onOpenShizuku = { ShizukuManager.openShizukuApp(context) },
+                                                    )
+                                                    ActivationMode.ROOT -> FeRootActivationPanel(context)
+                                                    ActivationMode.DIRECT_READ -> FeDirectReadActivationPanel(hasLocalBasicPermissions)
+                                                    ActivationMode.CLOUD -> FeCloudActivationPanel(
+                                                        context = context,
+                                                        isLoggedIn = cloudLoggedIn,
+                                                        phone = cloudPhone,
+                                                        onCloudAuthChanged = { refreshCloudAuthState() },
+                                                        onNavigateToCloudActivation = onNavigateToCloudActivation,
+                                                        onNavigateToRead = onNavigateToRead,
+                                                    )
+                                                    else -> Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                    ) {
+                                                        Text("需要手动确认以完成激活", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                        Button(
+                                                            onClick = { Toast.makeText(context, "正在请求 ${mode.name} 激活...", Toast.LENGTH_SHORT).show() },
+                                                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary),
+                                                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+                                                            modifier = Modifier.height(32.dp),
+                                                        ) { Text("执行激活", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold) }
                                                     }
-                                                } else {
-                                                    ShizukuManager.openShizukuApp(context)
                                                 }
-                                            },
-                                            onOpenShizuku = { ShizukuManager.openShizukuApp(context) }
-                                        )
-                                    }
-                                    ActivationMode.ROOT -> {
-                                        FeRootActivationPanel(context)
-                                    }
-                                    ActivationMode.DIRECT_READ -> {
-                                        FeDirectReadActivationPanel(hasLocalBasicPermissions)
-                                    }
-                                    ActivationMode.CLOUD -> {
-                                        FeCloudActivationPanel(
-                                            context = context,
-                                            isLoggedIn = cloudLoggedIn,
-                                            phone = cloudPhone,
-                                            onCloudAuthChanged = { refreshCloudAuthState() },
-                                            onNavigateToCloudActivation = onNavigateToCloudActivation,
-                                            onNavigateToRead = onNavigateToRead
-                                        )
-                                    }
-                                    else -> {
-                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                            Text("需要手动确认以完成激活", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                            Button(
-                                                onClick = { Toast.makeText(context, "正在请求 ${mode.name} 激活...", Toast.LENGTH_SHORT).show() },
-                                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary),
-                                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp), modifier = Modifier.height(32.dp)
-                                            ) { Text("执行激活", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold) }
+                                            }
                                         }
                                     }
-                                }
-                            }
+                                },
+                            )
                         }
-                    }
-                }
+                    },
+                )
             }
             item { Spacer(Modifier.height(80.dp)) }
         }
@@ -301,10 +344,10 @@ private fun ActivationDeviceCard(etsAppInfo: Pair<Boolean, String>?) {
     val successColor = MaterialTheme.colorScheme.primary
     val errorColor = MaterialTheme.colorScheme.error
 
-    FeFilledCard(
+    TonalCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        containerColor = MaterialTheme.colorScheme.surfaceContainer
+        shape = MaterialTheme.shapes.large,
+        containerColor = MaterialTheme.colorScheme.surfaceBright,
     ) {
         Column(
             modifier = Modifier.padding(24.dp),
@@ -472,10 +515,10 @@ fun FeModeStatusCard(
         }
     }
     
-    FeFilledCard(
+    TonalCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        containerColor = MaterialTheme.colorScheme.surfaceContainer
+        shape = MaterialTheme.shapes.large,
+        containerColor = MaterialTheme.colorScheme.surfaceBright,
     ) {
         Box(modifier = Modifier.fillMaxWidth()) {
             Row(modifier = Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -686,10 +729,10 @@ fun FeShizukuStatusCard(shizukuState: ShizukuState, context: android.content.Con
     val isRunning = shizukuState.isRunning
     val animatedColor by animateColorAsState(if (isRunning) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error, tween(800))
 
-    FeFilledCard(
+    TonalCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        containerColor = MaterialTheme.colorScheme.surfaceContainer
+        shape = MaterialTheme.shapes.large,
+        containerColor = MaterialTheme.colorScheme.surfaceBright,
     ) {
         Box(modifier = Modifier.fillMaxWidth()) {
             Row(modifier = Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
