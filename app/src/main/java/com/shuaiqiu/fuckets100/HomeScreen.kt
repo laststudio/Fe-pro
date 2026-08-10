@@ -1,16 +1,14 @@
 package com.shuaiqiu.fuckets100
 
 import android.os.SystemClock
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.Block
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -18,7 +16,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -138,24 +135,16 @@ fun HomeScreen(
         else -> false
     }
 
-    val sysLabel = if (isTrulyActivated) "SYS_READY" else "SYS_OFFLINE"
-    val activeColor = if (isTrulyActivated) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
-    val dotColor by animateColorAsState(targetValue = activeColor, animationSpec = tween(500), label = "statusDot")
 
     ExpressiveScaffold(
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             LargeFlexibleTopAppBar(
                 title = { Text("Fe") },
-                subtitle = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(6.dp).background(dotColor, CircleShape))
-                        Spacer(Modifier.width(8.dp))
-                        Text(sysLabel)
-                    }
-                },
                 colors = expressiveTopAppBarColors(),
+                windowInsets = WindowInsets.safeDrawing.only(
+                    WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
+                ),
                 scrollBehavior = scrollBehavior,
             )
         },
@@ -167,10 +156,15 @@ fun HomeScreen(
         Column(
             Modifier
                 .padding(paddingValues)
-                .padding(horizontal = 16.dp, vertical = 13.dp)
-                .verticalScroll(rememberScrollState()),
+                .nestedScroll(scrollBehavior.nestedScrollConnection)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(13.dp)
         ) {
+            HomeNoticeCard(
+                status = remoteStatus,
+                onClick = { openRemoteContent(context, remoteStatus) },
+            )
             StatusCard(
                 mode = mode, 
                 shizukuState = shizukuState, 
@@ -183,7 +177,13 @@ fun HomeScreen(
                 hasRootAvailable = runtimeStatus.hasRootAvailable,
                 onNavigateToActivation = onNavigateToActivation
             )
+            RuntimeInfoCard(
+                mode = mode,
+                shizukuState = shizukuState,
+                runtimeStatus = runtimeStatus,
+            )
             HomeRemoteContent(status = remoteStatus)
+            Spacer(Modifier.height(16.dp))
         }
     }
 }
@@ -244,8 +244,11 @@ fun StatusCard(
         else -> mode.title
     }
 
-    // 选择图标 - 激活时使用模式图标，未激活时使用警告图标
-    val displayIcon = if (isTrulyActivated) mode.icon else Icons.Default.Warning
+    val displayIcon = when {
+        isTrulyActivated -> Icons.Outlined.CheckCircle
+        mode == ActivationMode.DEFAULT -> Icons.Outlined.Block
+        else -> Icons.Outlined.Warning
+    }
     val summary = when {
         mode == ActivationMode.CLOUD -> null
         !hasAllBasicPermissions -> when {
@@ -277,9 +280,8 @@ fun StatusCard(
     }
 
     Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onNavigateToActivation),
+        modifier = Modifier.fillMaxWidth(),
+        onClick = onNavigateToActivation,
         shape = MaterialTheme.shapes.large,
         color = statusContainerColor,
         contentColor = statusContentColor,
@@ -302,17 +304,23 @@ fun StatusCard(
                 )
             },
             trailingContent = {
-                Icon(
-                    imageVector = Icons.Default.Settings,
-                    contentDescription = null,
-                    tint = statusContentColor.copy(alpha = 0.82f),
+                StatusTag(
+                    label = if (isTrulyActivated) mode.shortLabel else "未就绪",
+                    containerColor = if (isTrulyActivated) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                    contentColor = if (isTrulyActivated) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onError,
                 )
             },
+            colors = ListItemDefaults.colors(
+                containerColor = androidx.compose.ui.graphics.Color.Transparent,
+                contentColor = statusContentColor,
+                leadingContentColor = statusContentColor,
+                trailingContentColor = statusContentColor,
+                supportingContentColor = statusContentColor.copy(alpha = 0.82f),
+            ),
         ) {
             Text(
                 text = displayTitle,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.titleMediumEmphasized,
                 color = statusContentColor,
             )
         }
@@ -329,33 +337,22 @@ private fun HomeRemoteContent(status: UpdateStatus?) {
     val changelogTitle = status?.changelogTitle?.takeIf { it.isNotBlank() } ?: "更新日志"
     val donateEnabled = status?.donateEnabled ?: true
 
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        RemoteOverviewCard(
-            announcementTitle = announcementTitle,
-            announcementMessage = announcementMessage.ifBlank { "暂无公告" },
-            changelogTitle = changelogTitle,
-            changelogSummary = changelogSummary.ifBlank { "暂无更新内容" },
-            meta = if (status == null) "同步中" else null,
-            onClick = {
-                context.startActivity(
-                    RemoteContentActivity.createIntent(
-                        context = context,
-                        announcementTitle = announcementTitle,
-                        announcementMessage = announcementMessage.ifBlank { "暂无公告" },
-                        announcementUpdatedAt = status?.announcementUpdatedAt.orEmpty(),
-                        announcementUrl = status?.announcementUrl.orEmpty(),
-                        changelogTitle = changelogTitle,
-                        changelogSummary = changelogSummary.ifBlank { "暂无更新内容" },
-                        changelogUrl = status?.changelogUrl.orEmpty()
-                    )
-                )
-            }
+    Column(verticalArrangement = Arrangement.spacedBy(13.dp)) {
+        HomeLinkCard(
+            title = announcementTitle,
+            summary = announcementMessage.ifBlank { if (status == null) "正在同步远程内容" else "暂无公告" },
+            onClick = { openRemoteContent(context, status) },
+        )
+        HomeLinkCard(
+            title = changelogTitle,
+            summary = changelogSummary.ifBlank { if (status == null) "正在同步更新日志" else "暂无更新内容" },
+            onClick = { openRemoteContent(context, status) },
         )
 
         if (donateEnabled) {
-            CompactDonateCard(
-                icon = Icons.Default.Favorite,
+            HomeLinkCard(
                 title = "捐赠支持",
+                summary = "支持 Fe 的后续维护与功能更新",
                 onClick = { context.startActivity(DonateActivity.createIntent(context)) }
             )
         }
@@ -363,124 +360,143 @@ private fun HomeRemoteContent(status: UpdateStatus?) {
 }
 
 @Composable
-private fun RemoteOverviewCard(
-    announcementTitle: String,
-    announcementMessage: String,
-    changelogTitle: String,
-    changelogSummary: String,
-    meta: String? = null,
-    onClick: () -> Unit
+private fun HomeLinkCard(
+    title: String,
+    summary: String,
+    onClick: () -> Unit,
 ) {
     TonalCard(
-        modifier = Modifier
-            .fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth(),
         onClick = onClick,
-        containerColor = MaterialTheme.colorScheme.surfaceBright,
-    ) {
-        Column(
-            modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                FeTonalIconContainer(
-                    icon = Icons.Default.Campaign,
-                    size = 42.dp,
-                    iconSize = 22.dp
-                )
-                Spacer(Modifier.width(14.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        "公告与更新",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    if (meta != null) {
-                        Text(
-                            meta,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-                Icon(
-                    Icons.Default.ChevronRight,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            RemotePreviewLine(
-                title = announcementTitle,
-                body = announcementMessage
-            )
-            FeThinDivider()
-            RemotePreviewLine(
-                title = changelogTitle,
-                body = changelogSummary
-            )
-        }
-    }
-}
-
-@Composable
-private fun RemotePreviewLine(
-    title: String,
-    body: String
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-        Text(
-            title,
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-        Text(
-            body,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis
-        )
-    }
-}
-
-@Composable
-private fun CompactDonateCard(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    title: String,
-    onClick: () -> Unit
-) {
-    TonalCard(
-        modifier = Modifier
-            .fillMaxWidth(),
-        onClick = onClick,
-        containerColor = MaterialTheme.colorScheme.surfaceBright,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            FeTonalIconContainer(
-                icon = icon,
-                size = 34.dp,
-                iconSize = 20.dp
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleSmall)
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    summary,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
             Spacer(Modifier.width(12.dp))
-            Text(
-                title,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f)
-            )
-            Icon(
-                Icons.Default.ChevronRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            Icon(Icons.Default.ChevronRight, contentDescription = null)
+        }
+    }
+}
+
+@Composable
+private fun HomeNoticeCard(
+    status: UpdateStatus?,
+    onClick: () -> Unit,
+) {
+    val message = when {
+        status?.showDialog == true -> "发现新版本，点击查看更新内容"
+        !status?.noticeMessage.isNullOrBlank() -> status?.noticeMessage.orEmpty()
+        else -> return
+    }
+    TonalCard(
+        modifier = Modifier.fillMaxWidth(),
+        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+        onClick = onClick,
+    ) {
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodyMedium,
+            color = contentColorFor(MaterialTheme.colorScheme.tertiaryContainer),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+        )
+    }
+}
+
+@Composable
+private fun RuntimeInfoCard(
+    mode: ActivationMode,
+    shizukuState: ShizukuState,
+    runtimeStatus: HomeRuntimeStatus,
+) {
+    TonalCard {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            InfoItem("应用版本", "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
+            InfoItem("当前授权模式", mode.shortLabel)
+            if (mode == ActivationMode.SHIZUKU) {
+                val runtime = when {
+                    !shizukuState.isRunning -> "未运行"
+                    !shizukuState.permissionGranted -> "等待授权"
+                    else -> "${shizukuState.getRuntimeTypeName()} · UID ${shizukuState.uid}"
+                }
+                InfoItem("Shizuku", runtime)
+            }
+            InfoItem(
+                "基础权限",
+                listOf(runtimeStatus.hasFilesPerm, runtimeStatus.hasOverlayPerm, runtimeStatus.hasAppListPerm)
+                    .count { it }
+                    .let { "$it / 3 已授权" },
             )
         }
     }
+}
+
+@Composable
+private fun InfoItem(label: String, value: String) {
+    Column {
+        Text(label, style = MaterialTheme.typography.bodyLarge)
+        Text(value, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun StatusTag(
+    label: String,
+    containerColor: androidx.compose.ui.graphics.Color,
+    contentColor: androidx.compose.ui.graphics.Color,
+) {
+    Surface(
+        color = containerColor,
+        contentColor = contentColor,
+        shape = MaterialTheme.shapes.extraSmall,
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmallEmphasized,
+            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+        )
+    }
+}
+
+private val ActivationMode.shortLabel: String
+    get() = when (this) {
+        ActivationMode.DEFAULT -> "未激活"
+        ActivationMode.SHIZUKU -> "Shizuku"
+        ActivationMode.ROOT -> "Root"
+        ActivationMode.DIRECT_READ -> "Direct Read"
+        ActivationMode.CLOUD -> "云端"
+    }
+
+private fun openRemoteContent(
+    context: android.content.Context,
+    status: UpdateStatus?,
+) {
+    val announcementTitle = status?.announcementTitle?.takeIf { it.isNotBlank() } ?: "公告"
+    val changelogTitle = status?.changelogTitle?.takeIf { it.isNotBlank() } ?: "更新日志"
+    context.startActivity(
+        RemoteContentActivity.createIntent(
+            context = context,
+            announcementTitle = announcementTitle,
+            announcementMessage = status?.announcementMessage.orEmpty().ifBlank { "暂无公告" },
+            announcementUpdatedAt = status?.announcementUpdatedAt.orEmpty(),
+            announcementUrl = status?.announcementUrl.orEmpty(),
+            changelogTitle = changelogTitle,
+            changelogSummary = status?.changelogSummary.orEmpty().ifBlank { status?.message.orEmpty().ifBlank { "暂无更新内容" } },
+            changelogUrl = status?.changelogUrl.orEmpty(),
+        ),
+    )
 }
