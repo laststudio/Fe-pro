@@ -773,7 +773,7 @@ fun ReadScreen(
         addLog(LogLevel.INFO, LogCategory.SYSTEM, "📥 开始下载作业: ${homeworkInfo.name}, 共 ${homeworkInfo.contents.size} 个内容")
 
         val cacheKey = cloudHomeworkCacheKey(status, homeworkInfo)
-        if (downloadedPapers.containsKey(cacheKey)) {
+        if (downloadedHomeworkNames.contains(cacheKey)) {
             addLog(LogLevel.INFO, LogCategory.SYSTEM, "📁 缓存命中，作业已下载喵~")
             Toast.makeText(context, "该作业已下载喵~", Toast.LENGTH_SHORT).show()
             return
@@ -781,15 +781,33 @@ fun ReadScreen(
 
         cloudDownloadingHomeworks = cloudDownloadingHomeworks + cacheKey
         failedCloudHomeworks = failedCloudHomeworks - cacheKey
+        downloadedPapers = downloadedPapers - cacheKey
         CloudHomeworkState.cloudDownloadingHomeworks = cloudDownloadingHomeworks
         CloudHomeworkState.failedCloudHomeworks = failedCloudHomeworks
+        CloudHomeworkState.downloadedPapers = downloadedPapers
         updateCloudDownloadProgress(
             cacheKey,
             CloudHomeworkState.DownloadProgress(currentFileName = homeworkInfo.name)
         )
 
+        var sourceOnlyPaper: ETS100AnswerReader.Paper? = null
+        var cacheDir: File? = null
         try {
-            val cacheDir = PaperSourceExporter.cloudCacheDirectory(
+            val source = PaperSource.Cloud(
+                status = status,
+                homeworkIdentity = cloudHomeworkIdentity(homeworkInfo),
+                baseUrl = cloudBaseUrl,
+                contents = homeworkInfo.contents.map { CloudContent(it.groupName, it.url) },
+            )
+            sourceOnlyPaper = ETS100AnswerReader.Paper(
+                paperId = cacheKey.hashCode().toLong(),
+                title = homeworkInfo.name,
+                dataFileName = cacheKey,
+                fileSize = 0L,
+                sections = emptyList(),
+                source = source,
+            )
+            cacheDir = PaperSourceExporter.cloudCacheDirectory(
                 context,
                 status,
                 cloudHomeworkIdentity(homeworkInfo),
@@ -1013,23 +1031,39 @@ fun ReadScreen(
             downloadedHomeworkNames = downloadedHomeworkNames + cacheKey
             cloudDownloadingHomeworks = cloudDownloadingHomeworks - cacheKey
             cloudDownloadProgress = cloudDownloadProgress - cacheKey
+            failedCloudHomeworks = failedCloudHomeworks - cacheKey
             CloudHomeworkState.downloadedPapers = downloadedPapers
             CloudHomeworkState.downloadedHomeworkNames = downloadedHomeworkNames
             CloudHomeworkState.cloudDownloadingHomeworks = cloudDownloadingHomeworks
             CloudHomeworkState.cloudDownloadProgress = cloudDownloadProgress
+            CloudHomeworkState.failedCloudHomeworks = failedCloudHomeworks
             saveCloudReadState()
             // 宝贝下载成功后不再切换页面，只标记已下载，停留作业列表喵~
             Toast.makeText(context, "下载并解析成功！", Toast.LENGTH_SHORT).show()
 
         } catch (e: Exception) {
             addLog(LogLevel.ERROR, LogCategory.SYSTEM, "✗ 下载解析失败: ${e.message}")
-            Toast.makeText(context, "下载失败: ${e.message}", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "下载或解析失败: ${e.message}", Toast.LENGTH_LONG).show()
             cloudDownloadingHomeworks = cloudDownloadingHomeworks - cacheKey
             cloudDownloadProgress = cloudDownloadProgress - cacheKey
             failedCloudHomeworks = failedCloudHomeworks + cacheKey
+            val hasCachedSource = cacheDir?.let { directory ->
+                homeworkInfo.contents.any { content ->
+                    val name = content.url.substringAfterLast('/').substringBefore('?')
+                    name.isNotBlank() && PaperSourceExporter.isUsableZip(
+                        PaperSourceExporter.cloudCachedFile(directory, content.url, name),
+                    )
+                }
+            } == true
+            if (hasCachedSource) {
+                sourceOnlyPaper?.let { paper ->
+                    downloadedPapers = downloadedPapers + (cacheKey to listOf(paper))
+                }
+            }
             CloudHomeworkState.cloudDownloadingHomeworks = cloudDownloadingHomeworks
             CloudHomeworkState.cloudDownloadProgress = cloudDownloadProgress
             CloudHomeworkState.failedCloudHomeworks = failedCloudHomeworks
+            CloudHomeworkState.downloadedPapers = downloadedPapers
             saveCloudReadState()
         }
     }
@@ -2230,7 +2264,10 @@ private fun PaperCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f),
+                ) {
                     Icon(
                         if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                         contentDescription = if (isExpanded) "收起" else "展开",
@@ -2321,7 +2358,10 @@ private fun SectionItem(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f),
+                ) {
                     Box(
                         modifier = Modifier
                             .size(4.dp, 24.dp)
@@ -2849,18 +2889,23 @@ private fun PaperDetailCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Text(
                         text = "📄",
                         style = MaterialTheme.typography.titleMedium
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = paper.title,
                             style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.onSurface,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                         Text(
                             text = "ID: ${paper.paperId}",
@@ -4097,7 +4142,7 @@ private fun PaperListItem(
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 2,
+                            maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
                         )
@@ -4165,7 +4210,7 @@ private fun PaperListItem(
                         }
                         isFailed -> {
                             Text(
-                                text = "加载失败，点击重试",
+                                text = if (onExportSource != null) "解析失败，点击重试或导出源文件" else "加载失败，点击重试",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.error
                             )

@@ -7,9 +7,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
@@ -20,10 +25,10 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FabPosition
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ListItemColors
 import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScaffoldDefaults
@@ -44,10 +49,17 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 
 @Composable
 fun ExpressiveScaffold(
@@ -314,9 +326,13 @@ fun ExpressiveSegmentedDropdownItem(
     leadingContent: @Composable (() -> Unit)? = null,
 ) {
     var expanded by remember { mutableStateOf(false) }
+    var anchorOffset by remember { mutableStateOf(IntOffset.Zero) }
     val safeIndex = selectedIndex.coerceIn(0, (items.size - 1).coerceAtLeast(0))
 
-    androidx.compose.foundation.layout.Box(modifier) {
+    Box(
+        modifier = modifier
+            .trackPressPosition { anchorOffset = IntOffset(it.x.toInt(), it.y.toInt()) },
+    ) {
         ExpressiveSegmentedListItem(
             index = index,
             count = count,
@@ -329,12 +345,17 @@ fun ExpressiveSegmentedDropdownItem(
                 Text(
                     text = items.getOrNull(safeIndex).orEmpty(),
                     color = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.End,
+                    modifier = Modifier.fillMaxWidth(0.35f),
                 )
             },
         )
-        DropdownMenu(
+        OffsetAnchoredExpressiveMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
+            anchorOffset = anchorOffset,
         ) {
             items.forEachIndexed { itemIndex, label ->
                 DropdownMenuItem(
@@ -345,12 +366,43 @@ fun ExpressiveSegmentedDropdownItem(
                     },
                     leadingIcon = if (itemIndex == safeIndex) {
                         { Icon(Icons.Default.Check, contentDescription = null) }
-                    } else {
-                        null
-                    },
+                    } else null,
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun OffsetAnchoredExpressiveMenu(
+    expanded: Boolean,
+    onDismissRequest: () -> Unit,
+    anchorOffset: IntOffset,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Box(
+        modifier = Modifier.layout { measurable, constraints ->
+            val placeable = measurable.measure(Constraints())
+            val width = if (constraints.hasBoundedWidth) constraints.maxWidth else 0
+            layout(width, 0) { placeable.place(anchorOffset.x, anchorOffset.y) }
+        },
+    ) {
+        androidx.compose.material3.DropdownMenuPopup(
+            expanded = expanded,
+            onDismissRequest = onDismissRequest,
+        ) {
+            androidx.compose.material3.DropdownMenuGroup(
+                shapes = MenuDefaults.groupShape(index = 0, count = 1),
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                content = content,
+            )
+        }
+    }
+}
+
+private fun Modifier.trackPressPosition(onPress: (Offset) -> Unit): Modifier = pointerInput(Unit) {
+    awaitEachGesture {
+        onPress(awaitFirstDown(requireUnconsumed = false).position)
     }
 }
 

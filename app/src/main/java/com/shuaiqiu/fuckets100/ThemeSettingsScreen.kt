@@ -129,7 +129,6 @@ fun ThemeSettingsScreen(
     var colorSpec by remember { mutableStateOf(ThemeManager.getSavedColorSpec()) }
     var isAmoled by remember { mutableStateOf(ThemeManager.getSavedAmoled()) }
     var predictiveBackMode by remember { mutableStateOf(SettingsManager.getPredictiveBackMode()) }
-    var showPredictiveBackDialog by remember { mutableStateOf(false) }
     val dynamicColorAvailable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
     val dynamicColorActive = useDynamicColor && dynamicColorAvailable
     val systemDark = isSystemInDarkTheme()
@@ -346,14 +345,19 @@ fun ThemeSettingsScreen(
                     modifier = Modifier.padding(top = 4.dp),
                     items = listOf(
                         {
-                            ExpressiveSegmentedListItem(
+                            ExpressiveSegmentedDropdownItem(
                                 index = 0,
                                 count = 1,
-                                onClick = { showPredictiveBackDialog = true },
-                                headlineContent = { Text("预见性返回动画") },
+                                title = "预见性返回动画",
+                                items = PredictiveBackMode.entries.map { it.label },
+                                selectedIndex = PredictiveBackMode.entries.indexOf(predictiveBackMode).coerceAtLeast(0),
+                                onItemSelected = { index ->
+                                    predictiveBackMode = PredictiveBackMode.entries[index]
+                                    SettingsManager.savePredictiveBackMode(predictiveBackMode)
+                                    onPredictiveBackChanged?.invoke(predictiveBackMode)
+                                },
                                 supportingContent = { Text(predictiveBackMode.description) },
                                 leadingContent = { Icon(Icons.Default.Tune, contentDescription = null) },
-                                trailingContent = { Text(predictiveBackMode.label, color = MaterialTheme.colorScheme.primary) },
                             )
                         },
                     ),
@@ -364,36 +368,6 @@ fun ThemeSettingsScreen(
         }
     }
 
-    if (showPredictiveBackDialog) {
-        ExpressiveDialog(
-            onDismissRequest = { showPredictiveBackDialog = false },
-            title = { Text("预见性返回动画") },
-            text = {
-                Column {
-                    PredictiveBackMode.entries.forEach { mode ->
-                        ListItem(
-                            supportingContent = { Text(mode.description) },
-                            trailingContent = {
-                                if (predictiveBackMode == mode) Icon(Icons.Default.Check, contentDescription = null)
-                            },
-                            modifier = Modifier.clickable {
-                                predictiveBackMode = mode
-                                SettingsManager.savePredictiveBackMode(mode)
-                                showPredictiveBackDialog = false
-                                onPredictiveBackChanged?.invoke(mode)
-                            },
-                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        ) {
-                            Text(mode.label)
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showPredictiveBackDialog = false }) { Text("关闭") }
-            },
-        )
-    }
 }
 
 @SuppressLint("ConfigurationScreenWidthHeight")

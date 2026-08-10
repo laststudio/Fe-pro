@@ -18,10 +18,13 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -38,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -106,7 +110,7 @@ private fun DonateScreen(onBack: () -> Unit) {
             )
         },
         contentWindowInsets = WindowInsets.safeDrawing.only(
-            WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
+            WindowInsetsSides.Top + WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom,
         ),
     ) { padding ->
         Column(
@@ -213,8 +217,10 @@ private fun DonateQrCard(
                 painter = painterResource(id = imageRes),
                 contentDescription = "$title 捐赠码",
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(180.dp)
+                    .sizeIn(maxWidth = 240.dp, maxHeight = 240.dp)
+                    .aspectRatio(1f)
+                    .heightIn(max = 240.dp),
+                contentScale = ContentScale.Fit,
             )
         }
     }

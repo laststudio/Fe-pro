@@ -17,6 +17,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -140,7 +141,14 @@ fun HomeScreen(
     ExpressiveScaffold(
         topBar = {
             LargeFlexibleTopAppBar(
-                title = { Text("Fe") },
+                title = {
+                    Text(
+                        text = "Fe",
+                        fontFamily = RighteousFont,
+                        fontWeight = FontWeight.Normal,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                },
                 colors = expressiveTopAppBarColors(),
                 windowInsets = WindowInsets.safeDrawing.only(
                     WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
@@ -161,10 +169,6 @@ fun HomeScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(13.dp)
         ) {
-            HomeNoticeCard(
-                status = remoteStatus,
-                onClick = { openRemoteContent(context, remoteStatus) },
-            )
             StatusCard(
                 mode = mode, 
                 shizukuState = shizukuState, 
@@ -332,9 +336,6 @@ private fun HomeRemoteContent(status: UpdateStatus?) {
     val context = LocalContext.current
     val announcementMessage = status?.announcementMessage.orEmpty()
     val announcementTitle = status?.announcementTitle?.takeIf { it.isNotBlank() } ?: "公告"
-    val changelogSummary = status?.changelogSummary?.takeIf { it.isNotBlank() }
-        ?: status?.message.orEmpty()
-    val changelogTitle = status?.changelogTitle?.takeIf { it.isNotBlank() } ?: "更新日志"
     val donateEnabled = status?.donateEnabled ?: true
 
     Column(verticalArrangement = Arrangement.spacedBy(13.dp)) {
@@ -343,12 +344,6 @@ private fun HomeRemoteContent(status: UpdateStatus?) {
             summary = announcementMessage.ifBlank { if (status == null) "正在同步远程内容" else "暂无公告" },
             onClick = { openRemoteContent(context, status) },
         )
-        HomeLinkCard(
-            title = changelogTitle,
-            summary = changelogSummary.ifBlank { if (status == null) "正在同步更新日志" else "暂无更新内容" },
-            onClick = { openRemoteContent(context, status) },
-        )
-
         if (donateEnabled) {
             HomeLinkCard(
                 title = "捐赠支持",
@@ -387,30 +382,6 @@ private fun HomeLinkCard(
             Spacer(Modifier.width(12.dp))
             Icon(Icons.Default.ChevronRight, contentDescription = null)
         }
-    }
-}
-
-@Composable
-private fun HomeNoticeCard(
-    status: UpdateStatus?,
-    onClick: () -> Unit,
-) {
-    val message = when {
-        status?.showDialog == true -> "发现新版本，点击查看更新内容"
-        !status?.noticeMessage.isNullOrBlank() -> status?.noticeMessage.orEmpty()
-        else -> return
-    }
-    TonalCard(
-        modifier = Modifier.fillMaxWidth(),
-        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-        onClick = onClick,
-    ) {
-        Text(
-            text = message,
-            style = MaterialTheme.typography.bodyMedium,
-            color = contentColorFor(MaterialTheme.colorScheme.tertiaryContainer),
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-        )
     }
 }
 

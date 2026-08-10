@@ -10,6 +10,8 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,18 +19,19 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Campaign
-import androidx.compose.material.icons.filled.Update
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeFlexibleTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -39,6 +42,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -151,15 +155,12 @@ private fun RemoteContentScreen(
     var announcementBody by remember(content) {
         mutableStateOf(content.announcementMessage.ifBlank { "暂无公告" })
     }
-    var changelogBody by remember(content) {
-        mutableStateOf(content.changelogSummary.ifBlank { "暂无更新内容" })
-    }
     var fetchStatus by remember(content) {
         mutableStateOf(
-            if (content.announcementUrl.isNotBlank() || content.changelogUrl.isNotBlank()) {
-                "正在同步远程内容..."
+            if (content.announcementUrl.isNotBlank()) {
+                "正在同步公告..."
             } else {
-                "暂无远程内容地址，显示本地缓存内容"
+                "显示本地缓存公告"
             }
         )
     }
@@ -170,21 +171,13 @@ private fun RemoteContentScreen(
 
     LaunchedEffect(content) {
         val announcementResult = fetchRemoteTextOrNull(content.announcementUrl)
-        val changelogResult = fetchRemoteTextOrNull(content.changelogUrl)
-        var successCount = 0
         if (!announcementResult.isNullOrBlank()) {
             announcementBody = parseRemoteContent(announcementResult)
-            successCount++
-        }
-        if (!changelogResult.isNullOrBlank()) {
-            changelogBody = parseCurrentVersionChangelog(changelogResult, BuildConfig.VERSION_NAME)
-                .ifBlank { parseRemoteContent(changelogResult) }
-            successCount++
         }
         fetchStatus = when {
-            content.announcementUrl.isBlank() && content.changelogUrl.isBlank() -> "暂无远程内容地址，显示本地缓存内容"
-            successCount > 0 -> "获取成功，已显示当前版本 ${BuildConfig.VERSION_NAME} 的更新日志"
-            else -> "获取失败，已显示缓存内容"
+            content.announcementUrl.isBlank() -> "显示本地缓存公告"
+            !announcementResult.isNullOrBlank() -> "公告同步完成"
+            else -> "公告获取失败，已显示缓存内容"
         }
     }
 
@@ -193,10 +186,10 @@ private fun RemoteContentScreen(
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
         topBar = {
             LargeFlexibleTopAppBar(
-                title = { Text("公告与更新") },
+                title = { Text("公告") },
                 navigationIcon = { TopBarBackButton(onClick = onBack) },
                 actions = {
-                    TextButton(
+                    IconButton(
                         onClick = {
                             scope.launch {
                                 runCatching { RemoteConfigManager.checkStatus() }
@@ -213,7 +206,7 @@ private fun RemoteContentScreen(
                             }
                         }
                     ) {
-                        Text("检测更新")
+                        Icon(Icons.Default.Refresh, contentDescription = "检测更新")
                     }
                 },
                 windowInsets = WindowInsets.safeDrawing.only(
@@ -224,7 +217,7 @@ private fun RemoteContentScreen(
             )
         },
         contentWindowInsets = WindowInsets.safeDrawing.only(
-            WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
+            WindowInsetsSides.Top + WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom,
         ),
     ) { padding ->
         Column(
@@ -248,12 +241,6 @@ private fun RemoteContentScreen(
                 meta = content.announcementUpdatedAt
             )
 
-            RemoteContentSection(
-                icon = Icons.Default.Update,
-                title = content.changelogTitle.ifBlank { "更新日志" },
-                body = changelogBody,
-                meta = ""
-            )
         }
     }
 
@@ -280,17 +267,16 @@ private fun RemoteContentSection(
             modifier = Modifier.padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Icon(
-                icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary
-            )
-            Text(
-                title,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    title,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
             if (meta.isNotBlank()) {
                 Text(
                     meta,

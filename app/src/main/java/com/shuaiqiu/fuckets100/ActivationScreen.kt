@@ -980,37 +980,35 @@ fun FeCloudActivationPanel(
         
         if (isLoggedIn) {
             // 已登录，显示进入云端首页按钮
-            Row(
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                Button(
+                    onClick = {
+                        onNavigateToRead()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = cloudColor, contentColor = MaterialTheme.colorScheme.onTertiary),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                ) {
+                    Icon(Icons.Default.Cloud, null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("进入云端", fontWeight = FontWeight.Bold)
+                }
+
                 OutlinedButton(
                     onClick = {
-                        // 登出
                         ETS100AuthManager.logout(context)
                         onCloudAuthChanged()
                         Toast.makeText(context, "已退出登录", Toast.LENGTH_SHORT).show()
                     },
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                    modifier = Modifier.weight(1f).height(40.dp)
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
                 ) {
                     Icon(Icons.AutoMirrored.Filled.Logout, null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                     Text("退出登录", fontWeight = FontWeight.Bold)
-                }
-                
-                Button(
-                    onClick = {
-                        // 宝贝直接跳转到答题页面，云端模式入口喵~
-                        onNavigateToRead()
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = cloudColor, contentColor = MaterialTheme.colorScheme.onTertiary),
-                    modifier = Modifier.weight(1f).height(40.dp)
-                ) {
-                    Icon(Icons.Default.Cloud, null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("进入云端", fontWeight = FontWeight.Bold)
                 }
             }
         } else {
