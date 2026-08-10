@@ -38,6 +38,7 @@ import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -3343,10 +3344,14 @@ fun PaperDetailScreen(
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("源文件导出") },
+                            text = { Text(if (paper.source != null) "源文件导出" else "源文件不可用") },
                             onClick = {
                                 showMenu = false
-                                sourceExportPaper = paper
+                                if (paper.source != null) {
+                                    sourceExportPaper = paper
+                                } else {
+                                    Toast.makeText(context, "来源信息已失效，请重新读取该试卷", Toast.LENGTH_LONG).show()
+                                }
                             },
                             leadingIcon = {
                                 Icon(Icons.Default.Archive, contentDescription = null)
@@ -3375,7 +3380,33 @@ fun PaperDetailScreen(
             ),
             verticalArrangement = Arrangement.spacedBy(13.dp)
         ) {
-            paper.sections.forEachIndexed { _, section ->
+            item(key = "paper_metadata") {
+                PaperMetadataCard(paper)
+            }
+
+            if (paper.sections.none { it.questions.isNotEmpty() }) {
+                item(key = "paper_empty") {
+                    TonalCard(modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(20.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = null)
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text("暂无可显示的答案", style = MaterialTheme.typography.titleSmall)
+                                Text(
+                                    "该试卷没有解析出有效题目，请尝试重新读取。",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            paper.sections.forEachIndexed { sectionIndex, section ->
                 val categoryStyle = categoryPalette[section.category]
                     ?: fallbackCategoryStyle.copy(accent = categoryColors[section.category] ?: defaultPrimaryColor)
 
@@ -3395,7 +3426,8 @@ fun PaperDetailScreen(
                                 text = section.title,
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = categoryStyle.accent
+                                color = categoryStyle.accent,
+                                modifier = Modifier.weight(1f),
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Surface(
@@ -3403,10 +3435,12 @@ fun PaperDetailScreen(
                                 shape = RoundedCornerShape(10.dp)
                             ) {
                                 Text(
-                                    text = section.category,
+                                    text = "${section.displayCategoryLabel()} · ${section.questions.size} 题",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = categoryStyle.onContainer,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.widthIn(max = 136.dp).padding(horizontal = 6.dp, vertical = 2.dp)
                                 )
                             }
                         }
@@ -3414,10 +3448,12 @@ fun PaperDetailScreen(
 
                     val groupedQuestions = section.questions.groupBy { it.originalText }
 
-                    groupedQuestions.forEach { (_, questionsInGroup) ->
-                        item {
+                    groupedQuestions.entries.forEachIndexed { groupIndex, (_, questionsInGroup) ->
+                        item(key = "section:$sectionIndex:group:$groupIndex") {
                             MergedQuestionBlock(
+                                groupKey = "${paper.paperId}:$sectionIndex:$groupIndex",
                                 sectionTitle = section.title,
+                                sectionCategory = section.category,
                                 questions = questionsInGroup,
                                 categoryStyle = categoryStyle,
                                 compactAnswerDisplay = compactAnswerDisplay
@@ -3433,6 +3469,52 @@ fun PaperDetailScreen(
         paper = sourceExportPaper,
         onDismissRequest = { sourceExportPaper = null }
     )
+}
+
+@Composable
+private fun PaperMetadataCard(paper: ETS100AnswerReader.Paper) {
+    val sourceLabel = when (paper.source) {
+        is PaperSource.Cloud -> "云端作业"
+        is PaperSource.Local -> "本地读取"
+        null -> if (paper.regionLabel == "云端") "云端缓存" else "缓存数据"
+    }
+    TonalCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            DetailInfoItem("来源", sourceLabel)
+            DetailInfoItem("地区", paper.regionLabel.takeUnless { it == "未知" }.orEmpty().ifBlank { "未标注" })
+            DetailInfoItem("内容", "${paper.sections.size} 个分区 · ${paper.sections.sumOf { it.questions.size }} 道题目")
+            if (paper.fileSize > 0L) {
+                DetailInfoItem("数据大小", formatFileSize(paper.fileSize))
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailInfoItem(label: String, value: String) {
+    Column {
+        Text(label, style = MaterialTheme.typography.bodyLarge)
+        Text(value, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+private fun ETS100AnswerReader.Section.displayCategoryLabel(): String = when (category) {
+    "read_chapter" -> "模仿朗读"
+    "simple_expression_ufi" -> typeName.ifBlank { "听说信息" }
+    "simple_expression_ufk" -> typeName.ifBlank { "问答信息" }
+    "simple_expression_ufj" -> typeName.ifBlank { "询问信息" }
+    "topic" -> typeName.ifBlank { "信息转述" }
+    ETS100AnswerReader.StructureType.COLLECTOR_READ -> typeName.ifBlank { "模仿朗读" }
+    ETS100AnswerReader.StructureType.COLLECTOR_ROLE -> typeName.ifBlank { "问答信息" }
+    ETS100AnswerReader.StructureType.COLLECTOR_PICTURE -> typeName.ifBlank { "信息转述" }
+    ETS100AnswerReader.StructureType.COLLECTOR_3Q5A -> typeName.ifBlank { "3问5答" }
+    ETS100AnswerReader.StructureType.COLLECTOR_CHOOSE -> typeName.ifBlank { "听后选择" }
+    ETS100AnswerReader.StructureType.COLLECTOR_FILL -> typeName.ifBlank { "听后记录" }
+    ETS100AnswerReader.StructureType.COLLECTOR_DIALOGUE -> typeName.ifBlank { "回答问题" }
+    else -> typeName.ifBlank { category.ifBlank { "其他" } }
 }
 
 @Composable
@@ -3613,18 +3695,26 @@ private fun SourceExportDialogHost(
 
 @Composable
 private fun MergedQuestionBlock(
+    groupKey: String,
     sectionTitle: String,
+    sectionCategory: String,
     questions: List<ETS100AnswerReader.Question>,
     categoryStyle: AnswerCategoryColor,
     compactAnswerDisplay: Boolean
 ) {
+    val originalText = questions.firstOrNull()?.formattedOriginalText.orEmpty()
+    val firstQuestion = questions.firstOrNull()
+    val isReadPassage = sectionCategory == "read_chapter" ||
+        sectionCategory == ETS100AnswerReader.StructureType.COLLECTOR_READ ||
+        firstQuestion?.category == "read_chapter" ||
+        firstQuestion?.typeName == ETS100AnswerReader.StructureType.COLLECTOR_READ
+    var originalExpanded by rememberSaveable(groupKey) { mutableStateOf(isReadPassage) }
     TonalCard(
         modifier = Modifier.fillMaxWidth(),
         containerColor = MaterialTheme.colorScheme.surfaceBright
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             // 块头部 - 显示原文和题目数量
-            val originalText = questions.firstOrNull()?.formattedOriginalText.orEmpty()
             if (originalText.isNotBlank()) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -3639,7 +3729,7 @@ private fun MergedQuestionBlock(
                     Column(modifier = Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                "📖 原文 (${questions.size} 题)",
+                                "原文 · ${questions.size} 题",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = categoryStyle.accent
@@ -3653,7 +3743,9 @@ private fun MergedQuestionBlock(
                                     sectionTitle,
                                     style = MaterialTheme.typography.labelSmall,
                                     color = categoryStyle.onContainer,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.widthIn(max = 116.dp).padding(horizontal = 6.dp, vertical = 2.dp)
                                 )
                             }
                         }
@@ -3668,28 +3760,52 @@ private fun MergedQuestionBlock(
                             modifier = Modifier.size(24.dp)
                         )
                     }
+                    IconButton(onClick = { originalExpanded = !originalExpanded }) {
+                        Icon(
+                            if (originalExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                            contentDescription = if (originalExpanded) "收起原文" else "展开原文",
+                        )
+                    }
                 }
-                
-                Spacer(modifier = Modifier.height(12.dp))
-                
-                // 原文内容
-                Surface(
-                    color = MaterialTheme.colorScheme.surfaceContainerLow,
-                    shape = MaterialTheme.shapes.large
-                ) {
-                    Text(
-                        text = originalText,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(12.dp)
-                    )
+
+                AnimatedVisibility(visible = originalExpanded) {
+                    Column {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Surface(
+                            color = MaterialTheme.colorScheme.surfaceContainerLow,
+                            shape = MaterialTheme.shapes.large
+                        ) {
+                            Text(
+                                text = originalText,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.padding(12.dp)
+                            )
+                        }
+                    }
                 }
                 
                 Spacer(modifier = Modifier.height(12.dp))
                 FeThinDivider()
                 Spacer(modifier = Modifier.height(12.dp))
             }
-            
+            if (originalText.isBlank()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(4.dp, 24.dp)
+                            .background(categoryStyle.accent, RoundedCornerShape(2.dp)),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "$sectionTitle · ${questions.size} 题",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = categoryStyle.accent,
+                    )
+                }
+                Spacer(Modifier.height(12.dp))
+            }
+
             // 题目列表
             questions.forEachIndexed { index, question ->
                 if (index > 0) {
@@ -3703,7 +3819,8 @@ private fun MergedQuestionBlock(
                     questionIndex = index,
                     question = question,
                     categoryStyle = categoryStyle,
-                    compactAnswerDisplay = compactAnswerDisplay
+                    compactAnswerDisplay = compactAnswerDisplay,
+                    isReadPassage = isReadPassage,
                 )
             }
         }
@@ -3719,7 +3836,8 @@ private fun QuestionItemSimple(
     questionIndex: Int,
     question: ETS100AnswerReader.Question,
     categoryStyle: AnswerCategoryColor,
-    compactAnswerDisplay: Boolean
+    compactAnswerDisplay: Boolean,
+    isReadPassage: Boolean,
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         // 题目编号和题目内容
@@ -3758,34 +3876,37 @@ private fun QuestionItemSimple(
         
         Spacer(modifier = Modifier.height(8.dp))
         
-        // 答案显示 - 使用可折叠组件喵~
+        // 答案是详情页的主要信息，使用高对比 tonal surface 直接展示。
         if (question.answerList.isNotEmpty()) {
             CollapsibleItem(
-                title = "✅ 答案",
+                title = "答案",
                 content = formatAnswerForDisplay(question, compactAnswerDisplay),
-                defaultExpanded = compactAnswerDisplay
+                defaultExpanded = compactAnswerDisplay,
             )
         } else {
-            // 模仿朗读类型显示特殊提示喵~
-            val noAnswerText = if (question.category == "read_chapter") "（该类型无答案）" else "暂无答案"
+            val noAnswerText = if (isReadPassage) {
+                "该类型无需参考答案"
+            } else {
+                "暂无答案"
+            }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.errorContainer, RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh, MaterialTheme.shapes.large)
                     .padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
                     Icons.AutoMirrored.Filled.HelpOutline,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onErrorContainer,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(16.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     noAnswerText,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onErrorContainer
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
