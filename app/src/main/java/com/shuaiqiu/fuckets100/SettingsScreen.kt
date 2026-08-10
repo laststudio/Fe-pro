@@ -86,7 +86,7 @@ fun SettingsScreen(navController: NavHostController) {
                             count = 3,
                             icon = Icons.Default.Tune,
                             title = "通用设置",
-                            supportingText = "语言、时区等常规选项",
+                            supportingText = "配置答案显示方式",
                             onClick = {
                                 context.startActivity(GeneralSettingsActivity.createIntent(context))
                             },

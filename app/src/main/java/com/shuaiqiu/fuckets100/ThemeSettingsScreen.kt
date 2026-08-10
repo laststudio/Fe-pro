@@ -304,7 +304,7 @@ fun ThemeSettingsScreen(
                         {
                             ExpressiveSegmentedDropdownItem(
                                 index = 0,
-                                count = 2,
+                                count = 3,
                                 title = "调色板风格",
                                 items = PaletteStyle.entries.map { it.label },
                                 selectedIndex = PaletteStyle.entries.indexOf(paletteStyle).coerceAtLeast(0),
@@ -320,7 +320,7 @@ fun ThemeSettingsScreen(
                         {
                             ExpressiveSegmentedDropdownItem(
                                 index = 1,
-                                count = 2,
+                                count = 3,
                                 title = "色彩标准",
                                 items = ColorSpec.SpecVersion.entries.map { it.label },
                                 selectedIndex = ColorSpec.SpecVersion.entries.indexOf(colorSpec).coerceAtLeast(0),
@@ -338,16 +338,10 @@ fun ThemeSettingsScreen(
                                 leadingContent = { Icon(Icons.Default.Tune, contentDescription = null) },
                             )
                         },
-                    ),
-                )
-
-                SegmentedColumn(
-                    modifier = Modifier.padding(top = 4.dp),
-                    items = listOf(
                         {
                             ExpressiveSegmentedDropdownItem(
-                                index = 0,
-                                count = 1,
+                                index = 2,
+                                count = 3,
                                 title = "预见性返回动画",
                                 items = PredictiveBackMode.entries.map { it.label },
                                 selectedIndex = PredictiveBackMode.entries.indexOf(predictiveBackMode).coerceAtLeast(0),

@@ -510,7 +510,11 @@ fun FeModeStatusCard(
         }
         ActivationMode.CLOUD -> {
             val title = if (cloudLoggedIn) "云端模式已激活" else "云端模式未激活"
-            val desc = if (cloudLoggedIn) "已登录: ${maskPhoneNumber(cloudPhone)}" else "需要登录 ETS100 账号"
+            val desc = if (cloudLoggedIn) {
+                "（${maskPhoneNumber(cloudPhone)}）手机号已登录"
+            } else {
+                "需要登录 ETS100 账号"
+            }
             Triple(title, desc, null)
         }
     }
@@ -521,7 +525,10 @@ fun FeModeStatusCard(
         containerColor = MaterialTheme.colorScheme.surfaceBright,
     ) {
         Box(modifier = Modifier.fillMaxWidth()) {
-            Row(modifier = Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier.padding(20.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Box(Modifier.size(48.dp).background(statusContainerColor, CircleShape), Alignment.Center) {
                     Icon(
                         imageVector = if (isActive) Icons.Default.CheckCircle else Icons.Default.Warning,
@@ -970,7 +977,7 @@ fun FeCloudActivationPanel(
         if (isLoggedIn && !phone.isNullOrBlank()) {
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "已登录: ${maskPhoneNumber(phone)}",
+                text = "（${maskPhoneNumber(phone)}）手机号已登录",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -980,20 +987,20 @@ fun FeCloudActivationPanel(
         
         if (isLoggedIn) {
             // 已登录，显示进入云端首页按钮
-            Column(
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Button(
                     onClick = {
                         onNavigateToRead()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = cloudColor, contentColor = MaterialTheme.colorScheme.onTertiary),
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                    modifier = Modifier.weight(1f).height(40.dp),
                 ) {
                     Icon(Icons.Default.Cloud, null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text("进入云端", fontWeight = FontWeight.Bold)
+                    Text("云端", fontWeight = FontWeight.Bold, maxLines = 1)
                 }
 
                 OutlinedButton(
@@ -1004,11 +1011,11 @@ fun FeCloudActivationPanel(
                     },
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                    modifier = Modifier.weight(1f).height(40.dp),
                 ) {
                     Icon(Icons.AutoMirrored.Filled.Logout, null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text("退出登录", fontWeight = FontWeight.Bold)
+                    Text("退出", fontWeight = FontWeight.Bold, maxLines = 1)
                 }
             }
         } else {

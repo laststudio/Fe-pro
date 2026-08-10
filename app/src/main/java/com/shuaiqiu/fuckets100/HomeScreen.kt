@@ -305,6 +305,7 @@ fun StatusCard(
                     imageVector = displayIcon,
                     contentDescription = null,
                     tint = statusContentColor,
+                    modifier = Modifier.size(28.dp),
                 )
             },
             trailingContent = {

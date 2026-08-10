@@ -230,7 +230,6 @@ internal fun AospPredictiveBackContent(
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val density = LocalDensity.current
         val containerHeightPx = with(density) { maxHeight.toPx() }
-        val containerWidthPx = with(density) { maxWidth.toPx() }
         val deviceCornerRadius = rememberDeviceCornerRadius()
 
         Box(
@@ -239,7 +238,7 @@ internal fun AospPredictiveBackContent(
                 .aospPredictiveBackAnimation(
                     state = state,
                     containerHeightPx = containerHeightPx,
-                    exitingOffsetPx = containerWidthPx,
+                    exitingOffsetPx = with(density) { 96.dp.toPx() },
                     deviceCornerRadius = deviceCornerRadius
                 )
         ) {
@@ -273,6 +272,12 @@ internal fun Modifier.aospPredictiveBackAnimation(
         .transform(linearExitProgress)
     val maxScale = 0.85f
     val dragScale = 1f - (1f - maxScale) * gestureProgress
+    val committedScale = dragScale + (maxScale - dragScale) * emphasizedExitProgress
+    val committedAlpha = if (linearExitProgress >= 0.2f) {
+        0f
+    } else {
+        (1f - linearExitProgress * 5f).coerceAtLeast(0f)
+    }
     val pivotX = if (edge == BackEventCompat.EDGE_LEFT) 0.8f else 0.2f
     val pivotY = if (backEvent != null && containerHeightPx > 0f) {
         (backEvent.touchY / containerHeightPx).coerceIn(0.1f, 0.9f)
@@ -283,10 +288,13 @@ internal fun Modifier.aospPredictiveBackAnimation(
     return this
         .graphicsLayer {
             transformOrigin = TransformOrigin(pivotX, pivotY)
-            scaleX = dragScale
-            scaleY = dragScale
+            scaleX = if (linearExitProgress > 0f) committedScale else dragScale
+            scaleY = if (linearExitProgress > 0f) committedScale else dragScale
+            alpha = if (linearExitProgress > 0f) committedAlpha else 1f
             translationX = exitingOffsetPx * state.directionMultiplier * emphasizedExitProgress
         }
+        // ReSukiSU clips only the active page during the gesture. The underlying
+        // page must remain square so it can fill the revealed window edge.
         .clip(RoundedCornerShape(deviceCornerRadius))
 }
 

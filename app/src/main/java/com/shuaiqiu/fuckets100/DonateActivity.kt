@@ -1,8 +1,19 @@
 package com.shuaiqiu.fuckets100
 
+import android.Manifest
+import android.app.Activity
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.os.Environment
+import android.provider.MediaStore
+import android.graphics.BitmapFactory
+import android.widget.Toast
+import android.content.pm.PackageManager
+import android.media.MediaScannerConnection
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -27,6 +38,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -40,6 +52,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -196,6 +209,7 @@ private fun DonateQrCard(
     imageRes: Int,
     modifier: Modifier = Modifier
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     TonalCard(
         modifier = modifier,
         shape = MaterialTheme.shapes.large,
@@ -217,11 +231,80 @@ private fun DonateQrCard(
                 painter = painterResource(id = imageRes),
                 contentDescription = "$title 捐赠码",
                 modifier = Modifier
+                    .fillMaxWidth()
                     .sizeIn(maxWidth = 240.dp, maxHeight = 240.dp)
                     .aspectRatio(1f)
-                    .heightIn(max = 240.dp),
+                    .heightIn(max = 240.dp)
+                    .pointerInput(imageRes) {
+                        detectTapGestures(
+                            onLongPress = { saveDonateImage(context, title, imageRes) },
+                        )
+                    },
                 contentScale = ContentScale.Fit,
             )
         }
+    }
+}
+
+private fun saveDonateImage(context: Context, title: String, imageRes: Int) {
+    runCatching {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.Q &&
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE,
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            (context as? Activity)?.let {
+                ActivityCompat.requestPermissions(
+                    it,
+                    arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE),
+                    4201,
+                )
+            }
+            Toast.makeText(context, "请允许存储权限后再次长按图片", Toast.LENGTH_LONG).show()
+            return@runCatching
+        }
+
+        val bitmap = BitmapFactory.decodeResource(context.resources, imageRes)
+            ?: error("无法读取图片")
+        val fileName = "Fe_${title}_捐赠码.png"
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            val values = ContentValues().apply {
+                put(MediaStore.Images.Media.DISPLAY_NAME, fileName)
+                put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+                put(MediaStore.Images.Media.RELATIVE_PATH, "${Environment.DIRECTORY_PICTURES}/Fe")
+                put(MediaStore.Images.Media.IS_PENDING, 1)
+            }
+            val resolver = context.contentResolver
+            val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                ?: error("无法创建图片文件")
+            try {
+                resolver.openOutputStream(uri, "w")?.use { output ->
+                    check(bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, output))
+                } ?: error("无法写入图片")
+                resolver.update(
+                    uri,
+                    ContentValues().apply { put(MediaStore.Images.Media.IS_PENDING, 0) },
+                    null,
+                    null,
+                )
+            } catch (error: Exception) {
+                resolver.delete(uri, null, null)
+                throw error
+            }
+        } else {
+            val directory = java.io.File(
+                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),
+                "Fe",
+            ).apply { mkdirs() }
+            val target = java.io.File(directory, fileName)
+            target.outputStream().use { output ->
+                check(bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, output))
+            }
+            MediaScannerConnection.scanFile(context, arrayOf(target.absolutePath), arrayOf("image/png"), null)
+        }
+        Toast.makeText(context, "已保存到图片/Fe", Toast.LENGTH_SHORT).show()
+    }.onFailure {
+        Toast.makeText(context, "保存图片失败: ${it.message}", Toast.LENGTH_LONG).show()
     }
 }

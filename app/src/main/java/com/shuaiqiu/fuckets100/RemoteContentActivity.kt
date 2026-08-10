@@ -24,6 +24,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Campaign
+import androidx.compose.material.icons.filled.Update
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -155,10 +156,13 @@ private fun RemoteContentScreen(
     var announcementBody by remember(content) {
         mutableStateOf(content.announcementMessage.ifBlank { "暂无公告" })
     }
+    var changelogBody by remember(content) {
+        mutableStateOf(content.changelogSummary.ifBlank { "暂无更新内容" })
+    }
     var fetchStatus by remember(content) {
         mutableStateOf(
-            if (content.announcementUrl.isNotBlank()) {
-                "正在同步公告..."
+            if (content.announcementUrl.isNotBlank() || content.changelogUrl.isNotBlank()) {
+                "正在同步远程内容..."
             } else {
                 "显示本地缓存公告"
             }
@@ -171,13 +175,21 @@ private fun RemoteContentScreen(
 
     LaunchedEffect(content) {
         val announcementResult = fetchRemoteTextOrNull(content.announcementUrl)
+        val changelogResult = fetchRemoteTextOrNull(content.changelogUrl)
+        var successCount = 0
         if (!announcementResult.isNullOrBlank()) {
             announcementBody = parseRemoteContent(announcementResult)
+            successCount++
+        }
+        if (!changelogResult.isNullOrBlank()) {
+            changelogBody = parseCurrentVersionChangelog(changelogResult, BuildConfig.VERSION_NAME)
+                .ifBlank { parseRemoteContent(changelogResult) }
+            successCount++
         }
         fetchStatus = when {
-            content.announcementUrl.isBlank() -> "显示本地缓存公告"
-            !announcementResult.isNullOrBlank() -> "公告同步完成"
-            else -> "公告获取失败，已显示缓存内容"
+            content.announcementUrl.isBlank() && content.changelogUrl.isBlank() -> "显示本地缓存内容"
+            successCount > 0 -> "远程内容同步完成"
+            else -> "获取失败，已显示缓存内容"
         }
     }
 
@@ -186,7 +198,7 @@ private fun RemoteContentScreen(
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
         topBar = {
             LargeFlexibleTopAppBar(
-                title = { Text("公告") },
+                title = { Text("公告与更新") },
                 navigationIcon = { TopBarBackButton(onClick = onBack) },
                 actions = {
                     IconButton(
@@ -239,6 +251,13 @@ private fun RemoteContentScreen(
                 title = content.announcementTitle.ifBlank { "公告" },
                 body = announcementBody,
                 meta = content.announcementUpdatedAt
+            )
+
+            RemoteContentSection(
+                icon = Icons.Default.Update,
+                title = content.changelogTitle.ifBlank { "更新日志" },
+                body = changelogBody,
+                meta = "",
             )
 
         }
