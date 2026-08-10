@@ -54,14 +54,14 @@ private val rootDestinations = listOf(
 
 @Composable
 fun FeRootNavigationScaffold(
-    currentRoute: String?,
-    onNavigate: (String) -> Unit,
+    showRootNavigation: Boolean,
+    selectedPage: Int,
+    onNavigatePage: (Int) -> Unit,
     content: @Composable (PaddingValues) -> Unit,
 ) {
-    val showRootNavigation = currentRoute in rootDestinations.map { it.screen.route }
     if (showRootNavigation && shouldShowNavigationRail()) {
         Row {
-            RootNavigationRail(currentRoute = currentRoute, onNavigate = onNavigate)
+            RootNavigationRail(selectedPage = selectedPage, onNavigatePage = onNavigatePage)
             ExpressiveScaffold(
                 modifier = Modifier.weight(1f),
                 contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom),
@@ -72,7 +72,7 @@ fun FeRootNavigationScaffold(
         ExpressiveScaffold(
             bottomBar = {
                 if (showRootNavigation) {
-                    RootBottomBar(currentRoute = currentRoute, onNavigate = onNavigate)
+                    RootBottomBar(selectedPage = selectedPage, onNavigatePage = onNavigatePage)
                 }
             },
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -83,8 +83,8 @@ fun FeRootNavigationScaffold(
 
 @Composable
 private fun RootBottomBar(
-    currentRoute: String?,
-    onNavigate: (String) -> Unit,
+    selectedPage: Int,
+    onNavigatePage: (Int) -> Unit,
 ) {
     ShortNavigationBar(
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
@@ -92,11 +92,11 @@ private fun RootBottomBar(
             WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom,
         ),
     ) {
-        rootDestinations.forEach { destination ->
-            val selected = currentRoute == destination.screen.route
+        rootDestinations.forEachIndexed { index, destination ->
+            val selected = selectedPage == index
             ShortNavigationBarItem(
                 selected = selected,
-                onClick = { if (!selected) onNavigate(destination.screen.route) },
+                onClick = { if (!selected) onNavigatePage(index) },
                 icon = {
                     Icon(
                         if (selected) destination.selectedIcon else destination.unselectedIcon,
@@ -111,8 +111,8 @@ private fun RootBottomBar(
 
 @Composable
 private fun RootNavigationRail(
-    currentRoute: String?,
-    onNavigate: (String) -> Unit,
+    selectedPage: Int,
+    onNavigatePage: (Int) -> Unit,
 ) {
     val state = rememberWideNavigationRailState()
     val scope = rememberCoroutineScope()
@@ -139,12 +139,12 @@ private fun RootNavigationRail(
             }
         },
     ) {
-        rootDestinations.forEach { destination ->
-            val selected = currentRoute == destination.screen.route
+        rootDestinations.forEachIndexed { index, destination ->
+            val selected = selectedPage == index
             WideNavigationRailItem(
                 railExpanded = expanded,
                 selected = selected,
-                onClick = { if (!selected) onNavigate(destination.screen.route) },
+                onClick = { if (!selected) onNavigatePage(index) },
                 icon = {
                     Icon(
                         if (selected) destination.selectedIcon else destination.unselectedIcon,

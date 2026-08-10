@@ -7,12 +7,15 @@ import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.BackHandler
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
@@ -23,7 +26,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -38,12 +40,12 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.compose.*
 import androidx.compose.animation.*
-import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.navigation.NavBackStackEntry
-import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
+import com.shuaiqiu.fuckets100.component.material.rememberFeMainPagerState
+import kotlinx.coroutines.flow.MutableSharedFlow
 import com.shuaiqiu.fuckets100.component.material.FeRootNavigationScaffold
 
 // ============================================================================
@@ -114,6 +116,7 @@ enum class ActivationMode(
 }
 
 sealed class Screen(val route: String, val icon: ImageVector, val label: String) {
+    object Main : Screen("main_pager", Icons.Default.Home, "主页")
     object Home : Screen("home", Icons.Default.Home, "首页")
     object Read : Screen("read", Icons.AutoMirrored.Filled.MenuBook, "答题")
     object Settings : Screen("settings", Icons.Default.Settings, "设置")
@@ -134,6 +137,7 @@ class MainActivity : ComponentActivity() {
         setIntent(intent)
         intent.getStringExtra(EXTRA_TARGET_ROUTE)?.let { route ->
             pendingTargetRoute = route
+            targetRouteEvents.tryEmit(route)
         }
     }
 
@@ -156,6 +160,7 @@ class MainActivity : ComponentActivity() {
         private const val EXTRA_TARGET_ROUTE = "target_route"
 
         var pendingTargetRoute: String? = null
+        val targetRouteEvents = MutableSharedFlow<String>(extraBufferCapacity = 1)
 
         fun createIntent(context: android.content.Context, targetRoute: String? = null): Intent {
             return Intent(context, MainActivity::class.java).apply {
@@ -190,15 +195,30 @@ fun FeTheme(content: @Composable () -> Unit) {
     )
 }
 
-private val rootTabRoutes = setOf(Screen.Home.route, Screen.Read.route, Screen.Settings.route)
+private val rootTabRoutes = listOf(Screen.Home.route, Screen.Read.route, Screen.Settings.route)
 
-fun NavHostController.navigateRootTab(route: String) {
-    navigate(route) {
-        popUpTo(graph.findStartDestination().id) {
-            saveState = true
+private fun rootPageForRoute(route: String?): Int? = rootTabRoutes.indexOf(route).takeIf { it >= 0 }
+
+private fun handleTargetRoute(
+    route: String,
+    navController: NavHostController,
+    pagerState: com.shuaiqiu.fuckets100.component.material.FeMainPagerState,
+) {
+    rootPageForRoute(route)?.let {
+        if (navController.currentDestination?.route != Screen.Main.route) {
+            if (navController.currentDestination?.route == Screen.Debug.route) {
+                navController.popBackStack(Screen.Main.route, false)
+            } else {
+                navController.navigate(Screen.Main.route) {
+                    popUpTo(navController.currentDestination?.id ?: 0) { inclusive = true }
+                }
+            }
         }
-        launchSingleTop = true
-        restoreState = true
+        pagerState.animateToPage(it)
+    } ?: run {
+        if (route == Screen.Debug.route && navController.currentDestination?.route != Screen.Debug.route) {
+            navController.navigate(Screen.Debug.route)
+        }
     }
 }
 
@@ -283,8 +303,9 @@ fun FeAppMain() {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
-    val rootContentAlpha = remember { Animatable(1f) }
-    var previousRouteForRootAnimation by remember { mutableStateOf<String?>(null) }
+    val initialRootPage = remember { rootPageForRoute(MainActivity.pendingTargetRoute) ?: 0 }
+    val pagerState = rememberPagerState(initialPage = initialRootPage, pageCount = { rootTabRoutes.size })
+    val mainPagerState = rememberFeMainPagerState(pagerState)
     val predictiveBackState = rememberAospPredictiveBackState()
     var predictiveBackMode by remember { mutableStateOf(SettingsManager.getPredictiveBackMode()) }
     var compactAnswerDisplay by remember { mutableStateOf(SettingsManager.getCompactAnswerDisplay()) }
@@ -349,7 +370,7 @@ fun FeAppMain() {
                 compactAnswerDisplay = SettingsManager.getCompactAnswerDisplay()
                 MainActivity.pendingTargetRoute?.let { route ->
                     MainActivity.pendingTargetRoute = null
-                    navController.navigateRootTab(route)
+                    handleTargetRoute(route, navController, mainPagerState)
                 }
             }
         }
@@ -360,7 +381,13 @@ fun FeAppMain() {
     LaunchedEffect(Unit) {
         MainActivity.pendingTargetRoute?.let { route ->
             MainActivity.pendingTargetRoute = null
-            navController.navigateRootTab(route)
+            handleTargetRoute(route, navController, mainPagerState)
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        MainActivity.targetRouteEvents.collect { route ->
+            handleTargetRoute(route, navController, mainPagerState)
         }
     }
     
@@ -370,24 +397,8 @@ fun FeAppMain() {
         }
     }
 
-    LaunchedEffect(currentRoute) {
-        val previousRoute = previousRouteForRootAnimation
-        val isRootSwitch = previousRoute != null &&
-            previousRoute != currentRoute &&
-            previousRoute in rootTabRoutes &&
-            currentRoute in rootTabRoutes
-
-        if (isRootSwitch) {
-            rootContentAlpha.snapTo(0.05f)
-            rootContentAlpha.animateTo(
-                targetValue = 1f,
-                animationSpec = tween(650, easing = FastOutSlowInEasing)
-            )
-        } else if (rootContentAlpha.value != 1f) {
-            rootContentAlpha.snapTo(1f)
-        }
-
-        previousRouteForRootAnimation = currentRoute
+    LaunchedEffect(pagerState.currentPage) {
+        mainPagerState.syncPage()
     }
 
     FeThemeWrapper(
@@ -400,15 +411,12 @@ fun FeAppMain() {
         isAmoled = isAmoled,
     ) {
         FeRootNavigationScaffold(
-            currentRoute = currentRoute,
-            onNavigate = navController::navigateRootTab,
+            showRootNavigation = currentRoute == Screen.Main.route,
+            selectedPage = mainPagerState.selectedPage,
+            onNavigatePage = mainPagerState::animateToPage,
         ) { innerPadding ->
             BoxWithConstraints(
-                modifier = Modifier
-                    .padding(innerPadding)
-                    .graphicsLayer {
-                        alpha = rootContentAlpha.value
-                    }
+                modifier = Modifier.padding(innerPadding)
             ) {
                 val density = LocalDensity.current
                 val containerHeightPx = with(density) { maxHeight.toPx() }
@@ -417,7 +425,7 @@ fun FeAppMain() {
 
                 NavHost(
                     navController = navController,
-                    startDestination = Screen.Home.route,
+                    startDestination = Screen.Main.route,
                     modifier = Modifier
                         .fillMaxSize()
                         .then(
@@ -462,28 +470,42 @@ fun FeAppMain() {
                     }
                 ) {
 
-                    composable(Screen.Home.route) { 
-                        HomeScreen(
-                            mode = currentMode,
-                            shizukuState = shizukuState,
-                            onNavigateToActivation = {
-                                context.startActivity(ActivationActivity.createIntent(context))
+                    composable(Screen.Main.route) {
+                        HorizontalPager(
+                            state = pagerState,
+                            beyondViewportPageCount = 0,
+                            modifier = Modifier.fillMaxSize(),
+                        ) { page ->
+                            when (page) {
+                                0 -> HomeScreen(
+                                    mode = currentMode,
+                                    shizukuState = shizukuState,
+                                    onNavigateToActivation = {
+                                        context.startActivity(ActivationActivity.createIntent(context))
+                                    },
+                                )
+
+                                1 -> ReadScreen(
+                                    currentMode = currentMode,
+                                    onNavigateToActivation = {
+                                        context.startActivity(ActivationActivity.createIntent(context))
+                                    },
+                                    compactAnswerDisplay = compactAnswerDisplay,
+                                )
+
+                                2 -> SettingsScreen(navController)
                             }
-                        )
+                        }
                     }
-                    
+                    // Keep the old root destinations resolvable when Android restores a pre-Pager back stack.
+                    composable(Screen.Home.route) {
+                        LaunchedEffect(Unit) { handleTargetRoute(Screen.Home.route, navController, mainPagerState) }
+                    }
                     composable(Screen.Read.route) {
-                        ReadScreen(
-                            currentMode = currentMode,
-                            onNavigateToActivation = {
-                                context.startActivity(ActivationActivity.createIntent(context))
-                            },
-                            compactAnswerDisplay = compactAnswerDisplay
-                        )
+                        LaunchedEffect(Unit) { handleTargetRoute(Screen.Read.route, navController, mainPagerState) }
                     }
-                    
-                    composable(Screen.Settings.route) { 
-                        SettingsScreen(navController) 
+                    composable(Screen.Settings.route) {
+                        LaunchedEffect(Unit) { handleTargetRoute(Screen.Settings.route, navController, mainPagerState) }
                     }
                     
                     composable(Screen.Debug.route) {
@@ -496,9 +518,19 @@ fun FeAppMain() {
         AospPredictiveBackHandler(
             state = predictiveBackState,
             enabled = predictiveBackMode == PredictiveBackMode.AOSP &&
-                navController.previousBackStackEntry != null,
-            onBack = { navController.popBackStack() }
+                (navController.previousBackStackEntry != null ||
+                    currentRoute == Screen.Main.route && mainPagerState.selectedPage != 0),
+            onBack = {
+                if (navController.previousBackStackEntry != null) navController.popBackStack()
+                else mainPagerState.animateToPage(0)
+            },
         )
+        BackHandler(
+            enabled = predictiveBackMode != PredictiveBackMode.AOSP &&
+                currentRoute == Screen.Main.route && mainPagerState.selectedPage != 0,
+        ) {
+            mainPagerState.animateToPage(0)
+        }
         
         // 鏇存柊寮圭獥 - 鏀惧湪 Scaffold 澶栭潰纭繚鑳借鐩栧叾浠栧唴瀹瑰柕~
         if (showUpdateDialog && updateDialogStatus != null) {
