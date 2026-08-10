@@ -27,20 +27,20 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -459,8 +459,14 @@ fun ReadScreen(
     // var showOnlyAnswered by remember { mutableStateOf(false) }
     
     // 可展开 FAB 相关状态
-    var isFabExpanded by remember { mutableStateOf(false) }
     var showCloudReadConfirmDialog by remember { mutableStateOf(false) }
+    var showReadActionsMenu by remember { mutableStateOf(false) }
+    val paperListState = key(currentMode) { rememberLazyListState() }
+    val readFabExpanded by remember(paperListState) {
+        derivedStateOf {
+            paperListState.firstVisibleItemIndex == 0 && paperListState.firstVisibleItemScrollOffset < 100
+        }
+    }
 
     // ========== 云端模式状态喵~ 宝贝这些状态现在保存在单例中，Tab 切换不丢失喵~
     var selectedCloudHomeworkStatus by remember { mutableStateOf(CloudHomeworkState.selectedStatus) }
@@ -1338,8 +1344,11 @@ fun ReadScreen(
         }
         return@ReadScreen
     }
-    
+
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+
     ExpressiveScaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
         contentWindowInsets = WindowInsets.safeDrawing.only(
             WindowInsetsSides.Horizontal
@@ -1347,51 +1356,72 @@ fun ReadScreen(
         topBar = {
             LargeFlexibleTopAppBar(
                 title = { Text("读取答案") },
+                actions = {
+                    Box {
+                        IconButton(onClick = { showReadActionsMenu = true }) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "更多操作")
+                        }
+                        DropdownMenu(
+                            expanded = showReadActionsMenu,
+                            onDismissRequest = { showReadActionsMenu = false },
+                        ) {
+                            if (currentMode in setOf(
+                                    ActivationMode.ROOT,
+                                    ActivationMode.SHIZUKU,
+                                    ActivationMode.DIRECT_READ,
+                                )
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("导出本地源文件") },
+                                    leadingIcon = { Icon(Icons.Default.Archive, contentDescription = null) },
+                                    onClick = {
+                                        showReadActionsMenu = false
+                                        showLocalDirectoryExport = true
+                                    },
+                                )
+                            }
+                            DropdownMenuItem(
+                                text = { Text(if (currentMode == ActivationMode.CLOUD) "清除云端缓存" else "清除本地缓存") },
+                                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
+                                onClick = {
+                                    showReadActionsMenu = false
+                                    showDeleteConfirmDialog = true
+                                },
+                            )
+                            if (!SettingsManager.getHideDebugButton()) {
+                                DropdownMenuItem(
+                                    text = { Text("调试信息") },
+                                    leadingIcon = { Icon(Icons.Default.BugReport, contentDescription = null) },
+                                    onClick = {
+                                        showReadActionsMenu = false
+                                        showDebugPanel = true
+                                    },
+                                )
+                            }
+                        }
+                    }
+                },
                 windowInsets = WindowInsets.safeDrawing.only(
                     WindowInsetsSides.Top + WindowInsetsSides.Horizontal
                 ),
                 colors = expressiveTopAppBarColors(),
+                scrollBehavior = scrollBehavior,
             )
         },
         floatingActionButton = {
-            // 宝贝右下角的可展开圆形十字按钮喵~
-            val hideDebugButton = SettingsManager.getHideDebugButton()
-            ExpandableCrossFab(
-                isExpanded = isFabExpanded,
-                hideDebugButton = hideDebugButton,
-                onToggleExpand = { isFabExpanded = !isFabExpanded },
-                onDebugClick = {
-                    isFabExpanded = false
-                    showDebugPanel = true
-                },
-                onDeleteClick = {
-                    isFabExpanded = false
-                    showDeleteConfirmDialog = true  // 宝贝显示删除确认对话框喵~
-                },
-                onReadClick = {
-                    isFabExpanded = false
+            SmallExtendedFloatingActionButton(
+                expanded = readFabExpanded,
+                onClick = {
                     if (currentMode == ActivationMode.CLOUD) {
                         showCloudReadConfirmDialog = true
                     } else {
-                        // 本地模式：重新加载本地试卷喵~
                         ETS100AnswerReader.clearResourceScanCache(currentMode)
                         ReadPageStateStore.clearLocal(context)
                         reloadTrigger++
                     }
                 },
-                onExportClick = if (currentMode in setOf(
-                        ActivationMode.ROOT,
-                        ActivationMode.SHIZUKU,
-                        ActivationMode.DIRECT_READ
-                    )
-                ) {
-                    {
-                        isFabExpanded = false
-                        showLocalDirectoryExport = true
-                    }
-                } else {
-                    null
-                }
+                icon = { Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null) },
+                text = { Text(if (currentMode == ActivationMode.CLOUD) "读取作业" else "重新读取") },
             )
         }
     ) { paddingValues ->
@@ -1505,13 +1535,13 @@ fun ReadScreen(
                         } else {
                             LazyColumn(
                                 modifier = Modifier.fillMaxSize(),
+                                state = paperListState,
                                 contentPadding = PaddingValues(16.dp),
                                 verticalArrangement = Arrangement.spacedBy(13.dp)
                             ) {
                                 item {
                                     CloudModeInfoCard(
                                         selectedStatus = selectedCloudHomeworkStatus,
-                                        onStatusChange = { selectCloudHomeworkStatus(it) }
                                     )
                                     Spacer(modifier = Modifier.height(8.dp))
                                     CloudHomeworkStatusToggle(
@@ -1521,10 +1551,19 @@ fun ReadScreen(
                                 }
                                 if (homeworkListsByStatus.containsKey(selectedCloudHomeworkStatus) && homeworkList.isEmpty()) {
                                     item {
-                                        EmptyCloudHomeworkCard(label = selectedCloudHomeworkLabel)
+                                        EmptyCloudHomeworkCard(label = selectedCloudHomeworkLabel, hasLoaded = true)
+                                    }
+                                } else if (!homeworkListsByStatus.containsKey(selectedCloudHomeworkStatus)) {
+                                    item {
+                                        EmptyCloudHomeworkCard(label = selectedCloudHomeworkLabel, hasLoaded = false)
                                     }
                                 }
-                                itemsIndexed(homeworkList) { paperIndex, homeworkInfo ->
+                                itemsIndexed(
+                                    items = homeworkList,
+                                    key = { index, homeworkInfo ->
+                                        "${cloudHomeworkCacheKey(selectedCloudHomeworkStatus, homeworkInfo)}:$index"
+                                    },
+                                ) { paperIndex, homeworkInfo ->
                                     val homeworkKey = cloudHomeworkCacheKey(selectedCloudHomeworkStatus, homeworkInfo)
                                     val isDownloaded = downloadedHomeworkNames.contains(homeworkKey)
                                     val isDownloading = cloudDownloadingHomeworks.contains(homeworkKey)
@@ -1623,6 +1662,7 @@ fun ReadScreen(
                             // 一级页面：显示试卷列表
                             LazyColumn(
                                 modifier = Modifier.fillMaxSize(),
+                                state = paperListState,
                                 contentPadding = PaddingValues(16.dp),
                                 verticalArrangement = Arrangement.spacedBy(13.dp)
                             ) {
@@ -1638,7 +1678,10 @@ fun ReadScreen(
                                         )
                                     }
                                 }
-                                itemsIndexed(papers) { paperIndex, paper ->
+                                itemsIndexed(
+                                    items = papers,
+                                    key = { _, paper -> "${paper.paperId}:${paper.dataFileName}" },
+                                ) { paperIndex, paper ->
                                     val isLocalAnswerLoading = paper.isLocalAnswerLoading()
                                     PaperListItem(
                                         paper = paper,
@@ -2083,7 +2126,7 @@ private fun LocalAnswerParsingCard(
 }
 
 @Composable
-private fun EmptyCloudHomeworkCard(label: String) {
+private fun EmptyCloudHomeworkCard(label: String, hasLoaded: Boolean) {
     TonalCard(
         modifier = Modifier.fillMaxWidth(),
         containerColor = MaterialTheme.colorScheme.surfaceBright
@@ -2095,17 +2138,24 @@ private fun EmptyCloudHomeworkCard(label: String) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                Icons.Default.FolderOff,
+                if (hasLoaded) Icons.Default.FolderOff else Icons.Default.CloudDownload,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(28.dp)
             )
             Spacer(modifier = Modifier.width(12.dp))
-            Text(
-                text = "未找到$label",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Column {
+                Text(
+                    text = if (hasLoaded) "未找到$label" else "尚未读取$label",
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    text = if (hasLoaded) "该分类暂时没有可用作业" else "点击右下角“读取作业”获取列表",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
@@ -2151,178 +2201,6 @@ private fun cloudHomeworkSegmentedButtonColors(): SegmentedButtonColors {
         disabledInactiveContainerColor = MaterialTheme.colorScheme.surface,
         disabledInactiveContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.58f)
     )
-}
-
-/**
- * 可展开的圆形十字按钮组件
- * 右下角悬浮，点击向上展开本地或云端可用的操作按钮。
- * 喵~ 这个按钮会旋转和缩放动画哦！
- */
-@Composable
-private fun ExpandableCrossFab(
-    isExpanded: Boolean,
-    hideDebugButton: Boolean = false,
-    onToggleExpand: () -> Unit,
-    onDebugClick: () -> Unit,
-    onDeleteClick: () -> Unit,
-    onReadClick: () -> Unit,
-    onExportClick: (() -> Unit)? = null
-) {
-    // 主按钮旋转动画 - 展开时旋转45度变成X形状
-    val rotationAngle by animateFloatAsState(
-        targetValue = if (isExpanded) 45f else 0f,
-        animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing),
-        label = "fab_rotation"
-    )
-    
-    // 子按钮的间距动画
-    val subButtonSpacing = 16.dp
-    
-    Column(
-        horizontalAlignment = Alignment.End,
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        // 三个子按钮，向上展开喵~
-        AnimatedVisibility(
-            visible = isExpanded,
-            enter = fadeIn(tween(200)) + slideInVertically(
-                initialOffsetY = { it },
-                animationSpec = tween(300, easing = FastOutSlowInEasing)
-            ),
-            exit = fadeOut(tween(150)) + slideOutVertically(
-                targetOffsetY = { it },
-                animationSpec = tween(200, easing = FastOutSlowInEasing)
-            )
-        ) {
-            Column(
-                horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                // 读取按钮 - 最上面
-                SubFabItem(
-                    icon = Icons.Default.Book,
-                    label = "读取",
-                    containerColor = MaterialTheme.colorScheme.tertiary,
-                    contentColor = MaterialTheme.colorScheme.onTertiary,
-                    onClick = onReadClick
-                )
-                
-                if (onExportClick != null) {
-                    SubFabItem(
-                        icon = Icons.Default.Archive,
-                        label = "导出",
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary,
-                        onClick = onExportClick
-                    )
-                }
-
-                // 删除按钮 - 中间
-                SubFabItem(
-                    icon = Icons.Default.Delete,
-                    label = "删除",
-                    containerColor = MaterialTheme.colorScheme.error,
-                    contentColor = MaterialTheme.colorScheme.onError,
-                    onClick = onDeleteClick
-                )
-                
-                // 调试按钮 - 最下面（除非 hideDebugButton 为 true 才显示）
-                if (!hideDebugButton) {
-                    SubFabItem(
-                        icon = Icons.Default.BugReport,
-                        label = "调试",
-                        containerColor = MaterialTheme.colorScheme.secondary,
-                        contentColor = MaterialTheme.colorScheme.onSecondary,
-                        onClick = onDebugClick
-                    )
-                }
-            }
-        }
-        
-        // 主十字按钮喵~
-        FloatingActionButton(
-            onClick = onToggleExpand,
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
-            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            shape = CircleShape,
-            elevation = FloatingActionButtonDefaults.elevation(
-                defaultElevation = 0.dp,
-                pressedElevation = 0.dp,
-                focusedElevation = 0.dp,
-                hoveredElevation = 0.dp
-            ),
-            modifier = Modifier.size(56.dp)
-        ) {
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier.rotate(rotationAngle)
-            ) {
-                // 十字图标 - 两条线交叉
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = if (isExpanded) "收回菜单" else "展开菜单",
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-        }
-    }
-}
-
-/**
- * 子按钮组件
- * 小小的圆形按钮，带图标和文字标签
- */
-@Composable
-internal fun SubFabItem(
-    icon: ImageVector,
-    label: String,
-    containerColor: Color,
-    contentColor: Color,
-    onClick: () -> Unit
-) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.End,
-        modifier = Modifier.padding(end = 4.dp)
-    ) {
-        // 文字标签
-        Surface(
-            color = MaterialTheme.colorScheme.surface,
-            shape = RoundedCornerShape(12.dp),
-            tonalElevation = 0.dp,
-            shadowElevation = 0.dp
-        ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-            )
-        }
-        
-        Spacer(modifier = Modifier.width(12.dp))
-        
-        // 小圆形按钮
-        SmallFloatingActionButton(
-            onClick = onClick,
-            containerColor = containerColor,
-            contentColor = contentColor,
-            shape = CircleShape,
-            elevation = FloatingActionButtonDefaults.elevation(
-                defaultElevation = 0.dp,
-                pressedElevation = 0.dp,
-                focusedElevation = 0.dp,
-                hoveredElevation = 0.dp
-            ),
-            modifier = Modifier.size(48.dp)
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = label,
-                modifier = Modifier.size(22.dp)
-            )
-        }
-    }
 }
 
 @Composable
@@ -3993,7 +3871,6 @@ private fun PaperListItem(
     isCloudMode: Boolean = false,
     onExportSource: (() -> Unit)? = null
 ) {
-    val primaryColor = MaterialTheme.colorScheme.primary
     val localPreviewText = remember(paper) { paper.firstQuestionPreviewText() }
     var showMenu by remember { mutableStateOf(false) }
     val listNumber = if (isCloudMode) {
@@ -4064,7 +3941,6 @@ private fun PaperListItem(
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    // 宝贝显示地区标签和标题喵~
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
@@ -4104,7 +3980,6 @@ private fun PaperListItem(
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
                         )
-                        // 宝贝添加已下载标记喵~
                         if (isDownloaded) {
                             Spacer(modifier = Modifier.width(8.dp))
                             Surface(
@@ -4183,15 +4058,15 @@ private fun PaperListItem(
                             )
                             if (isCloudMode) {
                                 Text(
-                                    text = if (isDownloaded) "已下载" else "未下载",
+                                    text = if (isDownloaded) "点击查看答案" else "点击下载并解析",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = if (isDownloaded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             } else {
                                 Text(
-                                    text = "已加载",
+                                    text = "点击查看答案",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = MaterialTheme.colorScheme.primary,
                                 )
                             }
                         }
@@ -4242,7 +4117,6 @@ private fun PaperListItem(
 @Composable
 private fun CloudModeInfoCard(
     selectedStatus: String,
-    onStatusChange: (String) -> Unit
 ) {
     val isHistory = selectedStatus == CloudHomeworkState.STATUS_HISTORY
     TonalCard(
@@ -4264,13 +4138,13 @@ private fun CloudModeInfoCard(
             Spacer(modifier = Modifier.width(12.dp))
             Column {
                 Text(
-                    text = "云端作业模式",
+                    text = if (isHistory) "历史作业" else "当前作业",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
                 )
                 Text(
-                    text = "点击作业项目开始下载喵~",
+                    text = "选择作业下载并解析，已下载项目可直接查看答案",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
