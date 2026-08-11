@@ -33,6 +33,7 @@ import androidx.compose.material3.rememberWideNavigationRailState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalWindowInfo
@@ -64,12 +65,14 @@ fun FeRootNavigationScaffold(
             RootNavigationRail(selectedPage = selectedPage, onNavigatePage = onNavigatePage)
             ExpressiveScaffold(
                 modifier = Modifier.weight(1f),
+                containerColor = Color.Transparent,
                 contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom),
                 content = content,
             )
         }
     } else {
         ExpressiveScaffold(
+            containerColor = Color.Transparent,
             bottomBar = {
                 if (showRootNavigation) {
                     RootBottomBar(selectedPage = selectedPage, onNavigatePage = onNavigatePage)

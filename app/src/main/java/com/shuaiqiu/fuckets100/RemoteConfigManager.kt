@@ -16,10 +16,11 @@ import java.net.URLConnection
 object RemoteConfigManager {
     private const val TAG = "RemoteConfigManager"
     private val CONFIG_URLS = listOf(
+        "https://api.lastudio.cc/software/fe/config",
         "https://raw.giteeusercontent.com/qiuqiqiuqid/fe_config/raw/master/config.json",
         "https://raw.githubusercontent.com/laststudio/Fe_config/main/config.json"
     )
-    private const val DEFAULT_CHANGELOG_URL = "https://raw.githubusercontent.com/laststudio/Fe_config/main/update.md"
+    private const val DEFAULT_CHANGELOG_URL = "https://api.lastudio.cc/software/fe/changelog"
     private const val TIMEOUT_MS = 5000L  // 5秒超时喵~
     
     /**

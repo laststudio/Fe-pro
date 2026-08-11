@@ -72,6 +72,11 @@ android {
     }
 }
 
+configurations.all {
+    exclude(group = "androidx.navigationevent", module = "navigationevent-compose")
+    exclude(group = "org.jetbrains.androidx.navigationevent", module = "navigationevent-compose")
+}
+
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

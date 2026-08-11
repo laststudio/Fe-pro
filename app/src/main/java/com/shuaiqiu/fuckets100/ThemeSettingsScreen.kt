@@ -53,6 +53,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Style
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Wallpaper
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -88,6 +89,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.navigation3.ui.LocalNavAnimatedContentScope
 import com.materialkolor.PaletteStyle
 import com.materialkolor.dynamiccolor.ColorSpec
 import com.materialkolor.rememberDynamicColorScheme
@@ -108,6 +110,7 @@ private enum class ThemeDisplayMode {
     AMOLED,
 }
 
+@SuppressLint("RestrictedApi")
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun ThemeSettingsScreen(
@@ -119,7 +122,8 @@ fun ThemeSettingsScreen(
     onPaletteStyleChanged: ((PaletteStyle) -> Unit)? = null,
     onColorSpecChanged: ((ColorSpec.SpecVersion) -> Unit)? = null,
     onAmoledChanged: ((Boolean) -> Unit)? = null,
-    onPredictiveBackChanged: ((PredictiveBackMode) -> Unit)? = null,
+    onPredictiveBackChanged: ((PredictiveBackAnimation) -> Unit)? = null,
+    onPredictiveBackExitDirectionChanged: ((PredictiveBackExitDirection) -> Unit)? = null,
 ) {
     var isDarkMode by remember { mutableStateOf(ThemeManager.getSavedDarkMode()) }
     var isAutoDarkMode by remember { mutableStateOf(ThemeManager.getSavedAutoDarkMode()) }
@@ -128,7 +132,13 @@ fun ThemeSettingsScreen(
     var paletteStyle by remember { mutableStateOf(ThemeManager.getSavedPaletteStyle()) }
     var colorSpec by remember { mutableStateOf(ThemeManager.getSavedColorSpec()) }
     var isAmoled by remember { mutableStateOf(ThemeManager.getSavedAmoled()) }
-    var predictiveBackMode by remember { mutableStateOf(SettingsManager.getPredictiveBackMode()) }
+    var predictiveBackAnimation by remember {
+        mutableStateOf(SettingsManager.getPredictiveBackAnimation())
+    }
+    var predictiveBackExitDirection by remember {
+        mutableStateOf(SettingsManager.getPredictiveBackExitDirection())
+    }
+    val navigationTransition = LocalNavAnimatedContentScope.current.transition
     val dynamicColorAvailable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
     val dynamicColorActive = useDynamicColor && dynamicColorAvailable
     val systemDark = isSystemInDarkTheme()
@@ -300,11 +310,11 @@ fun ThemeSettingsScreen(
 
                 SegmentedColumn(
                     modifier = Modifier.padding(top = 4.dp),
-                    items = listOf(
+                    items = listOf<@Composable () -> Unit>(
                         {
                             ExpressiveSegmentedDropdownItem(
                                 index = 0,
-                                count = 3,
+                                count = 2,
                                 title = "调色板风格",
                                 items = PaletteStyle.entries.map { it.label },
                                 selectedIndex = PaletteStyle.entries.indexOf(paletteStyle).coerceAtLeast(0),
@@ -320,7 +330,7 @@ fun ThemeSettingsScreen(
                         {
                             ExpressiveSegmentedDropdownItem(
                                 index = 1,
-                                count = 3,
+                                count = 2,
                                 title = "色彩标准",
                                 items = ColorSpec.SpecVersion.entries.map { it.label },
                                 selectedIndex = ColorSpec.SpecVersion.entries.indexOf(colorSpec).coerceAtLeast(0),
@@ -338,23 +348,57 @@ fun ThemeSettingsScreen(
                                 leadingContent = { Icon(Icons.Default.Tune, contentDescription = null) },
                             )
                         },
-                        {
+                    ),
+                )
+
+                val showExitDirection = predictiveBackAnimation == PredictiveBackAnimation.AOSP ||
+                    predictiveBackAnimation == PredictiveBackAnimation.Scale
+                val predictiveBackItemCount = if (showExitDirection) 2 else 1
+                SegmentedColumn(
+                    modifier = Modifier.padding(top = 4.dp),
+                    title = "预测性返回",
+                    items = listOf<@Composable () -> Unit>({
                             ExpressiveSegmentedDropdownItem(
-                                index = 2,
-                                count = 3,
-                                title = "预见性返回动画",
-                                items = PredictiveBackMode.entries.map { it.label },
-                                selectedIndex = PredictiveBackMode.entries.indexOf(predictiveBackMode).coerceAtLeast(0),
+                                index = 0,
+                                count = predictiveBackItemCount,
+                                title = "预测性返回动画",
+                                items = PredictiveBackAnimation.entries.map { it.label },
+                                selectedIndex = PredictiveBackAnimation.entries
+                                    .indexOf(predictiveBackAnimation)
+                                    .coerceAtLeast(0),
                                 onItemSelected = { index ->
-                                    predictiveBackMode = PredictiveBackMode.entries[index]
-                                    SettingsManager.savePredictiveBackMode(predictiveBackMode)
-                                    onPredictiveBackChanged?.invoke(predictiveBackMode)
+                                    navigationTransition.setPlaytimeAfterInitialAndTargetStateEstablished(
+                                        navigationTransition.targetState,
+                                        navigationTransition.targetState,
+                                        navigationTransition.playTimeNanos,
+                                    )
+                                    predictiveBackAnimation = PredictiveBackAnimation.entries[index]
+                                    SettingsManager.savePredictiveBackAnimation(predictiveBackAnimation)
+                                    onPredictiveBackChanged?.invoke(predictiveBackAnimation)
                                 },
-                                supportingContent = { Text(predictiveBackMode.description) },
                                 leadingContent = { Icon(Icons.Default.Tune, contentDescription = null) },
                             )
-                        },
-                    ),
+                        }) + if (showExitDirection) {
+                        listOf<@Composable () -> Unit>({
+                            ExpressiveSegmentedDropdownItem(
+                                index = 1,
+                                count = predictiveBackItemCount,
+                                title = "退出方向",
+                                items = PredictiveBackExitDirection.entries.map { it.label },
+                                selectedIndex = PredictiveBackExitDirection.entries
+                                    .indexOf(predictiveBackExitDirection)
+                                    .coerceAtLeast(0),
+                                onItemSelected = { index ->
+                                    predictiveBackExitDirection = PredictiveBackExitDirection.entries[index]
+                                    SettingsManager.savePredictiveBackExitDirection(predictiveBackExitDirection)
+                                    onPredictiveBackExitDirectionChanged?.invoke(predictiveBackExitDirection)
+                                },
+                                leadingContent = { Icon(Icons.Default.SwapHoriz, contentDescription = null) },
+                            )
+                        })
+                    } else {
+                        emptyList()
+                    },
                 )
             }
 

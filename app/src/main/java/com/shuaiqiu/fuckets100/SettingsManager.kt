@@ -15,6 +15,8 @@ object SettingsManager {
     private const val KEY_LEGAL_ACCEPTED = "legal_accepted"
     private const val KEY_AOSP_PREDICTIVE_BACK = "aosp_predictive_back"
     private const val KEY_PREDICTIVE_BACK_MODE = "predictive_back_mode"
+    private const val KEY_PREDICTIVE_BACK_ANIMATION = "predictive_back_animation"
+    private const val KEY_PREDICTIVE_BACK_EXIT_DIRECTION = "predictive_back_exit_direction"
     private const val KEY_LOCAL_VERIFICATION_CODE = "local_verification_code"
     private const val KEY_COMPACT_ANSWER_DISPLAY = "compact_answer_display"
     
@@ -95,42 +97,98 @@ object SettingsManager {
         return prefs.getString(KEY_LOCAL_VERIFICATION_CODE, "").orEmpty()
     }
 
-    fun savePredictiveBackMode(mode: PredictiveBackMode) {
+    fun savePredictiveBackAnimation(animation: PredictiveBackAnimation) {
         prefs.edit {
-            putString(KEY_PREDICTIVE_BACK_MODE, mode.name)
-            putBoolean(KEY_AOSP_PREDICTIVE_BACK, mode == PredictiveBackMode.AOSP)
+            putString(KEY_PREDICTIVE_BACK_ANIMATION, animation.value)
         }
     }
 
-    fun getPredictiveBackMode(): PredictiveBackMode {
-        val modeName = prefs.getString(KEY_PREDICTIVE_BACK_MODE, null)
-        if (modeName != null) {
-            return runCatching { PredictiveBackMode.valueOf(modeName) }
-                .getOrDefault(PredictiveBackMode.AOSP)
+    fun getPredictiveBackAnimation(): PredictiveBackAnimation {
+        prefs.getString(KEY_PREDICTIVE_BACK_ANIMATION, null)?.let {
+            return PredictiveBackAnimation.fromValueOrDefault(it)
         }
 
-        return if (prefs.getBoolean(KEY_AOSP_PREDICTIVE_BACK, true)) {
-            PredictiveBackMode.AOSP
-        } else {
-            PredictiveBackMode.SLIDE
+        val legacyAnimation = when (prefs.getString(KEY_PREDICTIVE_BACK_MODE, null)) {
+            "AOSP" -> PredictiveBackAnimation.AOSP
+            "KERNELSU_CLASSIC" -> PredictiveBackAnimation.KernelSUClassic
+            "SLIDE" -> PredictiveBackAnimation.MIUIX
+            "NONE" -> PredictiveBackAnimation.None
+            else -> null
+        }
+
+        if (legacyAnimation != null) {
+            savePredictiveBackAnimation(legacyAnimation)
+            return legacyAnimation
+        }
+
+        if (prefs.contains(KEY_AOSP_PREDICTIVE_BACK)) {
+            val legacyAnimation = if (prefs.getBoolean(KEY_AOSP_PREDICTIVE_BACK, false)) {
+                PredictiveBackAnimation.AOSP
+            } else {
+                PredictiveBackAnimation.MIUIX
+            }
+            savePredictiveBackAnimation(legacyAnimation)
+            return legacyAnimation
+        }
+
+        if (prefs.all.isNotEmpty()) {
+            savePredictiveBackAnimation(PredictiveBackAnimation.AOSP)
+            return PredictiveBackAnimation.AOSP
+        }
+
+        savePredictiveBackAnimation(PredictiveBackAnimation.Scale)
+        return PredictiveBackAnimation.Scale
+    }
+
+    fun savePredictiveBackExitDirection(direction: PredictiveBackExitDirection) {
+        prefs.edit {
+            putString(KEY_PREDICTIVE_BACK_EXIT_DIRECTION, direction.value)
         }
     }
 
-    fun saveAospPredictiveBackEnabled(enabled: Boolean) {
-        savePredictiveBackMode(if (enabled) PredictiveBackMode.AOSP else PredictiveBackMode.SLIDE)
-    }
-
-    fun isAospPredictiveBackEnabled(): Boolean {
-        return getPredictiveBackMode() == PredictiveBackMode.AOSP
+    fun getPredictiveBackExitDirection(): PredictiveBackExitDirection {
+        return PredictiveBackExitDirection.fromValueOrDefault(
+            prefs.getString(KEY_PREDICTIVE_BACK_EXIT_DIRECTION, "").orEmpty()
+        )
     }
 }
 
-enum class PredictiveBackMode(
-    val label: String,
-    val description: String
-) {
-    AOSP("缩放", "使用缩放式预见性返回动画"),
-    KERNELSU_CLASSIC("渐变", "使用渐变式预见性返回动画"),
-    SLIDE("滑动", "使用系统自带预见性返回动画"),
-    NONE("无", "关闭自定义预见性返回动画")
+enum class PredictiveBackAnimation(val value: String) {
+    None("none"),
+    AOSP("aosp"),
+    MIUIX("miuix"),
+    Scale("scale"),
+    KernelSUClassic("ksu_classic");
+
+    companion object {
+        fun fromValueOrDefault(value: String) =
+            entries.find { it.value == value } ?: Scale
+    }
 }
+
+enum class PredictiveBackExitDirection(val value: String) {
+    FOLLOW_GESTURE("follow_gesture"),
+    ALWAYS_RIGHT("always_right"),
+    ALWAYS_LEFT("always_left");
+
+    companion object {
+        fun fromValueOrDefault(value: String) =
+            entries.find { it.value == value } ?: FOLLOW_GESTURE
+    }
+}
+
+val PredictiveBackAnimation.label: String
+    get() = when (this) {
+        PredictiveBackAnimation.None -> "无"
+        PredictiveBackAnimation.AOSP -> "AOSP"
+        PredictiveBackAnimation.MIUIX -> "Miuix"
+        PredictiveBackAnimation.Scale -> "缩放"
+        PredictiveBackAnimation.KernelSUClassic -> "KernelSU 经典"
+    }
+
+val PredictiveBackExitDirection.label: String
+    get() = when (this) {
+        PredictiveBackExitDirection.FOLLOW_GESTURE -> "跟随手势"
+        PredictiveBackExitDirection.ALWAYS_RIGHT -> "始终向右"
+        PredictiveBackExitDirection.ALWAYS_LEFT -> "始终向左"
+    }

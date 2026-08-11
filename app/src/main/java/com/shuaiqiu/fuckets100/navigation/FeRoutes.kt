@@ -27,6 +27,9 @@ sealed interface FeRoute : NavKey, Parcelable {
     data object Donate : FeRoute
 
     @Parcelize
+    data class Answer(val paperKey: String) : FeRoute
+
+    @Parcelize
     data class RemoteContent(
         val announcementTitle: String,
         val announcementMessage: String,

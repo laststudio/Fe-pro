@@ -187,6 +187,7 @@ jobs:
           set -euo pipefail
           required_secrets=(
             "PUBLIC_RELEASE_TOKEN"
+            "LASTUDIO_PUBLISHER_TOKEN"
             "CONFIG_GITHUB_TOKEN"
             "GITEE_USERNAME"
             "GITEE_TOKEN"
@@ -202,6 +203,7 @@ jobs:
           echo "发布密钥校验通过。"
         env:
           PUBLIC_RELEASE_TOKEN: ${{ secrets.PUBLIC_RELEASE_TOKEN }}
+          LASTUDIO_PUBLISHER_TOKEN: ${{ secrets.LASTUDIO_PUBLISHER_TOKEN }}
           CONFIG_GITHUB_TOKEN: ${{ secrets.CONFIG_GITHUB_TOKEN }}
           GITEE_USERNAME: ${{ secrets.GITEE_USERNAME }}
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
@@ -332,6 +334,7 @@ jobs:
             --local-config-file config/config.json \
             --source-changelog-file update.md
         env:
+          LASTUDIO_PUBLISHER_TOKEN: ${{ secrets.LASTUDIO_PUBLISHER_TOKEN }}
           CONFIG_GITHUB_TOKEN: ${{ secrets.CONFIG_GITHUB_TOKEN }}
           CONFIG_GITHUB_REPO: ${{ vars.CONFIG_GITHUB_REPO || 'laststudio/Fe_config' }}
           CONFIG_GITHUB_BRANCH: ${{ vars.CONFIG_GITHUB_BRANCH || 'main' }}

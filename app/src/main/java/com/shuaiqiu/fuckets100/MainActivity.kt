@@ -6,8 +6,8 @@ import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
-import androidx.activity.compose.PredictiveBackHandler
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -39,7 +39,6 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.shuaiqiu.fuckets100.component.material.rememberFeMainPagerState
 import kotlinx.coroutines.flow.MutableSharedFlow
-import com.shuaiqiu.fuckets100.component.material.FeRootNavigationScaffold
 import com.shuaiqiu.fuckets100.navigation.FeNavContainer
 import com.shuaiqiu.fuckets100.navigation.FeNavigator
 import com.shuaiqiu.fuckets100.navigation.FeRoute
@@ -207,7 +206,7 @@ private fun handleTargetRoute(
 ) {
     rootPageForRoute(route)?.let {
         navigator.popUntil { current -> current is FeRoute.Main }
-        pagerState.animateToPage(it)
+        pagerState.handlePageChange(it)
     }
 }
 
@@ -218,11 +217,15 @@ fun FeAppMain() {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val navigator = rememberFeNavigator(FeRoute.Main)
-    val currentRoute = navigator.current()
     val initialRootPage = remember { rootPageForRoute(MainActivity.pendingTargetRoute) ?: 0 }
     val pagerState = rememberPagerState(initialPage = initialRootPage, pageCount = { rootTabRoutes.size })
     val mainPagerState = rememberFeMainPagerState(pagerState)
-    var predictiveBackMode by remember { mutableStateOf(SettingsManager.getPredictiveBackMode()) }
+    var predictiveBackAnimation by remember {
+        mutableStateOf(SettingsManager.getPredictiveBackAnimation())
+    }
+    var predictiveBackExitDirection by remember {
+        mutableStateOf(SettingsManager.getPredictiveBackExitDirection())
+    }
     var compactAnswerDisplay by remember { mutableStateOf(SettingsManager.getCompactAnswerDisplay()) }
 
     val shizukuState = rememberShizukuState()
@@ -283,7 +286,8 @@ fun FeAppMain() {
                 paletteStyle = ThemeManager.getSavedPaletteStyle()
                 colorSpec = ThemeManager.getSavedColorSpec()
                 isAmoled = ThemeManager.getSavedAmoled()
-                predictiveBackMode = SettingsManager.getPredictiveBackMode()
+                predictiveBackAnimation = SettingsManager.getPredictiveBackAnimation()
+                predictiveBackExitDirection = SettingsManager.getPredictiveBackExitDirection()
                 compactAnswerDisplay = SettingsManager.getCompactAnswerDisplay()
                 MainActivity.pendingTargetRoute?.let { route ->
                     MainActivity.pendingTargetRoute = null
@@ -327,75 +331,70 @@ fun FeAppMain() {
         colorSpec = colorSpec,
         isAmoled = isAmoled,
     ) {
-        FeRootNavigationScaffold(
-            showRootNavigation = currentRoute is FeRoute.Main,
-            selectedPage = mainPagerState.selectedPage,
-            onNavigatePage = mainPagerState::animateToPage,
-        ) { innerPadding ->
-            Box(modifier = Modifier.padding(innerPadding)) {
-                FeNavContainer(
-                    navigator = navigator,
-                    predictiveBackMode = predictiveBackMode,
-                    currentMode = currentMode,
-                    shizukuState = shizukuState,
-                    onActivationModeChanged = { currentMode = it },
-                    onSelectRootPage = mainPagerState::animateToPage,
-                    onDarkModeChanged = { isDarkMode = it },
-                    onAutoDarkModeChanged = { isAutoDarkMode = it },
-                    onDynamicColorChanged = { useDynamicColor = it },
-                    onKeyColorChanged = { keyColor = it },
-                    onPaletteStyleChanged = { paletteStyle = it },
-                    onColorSpecChanged = { colorSpec = it },
-                    onAmoledChanged = { isAmoled = it },
-                    onPredictiveBackChanged = { predictiveBackMode = it },
-                    mainContent = {
-                        HorizontalPager(
-                            state = pagerState,
-                            beyondViewportPageCount = 0,
-                            modifier = Modifier.fillMaxSize(),
-                        ) { page ->
-                            when (page) {
-                                0 -> HomeScreen(
-                                    mode = currentMode,
-                                    shizukuState = shizukuState,
-                                    onNavigateToActivation = {
-                                        navigator.push(FeRoute.Activation)
-                                    },
-                                    onNavigateToRemoteContent = { status ->
-                                        navigator.push(status.toRemoteContentRoute())
-                                    },
-                                    onNavigateToDonate = { navigator.push(FeRoute.Donate) },
-                                )
+        FeNavContainer(
+            navigator = navigator,
+            predictiveBackAnimation = predictiveBackAnimation,
+            predictiveBackExitDirection = predictiveBackExitDirection,
+            currentMode = currentMode,
+            shizukuState = shizukuState,
+            onActivationModeChanged = { currentMode = it },
+            onSelectRootPage = mainPagerState::handlePageChange,
+            onDarkModeChanged = { isDarkMode = it },
+            onAutoDarkModeChanged = { isAutoDarkMode = it },
+            onDynamicColorChanged = { useDynamicColor = it },
+            onKeyColorChanged = { keyColor = it },
+            onPaletteStyleChanged = { paletteStyle = it },
+            onColorSpecChanged = { colorSpec = it },
+            onAmoledChanged = { isAmoled = it },
+            onPredictiveBackChanged = { predictiveBackAnimation = it },
+            onPredictiveBackExitDirectionChanged = { predictiveBackExitDirection = it },
+            selectedRootPage = mainPagerState.selectedPage,
+            mainContent = {
+                BackHandler(pagerState.currentPage != 0) {
+                    mainPagerState.handlePageChange(0)
+                }
+                HorizontalPager(
+                    state = pagerState,
+                    userScrollEnabled = mainPagerState.userScrollEnabled,
+                    beyondViewportPageCount = 1,
+                    modifier = Modifier.fillMaxSize(),
+                ) { page ->
+                    when (page) {
+                        0 -> HomeScreen(
+                            mode = currentMode,
+                            shizukuState = shizukuState,
+                            onNavigateToActivation = {
+                                navigator.push(FeRoute.Activation)
+                            },
+                            onNavigateToRemoteContent = { status ->
+                                navigator.push(status.toRemoteContentRoute())
+                            },
+                            onNavigateToDonate = { navigator.push(FeRoute.Donate) },
+                        )
 
-                                1 -> ReadScreen(
-                                    currentMode = currentMode,
-                                    onNavigateToActivation = {
-                                        navigator.push(FeRoute.Activation)
-                                    },
-                                    compactAnswerDisplay = compactAnswerDisplay,
-                                )
+                        1 -> ReadScreen(
+                            currentMode = currentMode,
+                            onNavigateToActivation = {
+                                navigator.push(FeRoute.Activation)
+                            },
+                            onOpenPaperDetail = { paper ->
+                                navigator.push(FeRoute.Answer(PaperStore.put(paper)))
+                            },
+                            compactAnswerDisplay = compactAnswerDisplay,
+                        )
 
-                                2 -> SettingsScreen(
-                                    onNavigateActivation = { navigator.push(FeRoute.Activation) },
-                                    onNavigateGeneralSettings = { navigator.push(FeRoute.GeneralSettings) },
-                                    onNavigateThemeSettings = { navigator.push(FeRoute.ThemeSettings) },
-                                    onNavigateLegal = { navigator.push(FeRoute.Legal) },
-                                    onNavigateDonate = { navigator.push(FeRoute.Donate) },
-                                    donateEnabled = remoteStatus?.donateEnabled ?: true,
-                                )
-                            }
-                        }
-                    },
-                )
-            }
-        }
-        PredictiveBackHandler(
-            enabled = currentRoute is FeRoute.Main && mainPagerState.selectedPage != 0,
-        ) { progress ->
-            progress.collect { }
-            mainPagerState.animateToPage(0)
-        }
-        
+                        2 -> SettingsScreen(
+                            onNavigateActivation = { navigator.push(FeRoute.Activation) },
+                            onNavigateGeneralSettings = { navigator.push(FeRoute.GeneralSettings) },
+                            onNavigateThemeSettings = { navigator.push(FeRoute.ThemeSettings) },
+                            onNavigateLegal = { navigator.push(FeRoute.Legal) },
+                            onNavigateDonate = { navigator.push(FeRoute.Donate) },
+                            donateEnabled = remoteStatus?.donateEnabled ?: true,
+                        )
+                    }
+                }
+            },
+        )
         // 鏇存柊寮圭獥 - 鏀惧湪 Scaffold 澶栭潰纭繚鑳借鐩栧叾浠栧唴瀹瑰柕~
         if (showUpdateDialog && updateDialogStatus != null) {
             Log.d("FeAppMain", "鏄剧ず鏇存柊寮圭獥: ${updateDialogStatus!!.message}")

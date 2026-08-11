@@ -1,13 +1,17 @@
 package com.shuaiqiu.fuckets100.navigation
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -27,22 +31,26 @@ import com.materialkolor.PaletteStyle
 import com.materialkolor.dynamiccolor.ColorSpec
 import com.shuaiqiu.fuckets100.ActivationMode
 import com.shuaiqiu.fuckets100.ActivationSettingsScreen
+import com.shuaiqiu.fuckets100.AnswerScreen
 import com.shuaiqiu.fuckets100.CloudActivationScreen
 import com.shuaiqiu.fuckets100.DonateScreen
 import com.shuaiqiu.fuckets100.GeneralSettingsScreen
 import com.shuaiqiu.fuckets100.LegalScreen
-import com.shuaiqiu.fuckets100.PredictiveBackMode
+import com.shuaiqiu.fuckets100.PredictiveBackAnimation
+import com.shuaiqiu.fuckets100.PredictiveBackExitDirection
 import com.shuaiqiu.fuckets100.RemoteContent
 import com.shuaiqiu.fuckets100.RemoteContentScreen
 import com.shuaiqiu.fuckets100.SettingsManager
 import com.shuaiqiu.fuckets100.ShizukuState
 import com.shuaiqiu.fuckets100.ThemeSettingsScreen
+import com.shuaiqiu.fuckets100.component.material.FeRootNavigationScaffold
 import kotlinx.coroutines.launch
 
 @Composable
 fun FeNavContainer(
     navigator: FeNavigator,
-    predictiveBackMode: PredictiveBackMode,
+    predictiveBackAnimation: PredictiveBackAnimation,
+    predictiveBackExitDirection: PredictiveBackExitDirection,
     currentMode: ActivationMode,
     shizukuState: ShizukuState,
     onActivationModeChanged: (ActivationMode) -> Unit,
@@ -54,148 +62,209 @@ fun FeNavContainer(
     onPaletteStyleChanged: (PaletteStyle) -> Unit,
     onColorSpecChanged: (ColorSpec.SpecVersion) -> Unit,
     onAmoledChanged: (Boolean) -> Unit,
-    onPredictiveBackChanged: (PredictiveBackMode) -> Unit,
+    onPredictiveBackChanged: (PredictiveBackAnimation) -> Unit,
+    onPredictiveBackExitDirectionChanged: (PredictiveBackExitDirection) -> Unit,
+    selectedRootPage: Int,
     mainContent: @Composable () -> Unit,
 ) {
-    val animation = remember(predictiveBackMode) {
-        when (predictiveBackMode) {
-            PredictiveBackMode.AOSP -> FeAospPredictiveBackAnimation()
-            PredictiveBackMode.KERNELSU_CLASSIC -> FeKernelSuPredictiveBackAnimation()
-            PredictiveBackMode.SLIDE -> FeDefaultPredictiveBackAnimation()
-            PredictiveBackMode.NONE -> FeNoPredictiveBackAnimation()
+    val selectedRootPageState = rememberUpdatedState(selectedRootPage)
+    val selectRootPageState = rememberUpdatedState(onSelectRootPage)
+
+    val predictiveBackAnimationHandler = remember(
+        predictiveBackAnimation,
+        predictiveBackExitDirection,
+    ) {
+        when (predictiveBackAnimation) {
+            PredictiveBackAnimation.None -> NoPredictiveBackAnimation()
+            PredictiveBackAnimation.AOSP -> AOSPCrossActivityAnimation(predictiveBackExitDirection)
+            PredictiveBackAnimation.Scale -> ScalePredictiveBackAnimation(
+                predictiveBackExitDirection,
+            )
+            PredictiveBackAnimation.KernelSUClassic -> KernelSUClassicPredictiveBackAnimation()
+            PredictiveBackAnimation.MIUIX -> MiuixPredictiveBackAnimation()
         }
     }
-    val scope = rememberCoroutineScope()
+
     var gestureState: NavigationEventState<SceneInfo<FeRoute>>? = null
     var cloudAuthRevision by remember { mutableIntStateOf(0) }
-    var isBackCompleting by remember { mutableStateOf(false) }
+    val navigationScope = rememberCoroutineScope()
+    val onBack: (() -> Unit) -> Unit = { callBack ->
+        navigationScope.launch {
+            predictiveBackAnimationHandler.onBackPressed(
+                transitionState = gestureState?.transitionState,
+                currentPageKey = navigator.current(),
+            )
 
-    val entries = rememberDecoratedNavEntries(
-        backStack = navigator.backStack,
-        entryDecorators = listOf(
-            rememberSaveableStateHolderNavEntryDecorator(),
-            rememberViewModelStoreNavEntryDecorator(),
-            NavEntryDecorator(
-                onPop = { key -> animation.onPagePop(key, scope) },
-            ) { content ->
-                with(animation) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .decoratePage(
-                                gestureState?.transitionState,
-                                content.contentKey,
-                                navigator.current(),
-                            ),
-                    ) {
-                        content.Content()
+            callBack()
+
+            navigator.pop()
+        }
+    }
+
+    val entries =
+        rememberDecoratedNavEntries(
+            backStack = navigator.backStack,
+            entryDecorators = listOf(
+                rememberSaveableStateHolderNavEntryDecorator(),
+                rememberViewModelStoreNavEntryDecorator(),
+                NavEntryDecorator(
+                    onPop = { key ->
+                        predictiveBackAnimationHandler.onPagePop(
+                            contentPageKey = key,
+                            animationScope = navigationScope,
+                        )
+                    },
+                ) { content ->
+                    with(predictiveBackAnimationHandler) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .predictiveBackAnimationDecorator(
+                                    gestureState?.transitionState,
+                                    content.contentKey,
+                                    navigator.current(),
+                                )
+                                .background(MaterialTheme.colorScheme.surfaceContainer),
+                        ) {
+                            content.Content()
+                        }
+                    }
+                },
+            ),
+            entryProvider = entryProvider {
+                entry<FeRoute.Main> {
+                    FeRootNavigationScaffold(
+                        showRootNavigation = true,
+                        selectedPage = selectedRootPageState.value,
+                        onNavigatePage = selectRootPageState.value,
+                    ) { innerPadding ->
+                        Box(modifier = Modifier.padding(innerPadding)) {
+                            mainContent()
+                        }
                     }
                 }
+                entry<FeRoute.Activation> {
+                    ActivationSettingsScreen(
+                        currentMode = currentMode,
+                        shizukuState = shizukuState,
+                        cloudAuthRevision = cloudAuthRevision,
+                        onModeSelected = { mode ->
+                            SettingsManager.saveActivationMode(mode)
+                            onActivationModeChanged(mode)
+                        },
+                        onBack = navigator::pop,
+                        onNavigateToCloudActivation = { navigator.push(FeRoute.CloudActivation) },
+                        onNavigateToRead = {
+                            navigator.popUntil { it is FeRoute.Main }
+                            onSelectRootPage(1)
+                        },
+                    )
+                }
+                entry<FeRoute.CloudActivation> {
+                    CloudActivationScreen(
+                        onBack = navigator::pop,
+                        onLoginSuccess = {
+                            SettingsManager.saveActivationMode(ActivationMode.CLOUD)
+                            onActivationModeChanged(ActivationMode.CLOUD)
+                            cloudAuthRevision++
+                            navigator.pop()
+                        },
+                    )
+                }
+                entry<FeRoute.GeneralSettings> { GeneralSettingsScreen(onBack = navigator::pop) }
+                entry<FeRoute.ThemeSettings> {
+                    ThemeSettingsScreen(
+                        onBack = navigator::pop,
+                        onDarkModeChanged = onDarkModeChanged,
+                        onAutoDarkModeChanged = onAutoDarkModeChanged,
+                        onDynamicColorChanged = onDynamicColorChanged,
+                        onKeyColorChanged = onKeyColorChanged,
+                        onPaletteStyleChanged = onPaletteStyleChanged,
+                        onColorSpecChanged = onColorSpecChanged,
+                        onAmoledChanged = onAmoledChanged,
+                        onPredictiveBackChanged = onPredictiveBackChanged,
+                        onPredictiveBackExitDirectionChanged = onPredictiveBackExitDirectionChanged,
+                    )
+                }
+                entry<FeRoute.Legal> { LegalScreen(onBack = navigator::pop) }
+                entry<FeRoute.Donate> { DonateScreen(onBack = navigator::pop) }
+                entry<FeRoute.Answer> { route ->
+                    AnswerScreen(
+                        paperKey = route.paperKey,
+                        onBack = navigator::pop,
+                    )
+                }
+                entry<FeRoute.RemoteContent> { route ->
+                    RemoteContentScreen(
+                        content = RemoteContent(
+                            announcementTitle = route.announcementTitle,
+                            announcementMessage = route.announcementMessage,
+                            announcementUpdatedAt = route.announcementUpdatedAt,
+                            announcementUrl = route.announcementUrl,
+                            changelogTitle = route.changelogTitle,
+                            changelogSummary = route.changelogSummary,
+                            changelogUrl = route.changelogUrl,
+                        ),
+                        onBack = navigator::pop,
+                    )
+                }
             },
-        ),
-        entryProvider = entryProvider {
-            entry<FeRoute.Main> { mainContent() }
-            entry<FeRoute.Activation> {
-                ActivationSettingsScreen(
-                    currentMode = currentMode,
-                    shizukuState = shizukuState,
-                    cloudAuthRevision = cloudAuthRevision,
-                    onModeSelected = { mode ->
-                        SettingsManager.saveActivationMode(mode)
-                        onActivationModeChanged(mode)
-                    },
-                    onBack = navigator::pop,
-                    onNavigateToCloudActivation = { navigator.push(FeRoute.CloudActivation) },
-                    onNavigateToRead = {
-                        navigator.popUntil { it is FeRoute.Main }
-                        onSelectRootPage(1)
-                    },
-                )
-            }
-            entry<FeRoute.CloudActivation> {
-                CloudActivationScreen(
-                    onBack = navigator::pop,
-                    onLoginSuccess = {
-                        SettingsManager.saveActivationMode(ActivationMode.CLOUD)
-                        onActivationModeChanged(ActivationMode.CLOUD)
-                        cloudAuthRevision++
-                        navigator.pop()
-                    },
-                )
-            }
-            entry<FeRoute.GeneralSettings> { GeneralSettingsScreen(onBack = navigator::pop) }
-            entry<FeRoute.ThemeSettings> {
-                ThemeSettingsScreen(
-                    onBack = navigator::pop,
-                    onDarkModeChanged = onDarkModeChanged,
-                    onAutoDarkModeChanged = onAutoDarkModeChanged,
-                    onDynamicColorChanged = onDynamicColorChanged,
-                    onKeyColorChanged = onKeyColorChanged,
-                    onPaletteStyleChanged = onPaletteStyleChanged,
-                    onColorSpecChanged = onColorSpecChanged,
-                    onAmoledChanged = onAmoledChanged,
-                    onPredictiveBackChanged = onPredictiveBackChanged,
-                )
-            }
-            entry<FeRoute.Legal> { LegalScreen(onBack = navigator::pop) }
-            entry<FeRoute.Donate> { DonateScreen(onBack = navigator::pop) }
-            entry<FeRoute.RemoteContent> { route ->
-                RemoteContentScreen(
-                    content = RemoteContent(
-                        announcementTitle = route.announcementTitle,
-                        announcementMessage = route.announcementMessage,
-                        announcementUpdatedAt = route.announcementUpdatedAt,
-                        announcementUrl = route.announcementUrl,
-                        changelogTitle = route.changelogTitle,
-                        changelogSummary = route.changelogSummary,
-                        changelogUrl = route.changelogUrl,
-                    ),
-                    onBack = navigator::pop,
-                )
-            }
-        },
-    )
+        )
 
-    val sceneState = rememberSceneState(
-        entries = entries,
-        sceneStrategies = listOf(SinglePaneSceneStrategy()),
-        sceneDecoratorStrategies = emptyList(),
-        sharedTransitionScope = null,
-        onBack = navigator::pop,
-    )
+    val sceneState =
+        rememberSceneState(
+            entries = entries,
+            sceneStrategies = listOf(SinglePaneSceneStrategy()),
+            sceneDecoratorStrategies = emptyList(),
+            sharedTransitionScope = null,
+            onBack = {
+                onBack {}
+            },
+        )
     val scene = sceneState.currentScene
+
+    // Predictive Back Handling
+    val currentInfo = SceneInfo(scene)
+    val previousSceneInfos = sceneState.previousScenes.map { SceneInfo(it) }
     gestureState = rememberNavigationEventState(
-        currentInfo = SceneInfo(scene),
-        backInfo = sceneState.previousScenes.map(::SceneInfo),
+        currentInfo = currentInfo,
+        backInfo = previousSceneInfos,
     )
 
     NavigationBackHandler(
         state = gestureState,
-        isBackEnabled = scene.previousEntries.isNotEmpty() && !isBackCompleting,
-        onBackCompleted = {
-            if (isBackCompleting) return@NavigationBackHandler
-            isBackCompleting = true
-            val route = navigator.current()
-            val transitionState = gestureState.transitionState
-            scope.launch {
-                try {
-                    animation.onBackPressed(transitionState, route)
-                    if (navigator.current() == route) navigator.pop()
-                } finally {
-                    isBackCompleting = false
-                }
-            }
+        isBackEnabled = scene.previousEntries.isNotEmpty(),
+        onBackCompleted = { callBack ->
+            onBack(callBack)
         },
-        onBackCancelled = {},
+        onBackCancelled = { callBack ->
+            callBack()
+        },
     )
 
-    NavDisplay(
-        sceneState = sceneState,
-        navigationEventState = gestureState,
-        contentAlignment = Alignment.TopStart,
-        sizeTransform = null,
-        predictivePopTransitionSpec = { swipeEdge -> with(animation) { predictivePop(swipeEdge) } },
-        popTransitionSpec = { with(animation) { pop() } },
-        transitionSpec = { with(animation) { push() } },
-    )
+    CompositionLocalProvider(
+        LocalFeNavigator provides navigator,
+    ) {
+        NavDisplay(
+            sceneState = sceneState,
+            navigationEventState = gestureState,
+            contentAlignment = Alignment.TopStart,
+            sizeTransform = null,
+            predictivePopTransitionSpec = { swipeEdge ->
+                with(predictiveBackAnimationHandler) {
+                    onPredictivePopTransitionSpec(swipeEdge = swipeEdge)
+                }
+            },
+            popTransitionSpec = {
+                with(predictiveBackAnimationHandler) {
+                    onPopTransitionSpec()
+                }
+            },
+            transitionSpec = {
+                with(predictiveBackAnimationHandler) {
+                    onTransitionSpec()
+                }
+            },
+        )
+    }
 }

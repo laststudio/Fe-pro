@@ -358,6 +358,7 @@ private fun formatAnswerForDisplay(
 fun ReadScreen(
     currentMode: ActivationMode,
     onNavigateToActivation: () -> Unit,
+    onOpenPaperDetail: (ETS100AnswerReader.Paper) -> Unit,
     compactAnswerDisplay: Boolean = SettingsManager.getCompactAnswerDisplay()
 ) {
     val context = LocalContext.current
@@ -385,8 +386,7 @@ fun ReadScreen(
     }
 
     fun openPaperDetail(paper: ETS100AnswerReader.Paper) {
-        val paperKey = PaperStore.put(paper)
-        context.startActivity(AnswerActivity.createIntent(context, paperKey))
+        onOpenPaperDetail(paper)
     }
 
     fun copyPaperText(paper: ETS100AnswerReader.Paper) {
