@@ -88,6 +88,30 @@ object PaperSourceExporter {
         val fileName: String
     )
 
+    data class CloudDirectoryFile(
+        val source: File,
+        val archivePath: String,
+        val size: Long
+    )
+
+    data class CloudDirectoryInspection(
+        val root: File,
+        val files: List<CloudDirectoryFile>,
+        val skipped: List<String>,
+        val totalBytes: Long,
+        val parsedPapers: List<ETS100AnswerReader.Paper>,
+        val isDownloadInProgress: Boolean
+    ) {
+        val parsedPaperCount: Int get() = parsedPapers.size
+        val isEmpty: Boolean get() = files.isEmpty()
+        val exceedsSizeLimit: Boolean get() = totalBytes > LOCAL_DIRECTORY_EXPORT_MAX_BYTES
+        val hasTooManyParsedPapers: Boolean get() = parsedPaperCount >= LOCAL_DIRECTORY_EXPORT_MAX_PARSED_PAPERS
+        val hasTooManyFiles: Boolean get() = files.size >= CLOUD_DIRECTORY_EXPORT_MAX_FILES
+        val blockReason: LocalDirectoryExportBlockReason?
+            get() = localDirectoryExportBlockReason(files.size, totalBytes, parsedPaperCount)
+        val canExport: Boolean get() = blockReason == null && !hasTooManyFiles && !isDownloadInProgress
+    }
+
     suspend fun inspect(context: Context, source: PaperSource): Inspection = withContext(Dispatchers.IO) {
         when (source) {
             is PaperSource.Local -> inspectLocal(context, source)
@@ -236,6 +260,64 @@ object PaperSourceExporter {
         }
     }
 
+    suspend fun inspectCloudDirectoryExport(
+        context: Context,
+        currentPapers: List<ETS100AnswerReader.Paper>,
+        isDownloadInProgress: Boolean
+    ): CloudDirectoryInspection = withContext(Dispatchers.IO) {
+        val expectedRoot = File(context.cacheDir.canonicalFile, "cloud_homework")
+        val root = expectedRoot.canonicalFile
+        val files = mutableListOf<CloudDirectoryFile>()
+        val skipped = mutableListOf<String>()
+        val rootIsSafe = !java.nio.file.Files.isSymbolicLink(expectedRoot.toPath()) &&
+            root.toPath().startsWith(context.cacheDir.canonicalFile.toPath())
+        if (!rootIsSafe) {
+            skipped += "cloud_homework（缓存根目录无效）"
+        } else if (root.isDirectory) {
+            collectCloudDirectoryFiles(root, root, files, skipped)
+        }
+        CloudDirectoryInspection(
+            root = root,
+            files = files.sortedBy { it.archivePath },
+            skipped = skipped.sorted(),
+            totalBytes = files.sumOf { it.size },
+            parsedPapers = completedParsedPapers(currentPapers),
+            isDownloadInProgress = isDownloadInProgress
+        )
+    }
+
+    suspend fun exportCloudDirectory(
+        context: Context,
+        inspection: CloudDirectoryInspection
+    ): LocalDirectoryExportResult = withContext(Dispatchers.IO) {
+        check(inspection.canExport) { "当前云端缓存目录不符合导出条件" }
+        val expectedRoot = File(context.cacheDir.canonicalFile, "cloud_homework")
+        check(!java.nio.file.Files.isSymbolicLink(expectedRoot.toPath())) { "云端缓存根目录已变为符号链接" }
+        check(expectedRoot.canonicalFile == inspection.root) { "云端缓存根目录已发生变化" }
+        val fileName = buildCloudDirectoryExportFileName()
+        val stagingDir = File(context.cacheDir, "source_exports").apply { mkdirs() }
+        val stagingFile = File(stagingDir, "$fileName.part").also { it.delete() }
+        try {
+            ZipOutputStream(FileOutputStream(stagingFile).buffered()).use { zip ->
+                var writtenBytes = 0L
+                inspection.files.forEach { file ->
+                    val source = file.source
+                    val canonicalSource = source.canonicalFile
+                    check(!java.nio.file.Files.isSymbolicLink(source.toPath())) { "缓存文件已变为符号链接" }
+                    check(canonicalSource.toPath().startsWith(inspection.root.toPath())) { "缓存文件超出云端缓存目录" }
+                    check(canonicalSource.isFile && canonicalSource.canRead()) { "缓存文件已失效" }
+                    writtenBytes += canonicalSource.length()
+                    check(writtenBytes <= LOCAL_DIRECTORY_EXPORT_MAX_BYTES) { "云端缓存总大小超过 150 MiB" }
+                    writeStreamEntry(zip, file.archivePath) { FileInputStream(canonicalSource) }
+                }
+                writeTextEntry(zip, "导出说明.txt", buildCloudDirectoryReadme(inspection))
+            }
+            LocalDirectoryExportResult(publishToDownloads(context, stagingFile, fileName), fileName)
+        } finally {
+            stagingFile.delete()
+        }
+    }
+
     fun cloudCacheDirectory(context: Context, source: PaperSource.Cloud): File {
         val urls = source.contents.map { resolveCloudUrl(source.baseUrl, it.url) }.sorted().joinToString("|")
         val identity = "${source.status}:${source.homeworkIdentity}:${source.baseUrl}:$urls"
@@ -269,6 +351,11 @@ object PaperSourceExporter {
     internal fun buildLocalDirectoryExportFileName(timestamp: Long = System.currentTimeMillis()): String {
         val time = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date(timestamp))
         return "Fe_Local_Files_$time.zip"
+    }
+
+    internal fun buildCloudDirectoryExportFileName(timestamp: Long = System.currentTimeMillis()): String {
+        val time = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date(timestamp))
+        return "Fe_Cloud_Files_$time.zip"
     }
 
     internal fun localDirectoryExportBlockReason(
@@ -618,6 +705,36 @@ object PaperSourceExporter {
         }
     }
 
+    private fun collectCloudDirectoryFiles(
+        root: File,
+        current: File,
+        files: MutableList<CloudDirectoryFile>,
+        skipped: MutableList<String>
+    ) {
+        current.listFiles()?.forEach { child ->
+            if (files.size >= CLOUD_DIRECTORY_EXPORT_MAX_FILES) {
+                skipped += "文件数量达到上限，停止继续扫描"
+                return
+            }
+            val relative = child.relativeTo(root).invariantSeparatorsPath
+            val canonicalChild = runCatching { child.canonicalFile }.getOrElse {
+                skipped += "$relative（无法解析路径）"
+                return@forEach
+            }
+            when {
+                java.nio.file.Files.isSymbolicLink(child.toPath()) -> skipped += "$relative（符号链接）"
+                !canonicalChild.toPath().startsWith(root.toPath()) -> skipped += "$relative（超出缓存目录）"
+                canonicalChild.isDirectory -> collectCloudDirectoryFiles(root, canonicalChild, files, skipped)
+                canonicalChild.isFile && canonicalChild.canRead() -> files += CloudDirectoryFile(
+                    source = canonicalChild,
+                    archivePath = "cloud_homework/$relative",
+                    size = canonicalChild.length()
+                )
+                else -> skipped += "$relative（无法读取）"
+            }
+        } ?: skipped.add("${current.relativeTo(root).invariantSeparatorsPath.ifBlank { "cloud_homework" }}/（无法读取目录）")
+    }
+
     private fun writeDirectory(
         reader: ETS100FileReader.Reader,
         sourcePath: String,
@@ -787,6 +904,26 @@ object PaperSourceExporter {
         }
     }
 
+    internal fun buildCloudDirectoryReadme(inspection: CloudDirectoryInspection): String = buildString {
+        appendLine("Fe 云端缓存题目文件导出")
+        appendLine("本包仅用于向作者反馈无法解析或需要适配的云端题目，请勿作为常规答案分享包。")
+        appendLine()
+        appendLine("导出时间：${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())}")
+        appendLine("缓存文件总大小：${formatExportSize(inspection.totalBytes)}")
+        appendLine("当前已解析试卷：${inspection.parsedPaperCount} 套")
+        if (inspection.isDownloadInProgress) {
+            appendLine("下载状态：导出时仍有云端作业正在下载，缓存快照可能不完整。")
+        }
+        appendLine()
+        appendLine("缓存文件：")
+        inspection.files.forEach { appendLine("- ${it.archivePath} (${formatExportSize(it.size)})") }
+        if (inspection.skipped.isNotEmpty()) {
+            appendLine()
+            appendLine("未导出的项目：")
+            inspection.skipped.forEach { appendLine("- $it") }
+        }
+    }
+
     private fun formatExportSize(size: Long): String = when {
         size < 1024L -> "$size B"
         size < 1024L * 1024L -> "%.1f KiB".format(Locale.US, size / 1024.0)
@@ -876,6 +1013,7 @@ object PaperSourceExporter {
 
     private const val LOCAL_DIRECTORY_EXPORT_MAX_BYTES = 150L * 1024L * 1024L
     private const val LOCAL_DIRECTORY_EXPORT_MAX_PARSED_PAPERS = 3
+    private const val CLOUD_DIRECTORY_EXPORT_MAX_FILES = 10_000
     private const val TAR_BLOCK_SIZE = 512
     private const val EXPORTER_TAG = "PaperSourceExporter"
 }

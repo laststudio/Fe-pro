@@ -73,7 +73,9 @@ private object HomeRuntimeStatusStore {
 fun HomeScreen(
     mode: ActivationMode,
     shizukuState: ShizukuState,
-    onNavigateToActivation: () -> Unit
+    onNavigateToActivation: () -> Unit,
+    onNavigateToRemoteContent: (UpdateStatus?) -> Unit,
+    onNavigateToDonate: () -> Unit,
 ) {
     val context = LocalContext.current
     val appContext = remember(context) { context.applicationContext }
@@ -186,7 +188,11 @@ fun HomeScreen(
                 shizukuState = shizukuState,
                 runtimeStatus = runtimeStatus,
             )
-            HomeRemoteContent(status = remoteStatus)
+            HomeRemoteContent(
+                status = remoteStatus,
+                onNavigateToRemoteContent = onNavigateToRemoteContent,
+                onNavigateToDonate = onNavigateToDonate,
+            )
             Spacer(Modifier.height(16.dp))
         }
     }
@@ -305,7 +311,7 @@ fun StatusCard(
                     imageVector = displayIcon,
                     contentDescription = null,
                     tint = statusContentColor,
-                    modifier = Modifier.size(28.dp),
+                    modifier = Modifier.size(32.dp),
                 )
             },
             trailingContent = {
@@ -333,8 +339,11 @@ fun StatusCard(
 }
 
 @Composable
-private fun HomeRemoteContent(status: UpdateStatus?) {
-    val context = LocalContext.current
+private fun HomeRemoteContent(
+    status: UpdateStatus?,
+    onNavigateToRemoteContent: (UpdateStatus?) -> Unit,
+    onNavigateToDonate: () -> Unit,
+) {
     val announcementMessage = status?.announcementMessage.orEmpty()
     val announcementTitle = status?.announcementTitle?.takeIf { it.isNotBlank() } ?: "公告"
     val donateEnabled = status?.donateEnabled ?: true
@@ -343,13 +352,13 @@ private fun HomeRemoteContent(status: UpdateStatus?) {
         HomeLinkCard(
             title = announcementTitle,
             summary = announcementMessage.ifBlank { if (status == null) "正在同步远程内容" else "暂无公告" },
-            onClick = { openRemoteContent(context, status) },
+            onClick = { onNavigateToRemoteContent(status) },
         )
         if (donateEnabled) {
             HomeLinkCard(
                 title = "捐赠支持",
                 summary = "支持 Fe 的后续维护与功能更新",
-                onClick = { context.startActivity(DonateActivity.createIntent(context)) }
+                onClick = onNavigateToDonate
             )
         }
     }
@@ -452,23 +461,3 @@ private val ActivationMode.shortLabel: String
         ActivationMode.DIRECT_READ -> "Direct Read"
         ActivationMode.CLOUD -> "云端"
     }
-
-private fun openRemoteContent(
-    context: android.content.Context,
-    status: UpdateStatus?,
-) {
-    val announcementTitle = status?.announcementTitle?.takeIf { it.isNotBlank() } ?: "公告"
-    val changelogTitle = status?.changelogTitle?.takeIf { it.isNotBlank() } ?: "更新日志"
-    context.startActivity(
-        RemoteContentActivity.createIntent(
-            context = context,
-            announcementTitle = announcementTitle,
-            announcementMessage = status?.announcementMessage.orEmpty().ifBlank { "暂无公告" },
-            announcementUpdatedAt = status?.announcementUpdatedAt.orEmpty(),
-            announcementUrl = status?.announcementUrl.orEmpty(),
-            changelogTitle = changelogTitle,
-            changelogSummary = status?.changelogSummary.orEmpty().ifBlank { status?.message.orEmpty().ifBlank { "暂无更新内容" } },
-            changelogUrl = status?.changelogUrl.orEmpty(),
-        ),
-    )
-}

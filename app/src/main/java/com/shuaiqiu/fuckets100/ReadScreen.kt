@@ -102,23 +102,6 @@ private enum class LogCategory(val label: String) {
 }
 
 /**
- * 日志条目数据结构
- * 用于结构化存储日志信息，支持彩色显示
- */
-private data class LogEntry(
-    val timestamp: String,
-    val level: LogLevel,
-    val category: LogCategory,
-    val message: String
-) {
-    /**
-     * 将日志条目格式化为显示文本
-     * 格式: [时间] [级别] [类别] 消息
-     */
-    fun toDisplayString(): String = "[$timestamp] [${level.label}] [${category.label}] $message"
-}
-
-/**
  * 初始化结果密封类
  * 用于安全地在 IO 线程和主线程之间传递数据
  */
@@ -413,11 +396,6 @@ fun ReadScreen(
         android.widget.Toast.makeText(context, "已复制答案到剪贴板", android.widget.Toast.LENGTH_SHORT).show()
     }
     
-    // 调试相关状态 - 使用结构化日志系统
-    var showDebugPanel by remember { mutableStateOf(false) }
-    var debugLog by remember { mutableStateOf(listOf<LogEntry>()) }
-    var showDataDetails by remember { mutableStateOf(false) }  // 是否显示详细数据信息
-    
     // 文件列表状态
     var dataFiles by remember {
         mutableStateOf(if (currentMode != ActivationMode.CLOUD) cachedLocalSnapshot?.dataFiles.orEmpty() else emptyList())
@@ -449,6 +427,7 @@ fun ReadScreen(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var sourceExportPaper by remember { mutableStateOf<ETS100AnswerReader.Paper?>(null) }
     var showLocalDirectoryExport by remember { mutableStateOf(false) }
+    var showCloudDirectoryExport by remember { mutableStateOf(false) }
     var reloadTrigger by remember { mutableIntStateOf(0) }  // 宝贝添加了重新加载触发器喵~
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }  // 宝贝添加了删除确认对话框状态喵~
     
@@ -516,21 +495,12 @@ fun ReadScreen(
     
     val categoryColors = answerCategoryColors()
     
-    // 时间戳格式化器
-    val timeFormatter = java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.getDefault())
-    
-    /**
-     * 添加结构化调试日志
-     * 宝贝这个函数会自动带上时间戳和分类信息喵~
-     */
+    // Diagnostics remain in Logcat without retaining an unbounded UI history.
     fun addLog(
         level: LogLevel = LogLevel.INFO,
         category: LogCategory = LogCategory.SYSTEM,
         message: String
     ) {
-        val timestamp = timeFormatter.format(java.util.Date())
-        val entry = LogEntry(timestamp = timestamp, level = level, category = category, message = message)
-        debugLog = debugLog + entry
         val logcatMessage = "[${category.label}] $message"
         when (level) {
             LogLevel.ERROR -> Log.e(TAG, logcatMessage)
@@ -903,7 +873,6 @@ fun ReadScreen(
                     addLog(LogLevel.ERROR, LogCategory.SYSTEM, "✗ 无法生成解压密码: ${zipFileName}")
                     continue
                 }
-                addLog(LogLevel.DEBUG, LogCategory.SYSTEM, "🔑 密码: ${password.substring(0, 8)}...")
 
                 val extractDirName = zipFileName.removeSuffix(".zip")
                 val extractDir = File(cacheDir, extractDirName)
@@ -1122,7 +1091,6 @@ fun ReadScreen(
         
         isLoading = true
         errorMessage = null
-        debugLog = emptyList()  // 清空之前的日志喵~
         LocalReadProgressState.phase = LocalParsePhase.SCANNING
         LocalReadProgressState.message = "正在扫描试卷列表"
         
@@ -1132,21 +1100,14 @@ fun ReadScreen(
         addLog(LogLevel.INIT, LogCategory.SYSTEM, "=".repeat(50))
         
         try {
-            // 检查是否启用了强执读取模式
-            val forceReadMode = SettingsManager.getForceReadMode()
-            if (forceReadMode) {
-                addLog(LogLevel.WARN, LogCategory.SYSTEM, "⚡ 强执读取模式已启用，跳过权限检查")
-            }
-            
-            // 检查模式是否可用（除非强制读取模式启用）
             addLog(LogLevel.DEBUG, LogCategory.SYSTEM, "检查模式可用性...")
-            if (!forceReadMode && !ETS100FileReader.isModeAvailable(currentMode, context)) {
+            if (!ETS100FileReader.isModeAvailable(currentMode, context)) {
                 addLog(LogLevel.ERROR, LogCategory.SYSTEM, "当前模式不可用: $currentMode")
                 errorMessage = "当前模式不可用: $currentMode"
                 isLoading = false
                 return@LaunchedEffect
             }
-            addLog(LogLevel.SUCCESS, LogCategory.SYSTEM, "✓ 模式检查通过" + if (forceReadMode) " (强执模式跳过检查)" else "")
+            addLog(LogLevel.SUCCESS, LogCategory.SYSTEM, "✓ 模式检查通过")
             
             // 在 IO 线程执行文件扫描，先把试卷列表显示出来
             addLog(LogLevel.INFO, LogCategory.SYSTEM, "开始扫描试卷列表...")
@@ -1365,21 +1326,6 @@ fun ReadScreen(
         }
     }
     
-    // 调试面板 - 使用 Box 覆盖而不是直接 return
-    if (showDebugPanel) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            DebugPanel(
-                debugLog = debugLog,
-                papers = papers,
-                showDataDetails = showDataDetails,
-                onToggleDataDetails = { showDataDetails = !showDataDetails },
-                onClear = { debugLog = emptyList() },
-                onClose = { showDebugPanel = false }
-            )
-        }
-        return@ReadScreen
-    }
-
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     ExpressiveScaffold(
@@ -1414,6 +1360,15 @@ fun ReadScreen(
                                         showLocalDirectoryExport = true
                                     },
                                 )
+                            } else if (currentMode == ActivationMode.CLOUD) {
+                                DropdownMenuItem(
+                                    text = { Text("导出云端缓存文件") },
+                                    leadingIcon = { Icon(Icons.Default.Archive, contentDescription = null) },
+                                    onClick = {
+                                        showReadActionsMenu = false
+                                        showCloudDirectoryExport = true
+                                    },
+                                )
                             }
                             DropdownMenuItem(
                                 text = { Text(if (currentMode == ActivationMode.CLOUD) "清除云端缓存" else "清除本地缓存") },
@@ -1423,16 +1378,6 @@ fun ReadScreen(
                                     showDeleteConfirmDialog = true
                                 },
                             )
-                            if (!SettingsManager.getHideDebugButton()) {
-                                DropdownMenuItem(
-                                    text = { Text("调试信息") },
-                                    leadingIcon = { Icon(Icons.Default.BugReport, contentDescription = null) },
-                                    onClick = {
-                                        showReadActionsMenu = false
-                                        showDebugPanel = true
-                                    },
-                                )
-                            }
                         }
                     }
                 },
@@ -1828,6 +1773,13 @@ fun ReadScreen(
             onDismissRequest = { showLocalDirectoryExport = false }
         )
     }
+    if (showCloudDirectoryExport) {
+        CloudDirectoryExportDialogHost(
+            currentPapers = downloadedPapers.values.flatten(),
+            isDownloadInProgress = cloudDownloadingHomeworks.isNotEmpty(),
+            onDismissRequest = { showCloudDirectoryExport = false }
+        )
+    }
 }
 
 @Composable
@@ -1996,6 +1948,156 @@ private fun LocalDirectoryExportDialogHost(
                     CircularProgressIndicator(modifier = Modifier.size(28.dp), strokeWidth = 3.dp)
                     Column {
                         Text(if (isExporting) "正在打包题目文件" else "正在检查本地目录", style = MaterialTheme.typography.titleMedium)
+                        Text("请勿关闭页面", style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CloudDirectoryExportDialogHost(
+    currentPapers: List<ETS100AnswerReader.Paper>,
+    isDownloadInProgress: Boolean,
+    onDismissRequest: () -> Unit
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var showConfirmation by remember { mutableStateOf(true) }
+    var inspection by remember { mutableStateOf<PaperSourceExporter.CloudDirectoryInspection?>(null) }
+    var inspectionError by remember { mutableStateOf<String?>(null) }
+    var isPreparing by remember { mutableStateOf(false) }
+    var isExporting by remember { mutableStateOf(false) }
+
+    fun shareExport(result: PaperSourceExporter.LocalDirectoryExportResult) {
+        Toast.makeText(context, "已保存到 下载/Fe/${result.fileName}", Toast.LENGTH_LONG).show()
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "application/zip"
+            putExtra(Intent.EXTRA_STREAM, result.uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        runCatching { context.startActivity(Intent.createChooser(intent, "分享云端缓存文件")) }
+            .onFailure { Toast.makeText(context, "文件已保存，但没有可用的分享应用", Toast.LENGTH_LONG).show() }
+    }
+
+    fun inspectAndExport() {
+        if (isPreparing || isExporting) return
+        showConfirmation = false
+        inspection = null
+        inspectionError = null
+        isPreparing = true
+        val papersSnapshot = currentPapers.toList()
+        scope.launch {
+            runCatching {
+                PaperSourceExporter.inspectCloudDirectoryExport(
+                    context = context,
+                    currentPapers = papersSnapshot,
+                    isDownloadInProgress = isDownloadInProgress
+                )
+            }.onSuccess { result ->
+                inspection = result
+                if (result.canExport) {
+                    isPreparing = false
+                    isExporting = true
+                    runCatching { PaperSourceExporter.exportCloudDirectory(context, result) }
+                        .onSuccess(::shareExport)
+                        .onFailure { error ->
+                            if (error is CancellationException) throw error
+                            Log.e(TAG, "云端缓存导出失败", error)
+                            Toast.makeText(context, "导出失败：${error.message ?: "未知错误"}", Toast.LENGTH_LONG).show()
+                        }
+                    isExporting = false
+                    onDismissRequest()
+                }
+            }.onFailure { error ->
+                if (error is CancellationException) throw error
+                Log.e(TAG, "云端缓存预检失败", error)
+                inspectionError = error.message ?: "未知错误"
+            }
+            isPreparing = false
+        }
+    }
+
+    val storagePermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) inspectAndExport()
+        else Toast.makeText(context, "需要存储权限才能写入下载文件夹", Toast.LENGTH_LONG).show()
+    }
+
+    fun beginExport() {
+        if (android.os.Build.VERSION.SDK_INT <= android.os.Build.VERSION_CODES.P &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED
+        ) {
+            storagePermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        } else {
+            inspectAndExport()
+        }
+    }
+
+    if (showConfirmation) {
+        AlertDialog(
+            onDismissRequest = onDismissRequest,
+            icon = { Icon(Icons.Default.Archive, contentDescription = null) },
+            title = { Text("导出云端缓存文件？") },
+            text = {
+                Text(
+                    "将导出云端缓存目录中的原始 ZIP、解压目录和当前缓存文件，并保留目录结构。\n\n" +
+                        "请仅在需要向作者反馈无法解析的云端题目时使用；不需要的缓存请先清除后重新下载目标作业。"
+                )
+            },
+            confirmButton = { TextButton(onClick = ::beginExport) { Text("确认导出") } },
+            dismissButton = { TextButton(onClick = onDismissRequest) { Text("取消") } }
+        )
+    }
+
+    inspection?.takeUnless { it.canExport }?.let { result ->
+        AlertDialog(
+            onDismissRequest = onDismissRequest,
+            icon = { Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+            title = { Text(if (result.isEmpty) "未找到云端缓存文件" else "当前缓存不适合导出") },
+            text = {
+                Text(
+                    when {
+                        result.isEmpty -> "请先完整下载需要反馈的云端作业。"
+                        result.isDownloadInProgress -> "云端作业仍在下载，请等待下载结束后再导出。"
+                        result.hasTooManyFiles -> "云端缓存文件数量过多，请清除缓存后只下载需要反馈的作业。"
+                        else -> buildString {
+                            append("检测到")
+                            if (result.hasTooManyParsedPapers) append("当前已解析的 ${result.parsedPaperCount} 套试卷")
+                            if (result.hasTooManyParsedPapers && result.exceedsSizeLimit) append("，且")
+                            if (result.exceedsSizeLimit) append(" 云端缓存总大小超过 150 MiB")
+                            append("。\n\n请清除缓存后，只下载需要反馈的无法解析作业，再重新导出。")
+                        }
+                    }
+                )
+            },
+            confirmButton = { TextButton(onClick = onDismissRequest) { Text("我知道了") } }
+        )
+    }
+
+    inspectionError?.let { error ->
+        AlertDialog(
+            onDismissRequest = onDismissRequest,
+            icon = { Icon(Icons.Default.ErrorOutline, contentDescription = null) },
+            title = { Text("无法检查云端缓存") },
+            text = { Text("预检失败：$error") },
+            confirmButton = { TextButton(onClick = onDismissRequest) { Text("关闭") } }
+        )
+    }
+
+    if (isPreparing || isExporting) {
+        Dialog(onDismissRequest = {}) {
+            Surface(shape = RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 20.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(28.dp), strokeWidth = 3.dp)
+                    Column {
+                        Text(if (isExporting) "正在打包云端缓存" else "正在检查云端缓存", style = MaterialTheme.typography.titleMedium)
                         Text("请勿关闭页面", style = MaterialTheme.typography.bodyMedium)
                     }
                 }
@@ -2485,671 +2587,6 @@ private fun QuestionItem(
                     tint = MaterialTheme.colorScheme.outline,
                     modifier = Modifier.size(20.dp)
                 )
-            }
-        }
-    }
-}
-
-@Composable
-private fun DebugPanel(
-    debugLog: List<LogEntry>,
-    papers: List<ETS100AnswerReader.Paper>,
-    showDataDetails: Boolean,
-    onToggleDataDetails: () -> Unit,
-    onClear: () -> Unit,
-    onClose: () -> Unit
-) {
-    // 宝贝去除数据详情标签页喵~
-    
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.surface)
-            .padding(16.dp)
-    ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            // 顶部标题栏
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    "🐛 调试面板",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.Bold
-                )
-                Row {
-                    TextButton(onClick = onClear) {
-                        Text("清空", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    TextButton(onClick = onClose) {
-                        Text("关闭", color = MaterialTheme.colorScheme.onSurface)
-                    }
-                }
-            }
-            
-            Spacer(modifier = Modifier.height(12.dp))
-            
-            // 宝贝只保留实时日志喵~
-            LogViewerPanel(debugLog = debugLog)
-        }
-    }
-}
-
-/**
- * Tab 按钮组件
- */
-@Composable
-private fun RowScope.TabButton(
-    text: String,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .weight(1f)
-            .background(
-                if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-                RoundedCornerShape(6.dp)
-            )
-            .clickable(onClick = onClick)
-            .padding(vertical = 8.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodyMedium,
-            color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
-
-/**
- * 日志查看器面板
- * 使用颜色高亮不同级别的日志
- */
-@Composable
-private fun LogViewerPanel(debugLog: List<LogEntry>) {
-    // 宝贝只显示 FILE 和 SYSTEM 类别的日志喵~
-    val filteredLog = debugLog.filter { 
-        it.category == LogCategory.FILE || it.category == LogCategory.SYSTEM 
-    }
-    
-    if (filteredLog.isEmpty()) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    "📝 暂无操作日志",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    "文件操作日志将显示在这里喵~",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    } else {
-        Column {
-            // 日志统计信息 - 只显示 FILE 和 SYSTEM
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surfaceContainer, RoundedCornerShape(16.dp))
-                    .padding(8.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                val fileCount = filteredLog.count { it.category == LogCategory.FILE }
-                val systemCount = filteredLog.count { it.category == LogCategory.SYSTEM }
-                val successCount = filteredLog.count { it.level == LogLevel.SUCCESS }
-                val warnCount = filteredLog.count { it.level == LogLevel.WARN }
-                val errorCount = filteredLog.count { it.level == LogLevel.ERROR }
-                
-                LogStatBadge("文件", fileCount, LogLevel.INFO)
-                LogStatBadge("系统", systemCount, LogLevel.DEBUG)
-                LogStatBadge("成功", successCount, LogLevel.SUCCESS)
-                LogStatBadge("警告", warnCount, LogLevel.WARN)
-                LogStatBadge("错误", errorCount, LogLevel.ERROR)
-            }
-            
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            // 日志列表 - 只显示过滤后的日志
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.surfaceContainer, RoundedCornerShape(16.dp))
-                    .padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                itemsIndexed(filteredLog) { _, entry ->
-                    LogEntryItem(entry = entry)
-                }
-            }
-        }
-    }
-}
-
-/**
- * 日志统计徽章
- */
-@Composable
-private fun LogStatBadge(label: String, count: Int, level: LogLevel) {
-    val badgeColor = Color(level.colorHex)
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp))
-            .padding(horizontal = 8.dp, vertical = 4.dp)
-    ) {
-        Text(
-            text = "$label:",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(modifier = Modifier.width(4.dp))
-        Text(
-            text = "$count",
-            style = MaterialTheme.typography.labelMedium,
-            color = badgeColor
-        )
-    }
-}
-
-/**
- * 单条日志条目显示
- */
-@Composable
-private fun LogEntryItem(entry: LogEntry) {
-    val textColor = Color(entry.level.colorHex)
-    val categoryStyle = when (entry.category) {
-        LogCategory.SYSTEM -> AnswerCategoryColor(
-            MaterialTheme.colorScheme.primary,
-            MaterialTheme.colorScheme.primaryContainer,
-            MaterialTheme.colorScheme.onPrimaryContainer
-        )
-        LogCategory.FILE -> AnswerCategoryColor(
-            MaterialTheme.colorScheme.secondary,
-            MaterialTheme.colorScheme.secondaryContainer,
-            MaterialTheme.colorScheme.onSecondaryContainer
-        )
-        LogCategory.PAPER -> answerCategoryStyle("topic", MaterialTheme.colorScheme.tertiary)
-        LogCategory.SECTION -> answerCategoryStyle("simple_expression_ufi", MaterialTheme.colorScheme.tertiary)
-        LogCategory.QUESTION -> answerCategoryStyle("simple_expression_ufk", MaterialTheme.colorScheme.tertiary)
-        LogCategory.ANSWER -> answerCategoryStyle("simple_expression_ufj", MaterialTheme.colorScheme.tertiary)
-    }
-    
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 1.dp)
-    ) {
-        // 时间戳
-        Text(
-            text = entry.timestamp,
-            style = MaterialTheme.typography.bodySmall,
-            color = Color(0xFF6B7280),
-            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-            modifier = Modifier.width(85.dp)
-        )
-        
-        // 级别标签
-        Box(
-            modifier = Modifier
-                .width(50.dp)
-                .background(textColor.copy(alpha = 0.12f), RoundedCornerShape(8.dp))
-                .padding(horizontal = 4.dp, vertical = 1.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = entry.level.label,
-                style = MaterialTheme.typography.labelSmall,
-                color = textColor
-            )
-        }
-        
-        Spacer(modifier = Modifier.width(6.dp))
-        
-        // 类别标签
-        Box(
-            modifier = Modifier
-                .width(60.dp)
-                .background(categoryStyle.container.copy(alpha = 0.72f), RoundedCornerShape(8.dp))
-                .padding(horizontal = 4.dp, vertical = 1.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = entry.category.label,
-                style = MaterialTheme.typography.labelSmall,
-                color = categoryStyle.onContainer
-            )
-        }
-        
-        Spacer(modifier = Modifier.width(6.dp))
-        
-        // 消息内容
-        Text(
-            text = entry.message,
-            style = MaterialTheme.typography.bodySmall,
-            color = if (entry.level == LogLevel.ERROR) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
-            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-            modifier = Modifier.weight(1f)
-        )
-    }
-}
-
-/**
- * 数据详情面板
- * 展示试卷、分区、题目的层级结构
- */
-@Composable
-private fun DataDetailsPanel(
-    papers: List<ETS100AnswerReader.Paper>,
-    showDataDetails: Boolean,
-    onToggleDataDetails: () -> Unit
-) {
-    Column(modifier = Modifier.fillMaxSize()) {
-        // 控制栏
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.surfaceContainer, RoundedCornerShape(16.dp))
-                .clickable(onClick = onToggleDataDetails)
-                .padding(12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    if (showDataDetails) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    "📂 显示完整数据结构",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
-            Switch(
-                checked = showDataDetails,
-                onCheckedChange = { onToggleDataDetails() },
-                modifier = Modifier
-            )
-        }
-        
-        Spacer(modifier = Modifier.height(12.dp))
-        
-        if (papers.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    "暂无试卷数据",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.surfaceContainer, RoundedCornerShape(16.dp))
-                    .padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // 总体统计卡片
-                item {
-                    val totalSections = papers.sumOf { it.sections.size }
-                    val totalQuestions = papers.sumOf { it.sections.sumOf { s -> s.questions.size } }
-                    val answeredQuestions = papers.sumOf { it.sections.sumOf { s -> s.questions.count { q -> q.answer.isNotEmpty() } } }
-                    
-                    FeFilledCard(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Text(
-                                "📊 数据统计总览",
-                                style = MaterialTheme.typography.titleSmall,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceEvenly
-                            ) {
-                                StatItem("试卷", papers.size, MaterialTheme.colorScheme.primary)
-                                StatItem("分区", totalSections, MaterialTheme.colorScheme.secondary)
-                                StatItem("题目", totalQuestions, MaterialTheme.colorScheme.tertiary)
-                                StatItem("已答", answeredQuestions, MaterialTheme.colorScheme.primary)
-                            }
-                        }
-                    }
-                }
-                
-                // 每份试卷详情
-                papers.forEachIndexed { paperIndex, paper ->
-                    item {
-                        PaperDetailCard(paper = paper, paperIndex = paperIndex)
-                    }
-                }
-            }
-        }
-    }
-}
-
-/**
- * 统计项组件
- */
-@Composable
-private fun StatItem(label: String, value: Int, color: Color) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = "$value",
-            style = MaterialTheme.typography.titleLarge,
-            color = color,
-            fontWeight = FontWeight.Bold
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
-
-/**
- * 试卷详情卡片
- */
-@Composable
-private fun PaperDetailCard(
-    paper: ETS100AnswerReader.Paper,
-    paperIndex: Int
-) {
-    var expanded by remember { mutableStateOf(false) }
-    
-    FeFilledCard(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            // 试卷标题行
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { expanded = !expanded },
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    modifier = Modifier.weight(1f),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = "📄",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = paper.title,
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Text(
-                            text = "ID: ${paper.paperId}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Badge(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                    ) {
-                        Text("${paper.sections.size} 分区")
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Icon(
-                        if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-            
-            // 展开的分区详情
-            if (expanded) {
-                Spacer(modifier = Modifier.height(12.dp))
-                FeThinDivider()
-                Spacer(modifier = Modifier.height(12.dp))
-                
-                paper.sections.forEachIndexed { sectionIndex, section ->
-                    SectionDetailItem(section = section, sectionIndex = sectionIndex)
-                    if (sectionIndex < paper.sections.size - 1) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                    }
-                }
-            }
-        }
-    }
-}
-
-/**
- * 分区详情项
- */
-@Composable
-private fun SectionDetailItem(
-    section: ETS100AnswerReader.Section,
-    sectionIndex: Int
-) {
-    var expanded by remember { mutableStateOf(false) }
-    
-    val categoryStyle = answerCategoryStyle(section.category, MaterialTheme.colorScheme.secondary)
-    
-    FeFilledCard(
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-    ) {
-        Column(modifier = Modifier.padding(10.dp)) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { expanded = !expanded },
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .width(3.dp)
-                            .height(24.dp)
-                            .background(categoryStyle.accent, RoundedCornerShape(2.dp))
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Column {
-                        Text(
-                            text = section.title,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Text(
-                            text = section.category,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = categoryStyle.accent
-                        )
-                    }
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "${section.questions.size} 题",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Icon(
-                        if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-            }
-            
-            // 展开的题目列表
-            if (expanded) {
-                Spacer(modifier = Modifier.height(8.dp))
-                FeThinDivider()
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                section.questions.forEachIndexed { qIndex, question ->
-                    QuestionDetailItem(
-                        question = question,
-                        questionIndex = qIndex,
-                        categoryStyle = categoryStyle
-                    )
-                    if (qIndex < section.questions.size - 1) {
-                        Spacer(modifier = Modifier.height(6.dp))
-                    }
-                }
-            }
-        }
-    }
-}
-
-/**
- * 题目详情项
- */
-@Composable
-private fun QuestionDetailItem(
-    question: ETS100AnswerReader.Question,
-    questionIndex: Int,
-    categoryStyle: AnswerCategoryColor,
-    compactAnswerDisplay: Boolean = SettingsManager.getCompactAnswerDisplay()
-) {
-    var expanded by remember { mutableStateOf(false) }
-    val hasAnswer = question.answer.isNotEmpty()
-    
-    FeFilledCard(
-        modifier = Modifier.clickable { expanded = !expanded },
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-    ) {
-        Column(modifier = Modifier.padding(8.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .background(categoryStyle.container.copy(alpha = 0.76f), RoundedCornerShape(10.dp))
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = "Q${question.displayOrder ?: questionIndex + 1}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = categoryStyle.onContainer,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Icon(
-                            if (hasAnswer) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
-                            contentDescription = null,
-                            tint = if (hasAnswer) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-                            modifier = Modifier.size(14.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = question.question,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = if (expanded) Int.MAX_VALUE else 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                Icon(
-                    if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(16.dp)
-                )
-            }
-            
-            // 展开时显示完整信息
-            if (expanded) {
-                Spacer(modifier = Modifier.height(8.dp))
-                FeThinDivider()
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                // 选项列表
-                if (question.answerList.isNotEmpty()) {
-                    Text(
-                        text = "📝 选项列表:",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    question.answerList.forEachIndexed { index, answer ->
-                        Row(
-                            modifier = Modifier.padding(vertical = 2.dp),
-                            verticalAlignment = Alignment.Top
-                        ) {
-                            Text(
-                                text = "${index + 1}.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.tertiary,
-                                modifier = Modifier.width(20.dp)
-                            )
-                            Text(
-                                text = answer,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    }
-                }
-                
-                // 答案信息
-                if (hasAnswer) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(16.dp))
-                            .padding(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "答案:",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = formatAnswerForDisplay(question, compactAnswerDisplay),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
             }
         }
     }

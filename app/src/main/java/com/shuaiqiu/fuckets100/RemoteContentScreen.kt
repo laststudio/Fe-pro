@@ -1,13 +1,6 @@
 package com.shuaiqiu.fuckets100
 
-import android.content.Context
-import android.content.Intent
-import android.os.Bundle
 import android.widget.Toast
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -58,84 +51,7 @@ import kotlinx.coroutines.withContext
 import java.net.URL
 import java.net.URLConnection
 
-open class RemoteContentActivity : ComponentActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        applyPredictiveBackWindowTheme()
-        super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        ThemeManager.init(this)
-
-        val content = RemoteContent(
-            announcementTitle = intent.getStringExtra(EXTRA_ANNOUNCEMENT_TITLE).orEmpty(),
-            announcementMessage = intent.getStringExtra(EXTRA_ANNOUNCEMENT_MESSAGE).orEmpty(),
-            announcementUpdatedAt = intent.getStringExtra(EXTRA_ANNOUNCEMENT_UPDATED_AT).orEmpty(),
-            announcementUrl = intent.getStringExtra(EXTRA_ANNOUNCEMENT_URL).orEmpty(),
-            changelogTitle = intent.getStringExtra(EXTRA_CHANGELOG_TITLE).orEmpty(),
-            changelogSummary = intent.getStringExtra(EXTRA_CHANGELOG_SUMMARY).orEmpty(),
-            changelogUrl = intent.getStringExtra(EXTRA_CHANGELOG_URL).orEmpty()
-        )
-
-        setContent {
-            val effectiveDarkMode = if (ThemeManager.getSavedAutoDarkMode()) {
-                isSystemInDarkTheme()
-            } else {
-                ThemeManager.getSavedDarkMode()
-            }
-
-            FeThemeWrapper(
-                theme = ThemeManager.getSavedTheme(),
-                isDarkMode = effectiveDarkMode
-            ) {
-                PredictiveBackContent(onBack = { finish() }) {
-                    RemoteContentScreen(
-                        content = content,
-                        onBack = { finish() }
-                    )
-                }
-            }
-        }
-    }
-
-    companion object {
-        private const val EXTRA_ANNOUNCEMENT_TITLE = "announcement_title"
-        private const val EXTRA_ANNOUNCEMENT_MESSAGE = "announcement_message"
-        private const val EXTRA_ANNOUNCEMENT_UPDATED_AT = "announcement_updated_at"
-        private const val EXTRA_ANNOUNCEMENT_URL = "announcement_url"
-        private const val EXTRA_CHANGELOG_TITLE = "changelog_title"
-        private const val EXTRA_CHANGELOG_SUMMARY = "changelog_summary"
-        private const val EXTRA_CHANGELOG_URL = "changelog_url"
-
-        fun createIntent(
-            context: Context,
-            announcementTitle: String,
-            announcementMessage: String,
-            announcementUpdatedAt: String,
-            announcementUrl: String,
-            changelogTitle: String,
-            changelogSummary: String,
-            changelogUrl: String
-        ): Intent {
-            return Intent(
-                context,
-                predictiveBackActivityClass(
-                    RemoteContentActivity::class.java,
-                    RemoteContentOpaqueActivity::class.java,
-                    RemoteContentKernelSuClassicActivity::class.java
-                )
-            ).apply {
-                putExtra(EXTRA_ANNOUNCEMENT_TITLE, announcementTitle)
-                putExtra(EXTRA_ANNOUNCEMENT_MESSAGE, announcementMessage)
-                putExtra(EXTRA_ANNOUNCEMENT_UPDATED_AT, announcementUpdatedAt)
-                putExtra(EXTRA_ANNOUNCEMENT_URL, announcementUrl)
-                putExtra(EXTRA_CHANGELOG_TITLE, changelogTitle)
-                putExtra(EXTRA_CHANGELOG_SUMMARY, changelogSummary)
-                putExtra(EXTRA_CHANGELOG_URL, changelogUrl)
-            }
-        }
-    }
-}
-
-private data class RemoteContent(
+data class RemoteContent(
     val announcementTitle: String,
     val announcementMessage: String,
     val announcementUpdatedAt: String,
@@ -147,7 +63,7 @@ private data class RemoteContent(
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun RemoteContentScreen(
+fun RemoteContentScreen(
     content: RemoteContent,
     onBack: () -> Unit
 ) {

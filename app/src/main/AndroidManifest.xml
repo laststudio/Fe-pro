@@ -54,56 +54,7 @@
 
 
         <activity
-            android:name=".DonateActivity"
-            android:exported="false"
-            android:label="@string/app_name"
-            android:enableOnBackInvokedCallback="true"
-            android:theme="@style/Theme.Fe.Transparent" />
-
-        <activity
-            android:name=".RemoteContentActivity"
-            android:exported="false"
-            android:label="@string/app_name"
-            android:enableOnBackInvokedCallback="true"
-            android:theme="@style/Theme.Fe.Transparent" />
-
-        <activity
-            android:name=".ActivationActivity"
-            android:exported="false"
-            android:label="@string/app_name"
-            android:enableOnBackInvokedCallback="true"
-            android:theme="@style/Theme.Fe.Transparent" />
-
-        <activity
-            android:name=".CloudActivationActivity"
-            android:exported="false"
-            android:label="@string/app_name"
-            android:enableOnBackInvokedCallback="true"
-            android:theme="@style/Theme.Fe.Transparent" />
-
-        <activity
             android:name=".ChangyanWebLoginActivity"
-            android:exported="false"
-            android:label="@string/app_name"
-            android:enableOnBackInvokedCallback="true"
-            android:theme="@style/Theme.Fe.Transparent" />
-
-        <activity
-            android:name=".GeneralSettingsActivity"
-            android:exported="false"
-            android:label="@string/app_name"
-            android:enableOnBackInvokedCallback="true"
-            android:theme="@style/Theme.Fe.Transparent" />
-
-        <activity
-            android:name=".ThemeSettingsActivity"
-            android:exported="false"
-            android:label="@string/app_name"
-            android:enableOnBackInvokedCallback="true"
-            android:theme="@style/Theme.Fe.Transparent" />
-
-        <activity
-            android:name=".LegalActivity"
             android:exported="false"
             android:label="@string/app_name"
             android:enableOnBackInvokedCallback="true"
@@ -119,56 +70,7 @@
 
 
         <activity
-            android:name=".DonateOpaqueActivity"
-            android:exported="false"
-            android:label="@string/app_name"
-            android:enableOnBackInvokedCallback="true"
-            android:theme="@style/Theme.Fe" />
-
-        <activity
-            android:name=".RemoteContentOpaqueActivity"
-            android:exported="false"
-            android:label="@string/app_name"
-            android:enableOnBackInvokedCallback="true"
-            android:theme="@style/Theme.Fe" />
-
-        <activity
-            android:name=".ActivationOpaqueActivity"
-            android:exported="false"
-            android:label="@string/app_name"
-            android:enableOnBackInvokedCallback="true"
-            android:theme="@style/Theme.Fe" />
-
-        <activity
-            android:name=".CloudActivationOpaqueActivity"
-            android:exported="false"
-            android:label="@string/app_name"
-            android:enableOnBackInvokedCallback="true"
-            android:theme="@style/Theme.Fe" />
-
-        <activity
             android:name=".ChangyanWebLoginOpaqueActivity"
-            android:exported="false"
-            android:label="@string/app_name"
-            android:enableOnBackInvokedCallback="true"
-            android:theme="@style/Theme.Fe" />
-
-        <activity
-            android:name=".GeneralSettingsOpaqueActivity"
-            android:exported="false"
-            android:label="@string/app_name"
-            android:enableOnBackInvokedCallback="true"
-            android:theme="@style/Theme.Fe" />
-
-        <activity
-            android:name=".ThemeSettingsOpaqueActivity"
-            android:exported="false"
-            android:label="@string/app_name"
-            android:enableOnBackInvokedCallback="true"
-            android:theme="@style/Theme.Fe" />
-
-        <activity
-            android:name=".LegalOpaqueActivity"
             android:exported="false"
             android:label="@string/app_name"
             android:enableOnBackInvokedCallback="true"
@@ -184,61 +86,12 @@
 
 
         <activity
-            android:name=".DonateKernelSuClassicActivity"
-            android:exported="false"
-            android:label="@string/app_name"
-            android:enableOnBackInvokedCallback="true"
-            android:theme="@style/Theme.Fe.KernelSuClassic" />
-
-        <activity
-            android:name=".RemoteContentKernelSuClassicActivity"
-            android:exported="false"
-            android:label="@string/app_name"
-            android:enableOnBackInvokedCallback="true"
-            android:theme="@style/Theme.Fe.KernelSuClassic" />
-
-        <activity
-            android:name=".ActivationKernelSuClassicActivity"
-            android:exported="false"
-            android:label="@string/app_name"
-            android:enableOnBackInvokedCallback="true"
-            android:theme="@style/Theme.Fe.KernelSuClassic" />
-
-        <activity
-            android:name=".CloudActivationKernelSuClassicActivity"
-            android:exported="false"
-            android:label="@string/app_name"
-            android:enableOnBackInvokedCallback="true"
-            android:theme="@style/Theme.Fe.KernelSuClassic" />
-
-        <activity
             android:name=".ChangyanWebLoginKernelSuClassicActivity"
             android:exported="false"
             android:label="@string/app_name"
             android:enableOnBackInvokedCallback="true"
             android:theme="@style/Theme.Fe.KernelSuClassic" />
 
-        <activity
-            android:name=".GeneralSettingsKernelSuClassicActivity"
-            android:exported="false"
-            android:label="@string/app_name"
-            android:enableOnBackInvokedCallback="true"
-            android:theme="@style/Theme.Fe.KernelSuClassic" />
-
-        <activity
-            android:name=".ThemeSettingsKernelSuClassicActivity"
-            android:exported="false"
-            android:label="@string/app_name"
-            android:enableOnBackInvokedCallback="true"
-            android:theme="@style/Theme.Fe.KernelSuClassic" />
-
-        <activity
-            android:name=".LegalKernelSuClassicActivity"
-            android:exported="false"
-            android:label="@string/app_name"
-            android:enableOnBackInvokedCallback="true"
-            android:theme="@style/Theme.Fe.KernelSuClassic" />
-        
         <!-- Shizuku Provider - 必须添加 -->
         <provider
             android:name="rikka.shizuku.ShizukuProvider"

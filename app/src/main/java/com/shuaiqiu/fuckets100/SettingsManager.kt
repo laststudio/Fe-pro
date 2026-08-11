@@ -12,9 +12,6 @@ object SettingsManager {
     
     private const val PREFS_NAME = "fe_settings"
     private const val KEY_ACTIVATION_MODE = "activation_mode"
-    private const val KEY_DEBUG_MODE = "debug_mode"  // 调试模式开关
-    private const val KEY_FORCE_READ_MODE = "force_read_mode"  // 强执读取模式
-    private const val KEY_HIDE_DEBUG_BUTTON = "hide_debug_button"  // 隐藏调试按钮
     private const val KEY_LEGAL_ACCEPTED = "legal_accepted"
     private const val KEY_AOSP_PREDICTIVE_BACK = "aosp_predictive_back"
     private const val KEY_PREDICTIVE_BACK_MODE = "predictive_back_mode"
@@ -68,54 +65,6 @@ object SettingsManager {
         }
     }
     
-    /**
-     * 喵~ 保存调试模式开关（默认开启）
-     */
-    fun saveDebugMode(enabled: Boolean) {
-        prefs.edit {
-            putBoolean(KEY_DEBUG_MODE, enabled)
-        }
-    }
-    
-    /**
-     * 喵~ 获取调试模式开关（默认 true）
-     */
-    fun getDebugMode(): Boolean {
-        return prefs.getBoolean(KEY_DEBUG_MODE, true)
-    }
-    
-    /**
-     * 喵~ 保存强执读取模式开关（默认关闭）
-     */
-    fun saveForceReadMode(enabled: Boolean) {
-        prefs.edit {
-            putBoolean(KEY_FORCE_READ_MODE, enabled)
-        }
-    }
-    
-    /**
-     * 喵~ 获取强执读取模式开关（默认 false）
-     */
-    fun getForceReadMode(): Boolean {
-        return prefs.getBoolean(KEY_FORCE_READ_MODE, false)
-    }
-    
-    /**
-     * 保存隐藏调试按钮开关（默认 true - 默认隐藏调试按钮）
-     */
-    fun saveHideDebugButton(hide: Boolean) {
-        prefs.edit {
-            putBoolean(KEY_HIDE_DEBUG_BUTTON, hide)
-        }
-    }
-    
-    /**
-     * 获取隐藏调试按钮开关（默认 true - 调试按钮默认隐藏）
-     */
-    fun getHideDebugButton(): Boolean {
-        return prefs.getBoolean(KEY_HIDE_DEBUG_BUTTON, true)
-    }
-
     fun saveCompactAnswerDisplay(enabled: Boolean) {
         prefs.edit {
             putBoolean(KEY_COMPACT_ANSWER_DISPLAY, enabled)

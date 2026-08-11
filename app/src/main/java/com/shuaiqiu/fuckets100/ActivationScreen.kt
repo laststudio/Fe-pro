@@ -40,6 +40,7 @@ import com.shuaiqiu.fuckets100.component.material.expressiveTopAppBarColors
 fun ActivationSettingsScreen(
     currentMode: ActivationMode,
     shizukuState: ShizukuState,
+    cloudAuthRevision: Int = 0,
     onModeSelected: (ActivationMode) -> Unit,
     onBack: () -> Unit,
     onNavigateToCloudActivation: () -> Unit,
@@ -62,6 +63,10 @@ fun ActivationSettingsScreen(
     fun refreshCloudAuthState() {
         cloudLoggedIn = ETS100AuthManager.isLoggedIn(context)
         cloudPhone = ETS100AuthManager.getPhone(context)
+    }
+
+    LaunchedEffect(cloudAuthRevision) {
+        refreshCloudAuthState()
     }
 
     // 监听生命周期，从系统设置返回时自动刷新基础权限的绿勾勾

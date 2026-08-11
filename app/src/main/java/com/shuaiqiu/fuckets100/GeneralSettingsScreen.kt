@@ -9,6 +9,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 import com.shuaiqiu.fuckets100.component.material.ExpressiveScaffold
@@ -66,6 +67,7 @@ fun GeneralSettingsScreen(onBack: () -> Unit) {
                             headlineContent = { Text("精简答案") },
                             supportingContent = { Text("开启后按题型只显示最常用的 1-2 个参考答案") },
                             leadingContent = { Icon(Icons.AutoMirrored.Filled.ShortText, null, tint = MaterialTheme.colorScheme.primary) },
+                            modifier = Modifier.clip(MaterialTheme.shapes.extraLarge),
                         )
                     },
                 ),

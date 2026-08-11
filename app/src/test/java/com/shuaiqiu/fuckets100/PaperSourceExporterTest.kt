@@ -54,6 +54,35 @@ class PaperSourceExporterTest {
     }
 
     @Test
+    fun cloudDirectoryExportFileNameUsesDedicatedPrefix() {
+        val name = PaperSourceExporter.buildCloudDirectoryExportFileName(0L)
+
+        assertEquals("Fe_Cloud_Files_${exportTimestamp(0L)}.zip", name)
+    }
+
+    @Test
+    fun cloudDirectoryExportBlocksWhileDownloading() {
+        val root = createTempDirectory("cloud-export-rule-test").toFile()
+        try {
+            val file = File(root, "paper.zip").apply { writeText("cached") }
+            val inspection = PaperSourceExporter.CloudDirectoryInspection(
+                root = root.canonicalFile,
+                files = listOf(
+                    PaperSourceExporter.CloudDirectoryFile(file, "cloud_homework/paper.zip", file.length())
+                ),
+                skipped = emptyList(),
+                totalBytes = file.length(),
+                parsedPapers = emptyList(),
+                isDownloadInProgress = true,
+            )
+
+            assertFalse(inspection.canExport)
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
     fun localDirectoryExportBlocksEmptyOversizedAndMultipleParsedPapers() {
         assertEquals(
             PaperSourceExporter.LocalDirectoryExportBlockReason.EMPTY,

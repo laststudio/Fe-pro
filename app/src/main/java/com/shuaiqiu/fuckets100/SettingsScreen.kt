@@ -25,7 +25,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import android.content.Intent
 import android.net.Uri
-import androidx.navigation.NavHostController
 import com.shuaiqiu.fuckets100.component.material.ExpressiveScaffold
 import com.shuaiqiu.fuckets100.component.material.ExpressiveSegmentedListItem
 import com.shuaiqiu.fuckets100.component.material.SegmentedColumn
@@ -33,7 +32,14 @@ import com.shuaiqiu.fuckets100.component.material.expressiveTopAppBarColors
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun SettingsScreen(navController: NavHostController) {
+fun SettingsScreen(
+    onNavigateActivation: () -> Unit,
+    onNavigateGeneralSettings: () -> Unit,
+    onNavigateThemeSettings: () -> Unit,
+    onNavigateLegal: () -> Unit,
+    onNavigateDonate: () -> Unit,
+    donateEnabled: Boolean,
+) {
     val context = LocalContext.current
     var showAboutDialog by remember { mutableStateOf(false) }
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -76,7 +82,7 @@ fun SettingsScreen(navController: NavHostController) {
                             title = "运行授权",
                             supportingText = "配置 Shizuku、Root 或其他模式",
                             onClick = {
-                                context.startActivity(ActivationActivity.createIntent(context))
+                                onNavigateActivation()
                             },
                         )
                     },
@@ -88,7 +94,7 @@ fun SettingsScreen(navController: NavHostController) {
                             title = "通用设置",
                             supportingText = "配置答案显示方式",
                             onClick = {
-                                context.startActivity(GeneralSettingsActivity.createIntent(context))
+                                onNavigateGeneralSettings()
                             },
                         )
                     },
@@ -100,7 +106,7 @@ fun SettingsScreen(navController: NavHostController) {
                             title = "主题",
                             supportingText = "彩色主题与明暗模式",
                             onClick = {
-                                context.startActivity(ThemeSettingsActivity.createIntent(context))
+                                onNavigateThemeSettings()
                             },
                         )
                     },
@@ -130,7 +136,7 @@ fun SettingsScreen(navController: NavHostController) {
                             title = "法律信息与使用守则",
                             supportingText = "使用前请阅读并遵守",
                             onClick = {
-                                context.startActivity(LegalActivity.createIntent(context))
+                                onNavigateLegal()
                             },
                         )
                     },
@@ -157,7 +163,14 @@ fun SettingsScreen(navController: NavHostController) {
     }
 
     if (showAboutDialog) {
-        AboutDialog(onDismiss = { showAboutDialog = false })
+        AboutDialog(
+            onDismiss = { showAboutDialog = false },
+            onNavigateDonate = {
+                showAboutDialog = false
+                onNavigateDonate()
+            },
+            donateEnabled = donateEnabled,
+        )
     }
 }
 
@@ -196,7 +209,11 @@ private fun SettingsSegmentedItem(
 }
 
 @Composable
-fun AboutDialog(onDismiss: () -> Unit) {
+fun AboutDialog(
+    onDismiss: () -> Unit,
+    onNavigateDonate: () -> Unit = {},
+    donateEnabled: Boolean = true,
+) {
     val context = LocalContext.current
 
     Dialog(onDismissRequest = onDismiss) {
@@ -279,7 +296,7 @@ fun AboutDialog(onDismiss: () -> Unit) {
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(Modifier.height(12.dp))
-                        FeInfoSurface(
+                        if (donateEnabled) FeInfoSurface(
                             modifier = Modifier
                                 .clickable {
                                 val intent = Intent(
@@ -368,7 +385,7 @@ fun AboutDialog(onDismiss: () -> Unit) {
                         FeInfoSurface(
                             modifier = Modifier
                                 .clickable {
-                                    context.startActivity(DonateActivity.createIntent(context))
+                                    onNavigateDonate()
                                 },
                             containerColor = MaterialTheme.colorScheme.surfaceContainer
                         ) {

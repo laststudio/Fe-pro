@@ -4,8 +4,6 @@ import android.Manifest
 import android.app.Activity
 import android.content.ContentValues
 import android.content.Context
-import android.content.Intent
-import android.os.Bundle
 import android.os.Environment
 import android.provider.MediaStore
 import android.graphics.BitmapFactory
@@ -14,11 +12,7 @@ import android.content.pm.PackageManager
 import android.media.MediaScannerConnection
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -63,49 +57,9 @@ import com.shuaiqiu.fuckets100.component.material.TonalCard
 import com.shuaiqiu.fuckets100.component.material.TopBarBackButton
 import com.shuaiqiu.fuckets100.component.material.expressiveTopAppBarColors
 
-open class DonateActivity : ComponentActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        applyPredictiveBackWindowTheme()
-        super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        ThemeManager.init(this)
-
-        setContent {
-            val effectiveDarkMode = if (ThemeManager.getSavedAutoDarkMode()) {
-                isSystemInDarkTheme()
-            } else {
-                ThemeManager.getSavedDarkMode()
-            }
-
-            FeThemeWrapper(
-                theme = ThemeManager.getSavedTheme(),
-                isDarkMode = effectiveDarkMode,
-                useDynamicColor = ThemeManager.getSavedDynamicColor()
-            ) {
-                PredictiveBackContent(onBack = { finish() }) {
-                    DonateScreen(onBack = { finish() })
-                }
-            }
-        }
-    }
-
-    companion object {
-        fun createIntent(context: Context): Intent {
-            return Intent(
-                context,
-                predictiveBackActivityClass(
-                    DonateActivity::class.java,
-                    DonateOpaqueActivity::class.java,
-                    DonateKernelSuClassicActivity::class.java
-                )
-            )
-        }
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun DonateScreen(onBack: () -> Unit) {
+fun DonateScreen(onBack: () -> Unit) {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     ExpressiveScaffold(

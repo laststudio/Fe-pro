@@ -7,7 +7,7 @@ import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.compose.BackHandler
+import androidx.activity.compose.PredictiveBackHandler
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -28,7 +28,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -38,15 +37,13 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.navigation.compose.*
-import androidx.compose.animation.*
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
-import androidx.navigation.NavBackStackEntry
-import androidx.navigation.NavHostController
 import com.shuaiqiu.fuckets100.component.material.rememberFeMainPagerState
 import kotlinx.coroutines.flow.MutableSharedFlow
 import com.shuaiqiu.fuckets100.component.material.FeRootNavigationScaffold
+import com.shuaiqiu.fuckets100.navigation.FeNavContainer
+import com.shuaiqiu.fuckets100.navigation.FeNavigator
+import com.shuaiqiu.fuckets100.navigation.FeRoute
+import com.shuaiqiu.fuckets100.navigation.rememberFeNavigator
 
 // ============================================================================
 // 瀛椾綋瀹氫箟 - 鐢ㄤ簬搴旂敤鏍囬鐨勯啋鐩睍绀烘晥鏋?// ============================================================================
@@ -116,16 +113,9 @@ enum class ActivationMode(
 }
 
 sealed class Screen(val route: String, val icon: ImageVector, val label: String) {
-    object Main : Screen("main_pager", Icons.Default.Home, "主页")
     object Home : Screen("home", Icons.Default.Home, "首页")
     object Read : Screen("read", Icons.AutoMirrored.Filled.MenuBook, "答题")
     object Settings : Screen("settings", Icons.Default.Settings, "设置")
-    object Activation : Screen("activation", Icons.Default.Build, "激活")
-    object GeneralSettings : Screen("general_settings", Icons.Default.Tune, "通用")
-    object ThemeSettings : Screen("theme_settings", Icons.Default.Palette, "主题")
-    object Debug : Screen("debug", Icons.Default.BugReport, "调试")
-    object CloudActivation : Screen("cloud_activation", Icons.Default.Cloud, "云端激活")
-    object Legal : Screen("legal", Icons.Default.Gavel, "法律")
 }
 // ============================================================================
 // 涓昏娲诲姩绫?- 搴旂敤鍏ュ彛
@@ -199,99 +189,26 @@ private val rootTabRoutes = listOf(Screen.Home.route, Screen.Read.route, Screen.
 
 private fun rootPageForRoute(route: String?): Int? = rootTabRoutes.indexOf(route).takeIf { it >= 0 }
 
+private fun UpdateStatus?.toRemoteContentRoute(): FeRoute.RemoteContent = FeRoute.RemoteContent(
+    announcementTitle = this?.announcementTitle?.takeIf { it.isNotBlank() } ?: "公告",
+    announcementMessage = this?.announcementMessage.orEmpty().ifBlank { "暂无公告" },
+    announcementUpdatedAt = this?.announcementUpdatedAt.orEmpty(),
+    announcementUrl = this?.announcementUrl.orEmpty(),
+    changelogTitle = this?.changelogTitle?.takeIf { it.isNotBlank() } ?: "更新日志",
+    changelogSummary = this?.changelogSummary.orEmpty()
+        .ifBlank { this?.message.orEmpty().ifBlank { "暂无更新内容" } },
+    changelogUrl = this?.changelogUrl.orEmpty(),
+)
+
 private fun handleTargetRoute(
     route: String,
-    navController: NavHostController,
+    navigator: FeNavigator,
     pagerState: com.shuaiqiu.fuckets100.component.material.FeMainPagerState,
 ) {
     rootPageForRoute(route)?.let {
-        if (navController.currentDestination?.route != Screen.Main.route) {
-            if (navController.currentDestination?.route == Screen.Debug.route) {
-                navController.popBackStack(Screen.Main.route, false)
-            } else {
-                navController.navigate(Screen.Main.route) {
-                    popUpTo(navController.currentDestination?.id ?: 0) { inclusive = true }
-                }
-            }
-        }
+        navigator.popUntil { current -> current is FeRoute.Main }
         pagerState.animateToPage(it)
-    } ?: run {
-        if (route == Screen.Debug.route && navController.currentDestination?.route != Screen.Debug.route) {
-            navController.navigate(Screen.Debug.route)
-        }
     }
-}
-
-private fun AnimatedContentTransitionScope<NavBackStackEntry>.isRootTabTransition(): Boolean {
-    return initialState.destination.route in rootTabRoutes && targetState.destination.route in rootTabRoutes
-}
-
-private fun AnimatedContentTransitionScope<NavBackStackEntry>.slideEnterTransition(): EnterTransition {
-    if (isRootTabTransition()) {
-        return EnterTransition.None
-    }
-
-    return slideInHorizontally(
-        initialOffsetX = { it },
-        animationSpec = tween(300, easing = FastOutSlowInEasing)
-    ) + fadeIn(
-        initialAlpha = 0.85f,
-        animationSpec = tween(120, easing = FastOutSlowInEasing)
-    )
-}
-
-private fun AnimatedContentTransitionScope<NavBackStackEntry>.slideExitTransition(): ExitTransition {
-    if (isRootTabTransition()) {
-        return ExitTransition.None
-    }
-
-    return ExitTransition.None
-}
-
-private fun AnimatedContentTransitionScope<NavBackStackEntry>.slidePopEnterTransition(): EnterTransition {
-    if (isRootTabTransition()) {
-        return EnterTransition.None
-    }
-
-    return EnterTransition.None
-}
-
-private fun AnimatedContentTransitionScope<NavBackStackEntry>.slidePopExitTransition(): ExitTransition {
-    if (isRootTabTransition()) {
-        return ExitTransition.None
-    }
-
-    return slideOutHorizontally(
-        targetOffsetX = { it },
-        animationSpec = tween(300, easing = FastOutSlowInEasing)
-    ) + fadeOut(
-        targetAlpha = 0.85f,
-        animationSpec = tween(120, easing = FastOutSlowInEasing)
-    )
-}
-
-private fun AnimatedContentTransitionScope<NavBackStackEntry>.fadeOnlyEnterTransition(): EnterTransition {
-    if (isRootTabTransition()) {
-        return EnterTransition.None
-    }
-
-    return fadeIn()
-}
-
-private fun AnimatedContentTransitionScope<NavBackStackEntry>.fadeOnlyExitTransition(): ExitTransition {
-    if (isRootTabTransition()) {
-        return ExitTransition.None
-    }
-
-    return fadeOut()
-}
-
-private fun AnimatedContentTransitionScope<NavBackStackEntry>.fadeAndScalePopExitTransition(): ExitTransition {
-    if (isRootTabTransition()) {
-        return ExitTransition.None
-    }
-
-    return scaleOut(targetScale = 0.9f) + fadeOut()
 }
 
 /** 
@@ -300,13 +217,11 @@ private fun AnimatedContentTransitionScope<NavBackStackEntry>.fadeAndScalePopExi
 fun FeAppMain() {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    val navController = rememberNavController()
-    val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = navBackStackEntry?.destination?.route
+    val navigator = rememberFeNavigator(FeRoute.Main)
+    val currentRoute = navigator.current()
     val initialRootPage = remember { rootPageForRoute(MainActivity.pendingTargetRoute) ?: 0 }
     val pagerState = rememberPagerState(initialPage = initialRootPage, pageCount = { rootTabRoutes.size })
     val mainPagerState = rememberFeMainPagerState(pagerState)
-    val predictiveBackState = rememberAospPredictiveBackState()
     var predictiveBackMode by remember { mutableStateOf(SettingsManager.getPredictiveBackMode()) }
     var compactAnswerDisplay by remember { mutableStateOf(SettingsManager.getCompactAnswerDisplay()) }
 
@@ -327,6 +242,7 @@ fun FeAppMain() {
     var showUpdateDialog by remember { mutableStateOf(false) }
     var updateDialogStatus by remember { mutableStateOf<com.shuaiqiu.fuckets100.UpdateStatus?>(null) }
     var verificationDialogStatus by remember { mutableStateOf<com.shuaiqiu.fuckets100.UpdateStatus?>(null) }
+    var remoteStatus by remember { mutableStateOf(FeApplication.remoteStatus) }
     var showLegalDialog by remember { mutableStateOf(!SettingsManager.hasAcceptedLegal()) }
     
     // 鐩戝惉鏇存柊鐘舵€?Flow锛岀‘淇濇瘡娆￠兘鑳芥敹鍒伴€氱煡鍠祣
@@ -342,6 +258,7 @@ fun FeAppMain() {
 
     LaunchedEffect(Unit) {
         FeApplication.remoteStatusFlow.collect { status ->
+            remoteStatus = status
             if (status != null && status.requiresVerification) {
                 verificationDialogStatus = status
             }
@@ -370,7 +287,7 @@ fun FeAppMain() {
                 compactAnswerDisplay = SettingsManager.getCompactAnswerDisplay()
                 MainActivity.pendingTargetRoute?.let { route ->
                     MainActivity.pendingTargetRoute = null
-                    handleTargetRoute(route, navController, mainPagerState)
+                    handleTargetRoute(route, navigator, mainPagerState)
                 }
             }
         }
@@ -381,13 +298,13 @@ fun FeAppMain() {
     LaunchedEffect(Unit) {
         MainActivity.pendingTargetRoute?.let { route ->
             MainActivity.pendingTargetRoute = null
-            handleTargetRoute(route, navController, mainPagerState)
+            handleTargetRoute(route, navigator, mainPagerState)
         }
     }
 
     LaunchedEffect(Unit) {
         MainActivity.targetRouteEvents.collect { route ->
-            handleTargetRoute(route, navController, mainPagerState)
+            handleTargetRoute(route, navigator, mainPagerState)
         }
     }
     
@@ -411,66 +328,27 @@ fun FeAppMain() {
         isAmoled = isAmoled,
     ) {
         FeRootNavigationScaffold(
-            showRootNavigation = currentRoute == Screen.Main.route,
+            showRootNavigation = currentRoute is FeRoute.Main,
             selectedPage = mainPagerState.selectedPage,
             onNavigatePage = mainPagerState::animateToPage,
         ) { innerPadding ->
-            BoxWithConstraints(
-                modifier = Modifier.padding(innerPadding)
-            ) {
-                val density = LocalDensity.current
-                val containerHeightPx = with(density) { maxHeight.toPx() }
-                val predictiveBackOffsetPx = with(density) { 96.dp.toPx() }
-                val deviceCornerRadius = rememberDeviceCornerRadius()
-
-                NavHost(
-                    navController = navController,
-                    startDestination = Screen.Main.route,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .then(
-                            if (predictiveBackMode == PredictiveBackMode.AOSP) {
-                                Modifier.aospPredictiveBackAnimation(
-                                    state = predictiveBackState,
-                                    containerHeightPx = containerHeightPx,
-                                    exitingOffsetPx = predictiveBackOffsetPx,
-                                    deviceCornerRadius = deviceCornerRadius
-                                )
-                            } else {
-                                Modifier
-                            }
-                        ),
-                    enterTransition = {
-                        when (predictiveBackMode) {
-                            PredictiveBackMode.NONE -> EnterTransition.None
-                            PredictiveBackMode.KERNELSU_CLASSIC -> fadeOnlyEnterTransition()
-                            else -> slideEnterTransition()
-                        }
-                    },
-                    exitTransition = {
-                        when (predictiveBackMode) {
-                            PredictiveBackMode.NONE -> ExitTransition.None
-                            PredictiveBackMode.KERNELSU_CLASSIC -> fadeOnlyExitTransition()
-                            else -> slideExitTransition()
-                        }
-                    },
-                    popEnterTransition = {
-                        when (predictiveBackMode) {
-                            PredictiveBackMode.NONE -> EnterTransition.None
-                            PredictiveBackMode.KERNELSU_CLASSIC -> fadeOnlyEnterTransition()
-                            else -> slidePopEnterTransition()
-                        }
-                    },
-                    popExitTransition = {
-                        when (predictiveBackMode) {
-                            PredictiveBackMode.NONE -> ExitTransition.None
-                            PredictiveBackMode.KERNELSU_CLASSIC -> fadeAndScalePopExitTransition()
-                            else -> slidePopExitTransition()
-                        }
-                    }
-                ) {
-
-                    composable(Screen.Main.route) {
+            Box(modifier = Modifier.padding(innerPadding)) {
+                FeNavContainer(
+                    navigator = navigator,
+                    predictiveBackMode = predictiveBackMode,
+                    currentMode = currentMode,
+                    shizukuState = shizukuState,
+                    onActivationModeChanged = { currentMode = it },
+                    onSelectRootPage = mainPagerState::animateToPage,
+                    onDarkModeChanged = { isDarkMode = it },
+                    onAutoDarkModeChanged = { isAutoDarkMode = it },
+                    onDynamicColorChanged = { useDynamicColor = it },
+                    onKeyColorChanged = { keyColor = it },
+                    onPaletteStyleChanged = { paletteStyle = it },
+                    onColorSpecChanged = { colorSpec = it },
+                    onAmoledChanged = { isAmoled = it },
+                    onPredictiveBackChanged = { predictiveBackMode = it },
+                    mainContent = {
                         HorizontalPager(
                             state = pagerState,
                             beyondViewportPageCount = 0,
@@ -481,54 +359,40 @@ fun FeAppMain() {
                                     mode = currentMode,
                                     shizukuState = shizukuState,
                                     onNavigateToActivation = {
-                                        context.startActivity(ActivationActivity.createIntent(context))
+                                        navigator.push(FeRoute.Activation)
                                     },
+                                    onNavigateToRemoteContent = { status ->
+                                        navigator.push(status.toRemoteContentRoute())
+                                    },
+                                    onNavigateToDonate = { navigator.push(FeRoute.Donate) },
                                 )
 
                                 1 -> ReadScreen(
                                     currentMode = currentMode,
                                     onNavigateToActivation = {
-                                        context.startActivity(ActivationActivity.createIntent(context))
+                                        navigator.push(FeRoute.Activation)
                                     },
                                     compactAnswerDisplay = compactAnswerDisplay,
                                 )
 
-                                2 -> SettingsScreen(navController)
+                                2 -> SettingsScreen(
+                                    onNavigateActivation = { navigator.push(FeRoute.Activation) },
+                                    onNavigateGeneralSettings = { navigator.push(FeRoute.GeneralSettings) },
+                                    onNavigateThemeSettings = { navigator.push(FeRoute.ThemeSettings) },
+                                    onNavigateLegal = { navigator.push(FeRoute.Legal) },
+                                    onNavigateDonate = { navigator.push(FeRoute.Donate) },
+                                    donateEnabled = remoteStatus?.donateEnabled ?: true,
+                                )
                             }
                         }
-                    }
-                    // Keep the old root destinations resolvable when Android restores a pre-Pager back stack.
-                    composable(Screen.Home.route) {
-                        LaunchedEffect(Unit) { handleTargetRoute(Screen.Home.route, navController, mainPagerState) }
-                    }
-                    composable(Screen.Read.route) {
-                        LaunchedEffect(Unit) { handleTargetRoute(Screen.Read.route, navController, mainPagerState) }
-                    }
-                    composable(Screen.Settings.route) {
-                        LaunchedEffect(Unit) { handleTargetRoute(Screen.Settings.route, navController, mainPagerState) }
-                    }
-                    
-                    composable(Screen.Debug.route) {
-                        DebugScreen(navController = navController)
-                    }
-                }
+                    },
+                )
             }
         }
-
-        AospPredictiveBackHandler(
-            state = predictiveBackState,
-            enabled = predictiveBackMode == PredictiveBackMode.AOSP &&
-                (navController.previousBackStackEntry != null ||
-                    currentRoute == Screen.Main.route && mainPagerState.selectedPage != 0),
-            onBack = {
-                if (navController.previousBackStackEntry != null) navController.popBackStack()
-                else mainPagerState.animateToPage(0)
-            },
-        )
-        BackHandler(
-            enabled = predictiveBackMode != PredictiveBackMode.AOSP &&
-                currentRoute == Screen.Main.route && mainPagerState.selectedPage != 0,
-        ) {
+        PredictiveBackHandler(
+            enabled = currentRoute is FeRoute.Main && mainPagerState.selectedPage != 0,
+        ) { progress ->
+            progress.collect { }
             mainPagerState.animateToPage(0)
         }
         
