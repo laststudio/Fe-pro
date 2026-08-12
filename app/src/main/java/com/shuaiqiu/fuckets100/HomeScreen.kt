@@ -14,7 +14,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontWeight
@@ -235,6 +237,7 @@ fun StatusCard(
     hasRootAvailable: Boolean,
     onNavigateToActivation: () -> Unit
 ) {
+    val haptic = LocalHapticFeedback.current
     val statusContainerColor = if (isTrulyActivated) {
         MaterialTheme.colorScheme.secondaryContainer
     } else {
@@ -291,7 +294,10 @@ fun StatusCard(
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        onClick = onNavigateToActivation,
+        onClick = {
+            haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
+            onNavigateToActivation()
+        },
         shape = MaterialTheme.shapes.large,
         color = statusContainerColor,
         contentColor = statusContentColor,
@@ -370,9 +376,13 @@ private fun HomeLinkCard(
     summary: String,
     onClick: () -> Unit,
 ) {
+    val haptic = LocalHapticFeedback.current
     TonalCard(
         modifier = Modifier.fillMaxWidth(),
-        onClick = onClick,
+        onClick = {
+            haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
+            onClick()
+        },
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),

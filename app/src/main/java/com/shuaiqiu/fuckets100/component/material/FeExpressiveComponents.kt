@@ -53,6 +53,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.input.pointer.pointerInput
@@ -262,14 +264,23 @@ fun ExpressiveSegmentedListItem(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
     enabled: Boolean = true,
+    clickHaptic: HapticFeedbackType? = HapticFeedbackType.ContextClick,
     headlineContent: @Composable () -> Unit,
     supportingContent: @Composable (() -> Unit)? = null,
     leadingContent: @Composable (() -> Unit)? = null,
     trailingContent: @Composable (() -> Unit)? = null,
     colors: ListItemColors = expressiveSegmentedColors(),
 ) {
+    val hapticFeedback = LocalHapticFeedback.current
     SegmentedListItem(
-        onClick = onClick ?: {},
+        onClick = {
+            if (onClick != null) {
+                if (clickHaptic != null) {
+                    hapticFeedback.performHapticFeedback(clickHaptic)
+                }
+                onClick()
+            }
+        },
         enabled = enabled,
         colors = colors,
         shapes = ListItemDefaults.segmentedShapes(index, count),
@@ -293,19 +304,27 @@ fun ExpressiveSegmentedSwitchItem(
     supportingContent: @Composable (() -> Unit)? = null,
     leadingContent: @Composable (() -> Unit)? = null,
 ) {
+    val hapticFeedback = LocalHapticFeedback.current
+    val handleChange: (Boolean) -> Unit = { newValue ->
+        hapticFeedback.performHapticFeedback(
+            if (newValue) HapticFeedbackType.ToggleOn else HapticFeedbackType.ToggleOff,
+        )
+        onCheckedChange(newValue)
+    }
     ExpressiveSegmentedListItem(
         index = index,
         count = count,
         modifier = modifier,
-        onClick = { onCheckedChange(!checked) },
+        onClick = { handleChange(!checked) },
         enabled = enabled,
+        clickHaptic = null,
         headlineContent = headlineContent,
         supportingContent = supportingContent,
         leadingContent = leadingContent,
         trailingContent = {
             ExpressiveSwitch(
                 checked = checked,
-                onCheckedChange = onCheckedChange,
+                onCheckedChange = handleChange,
                 enabled = enabled,
             )
         },

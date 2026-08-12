@@ -3,6 +3,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.androidx.baselineprofile)
     id("kotlin-parcelize")
 }
 
@@ -45,7 +46,8 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             if (hasReleaseSigningConfig) {
                 // Release builds use the same signing key so users can upgrade in place.
                 signingConfig = signingConfigs.getByName("release")
@@ -55,6 +57,18 @@ android {
                 "proguard-rules.pro"
             )
         }
+    }
+    packaging {
+        resources {
+            excludes += "META-INF/*.version"
+            // kotlinx.coroutines debug infrastructure is useless at runtime.
+            excludes += "DebugProbesKt.bin"
+            excludes += "kotlin-tooling-metadata.json"
+        }
+    }
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -77,6 +91,12 @@ configurations.all {
     exclude(group = "org.jetbrains.androidx.navigationevent", module = "navigationevent-compose")
 }
 
+baselineProfile {
+    mergeIntoMain = true
+    saveInSrc = true
+    automaticGenerationDuringBuild = false
+}
+
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
@@ -93,6 +113,7 @@ dependencies {
     implementation(libs.androidx.navigationevent)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.material.kolor)
+    implementation(libs.androidx.profileinstaller)
 
     // Shizuku support allows file access without root where available.
     implementation(libs.shizuku.api)
@@ -100,6 +121,8 @@ dependencies {
 
     // ZIP extraction, including password-protected archives.
     implementation(libs.zip4j)
+
+    baselineProfile(project(":baselineprofile"))
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
