@@ -11,7 +11,7 @@ import java.net.URLConnection
 /**
  * 远程配置管理器
  * 单例模式，使用多线程进行网络请求
- * 宝贝如果5秒内无法获取配置或网络失败，应用会闪退喵~
+ * 网络失败时抛出可恢复异常，由启动门禁展示重试状态。
  */
 object RemoteConfigManager {
     private const val TAG = "RemoteConfigManager"
@@ -155,7 +155,7 @@ object RemoteConfigManager {
     /**
      * 获取远程配置
      * 在 IO 线程执行，不阻塞主线程
-     * 宝贝如果5秒内无法获取配置或网络失败，会抛出异常喵~
+     * 5 秒内无法获取配置或网络失败时抛出可恢复异常。
      * 
      * @param context Context
      * @return RemoteConfig
@@ -239,7 +239,7 @@ object RemoteConfigManager {
                         Log.e(TAG, "   异常类型: ${e.javaClass.simpleName}")
                     }
                 }
-                // 网络失败时抛出异常，由调用者处理（闪退）
+                // 网络失败时抛出异常，由启动门禁展示可重试状态。
                 throw NetworkException(e.message ?: "未知网络错误")
             }
         }
@@ -248,7 +248,7 @@ object RemoteConfigManager {
     /**
      * 检查是否需要更新或锁定
      * 在 IO 线程执行，不阻塞主线程
-     * 宝贝如果网络失败会抛出异常喵~
+     * 网络失败时抛出可恢复异常。
      *
      * @param context Context
      * @return UpdateStatus 更新状态

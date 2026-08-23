@@ -15,6 +15,9 @@ sealed interface FeRoute : NavKey, Parcelable {
     data object CloudActivation : FeRoute
 
     @Parcelize
+    data object Account : FeRoute
+
+    @Parcelize
     data object GeneralSettings : FeRoute
 
     @Parcelize

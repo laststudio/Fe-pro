@@ -187,7 +187,7 @@ object ZWCHelper {
         return when {
             Build.VERSION.SDK_INT < Build.VERSION_CODES.R -> "Android 10 及以下，无需特殊处理"
             isVulnerabilityAvailable() -> "零宽字符漏洞可用，可访问 Android/data"
-            Environment.isExternalStorageManager() -> "全文件访问权限已获取"
+            hasAllFilesAccess() -> "全文件访问权限已获取"
             else -> "暂不支持直读，请授权全文件访问或使用其他模式"
         }
     }
@@ -214,9 +214,12 @@ object ZWCHelper {
         sb.appendLine()
         
         sb.appendLine("漏洞状态: ${if (isVulnerabilityAvailable()) "可用" else "不可用"}")
-        sb.appendLine("全文件权限: ${Environment.isExternalStorageManager()}")
+        sb.appendLine("全文件权限: ${hasAllFilesAccess()}")
         sb.appendLine("可用路径: ${getWorkingBypassPath() ?: "无"}")
         
         return sb.toString()
     }
+
+    private fun hasAllFilesAccess(): Boolean =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && Environment.isExternalStorageManager()
 }

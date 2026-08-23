@@ -51,3 +51,24 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: ./gradlew assembleRelease --console=plain
+
+      - name: 验证正式版证书指纹
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk="$(find app/build/outputs/apk/release -name '*.apk' -type f | head -n 1)"
+          if [ -z "${apk:-}" ] || [ ! -f "$apk" ]; then
+            echo "没有找到正式版 APK。" >&2
+            exit 1
+          fi
+          apksigner="$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n 1)"
+          certificate_sha256="$($apksigner verify --print-certs "$apk" | sed -n 's/^.*certificate SHA-256 digest: //p' | head -n 1)"
+          if ! [[ "$certificate_sha256" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "无法读取正式版证书 SHA-256。" >&2
+            exit 1
+          fi
+          echo "正式版证书 SHA-256：$certificate_sha256"
+          echo "release_certificate_sha256=$certificate_sha256" >> "$GITHUB_OUTPUT"
+          echo "## 正式版证书" >> "$GITHUB_STEP_SUMMARY"
+          echo "- SHA-256：\`$certificate_sha256\`" >> "$GITHUB_STEP_SUMMARY"

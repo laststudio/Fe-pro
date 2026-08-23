@@ -136,16 +136,8 @@ class FeApplication : Application() {
                 
                 when {
                     status.isKillSwitch -> {
-                        // KillSwitch 激活,显示"程序异常"提示
-                        Log.w(TAG, "KillSwitch activated: 程序异常")
-                        Toast.makeText(this@FeApplication, "程序异常", Toast.LENGTH_LONG).show()
-                        
-                        // 延迟关闭应用
-                        android.os.Handler(mainLooper).postDelayed({
-                            // 关闭应用
-                            android.os.Process.killProcess(android.os.Process.myPid())
-                            System.exit(0)
-                        }, 2000) // 2秒后关闭
+                        // Account gate owns recoverable blocking UI; never terminate the process.
+                        Log.w(TAG, "KillSwitch activated")
                     }
                     status.showDialog -> {
                         // 有新版本，显示更新弹窗，通过 Flow 通知
@@ -163,15 +155,8 @@ class FeApplication : Application() {
                     }
                 }
             } catch (e: RemoteConfigManager.NetworkException) {
-                // 网络失败或超时，直接闪退喵~
-                Log.e(TAG, "❌ 远程配置获取失败: ${e.message}")
-                Toast.makeText(this@FeApplication, "网络异常", Toast.LENGTH_SHORT).show()
-                
-                android.os.Handler(mainLooper).postDelayed({
-                    // 关闭应用
-                    android.os.Process.killProcess(android.os.Process.myPid())
-                    System.exit(0)
-                }, 1000) // 1秒后关闭
+                // The account gate presents a retryable network error and preserves credentials.
+                Log.e(TAG, "远程配置获取失败: ${e.message}")
             }
         }
     }

@@ -216,6 +216,7 @@ private fun handleTargetRoute(
 fun FeAppMain() {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val feAccountState by FeAccountManager.get(context).gateState.collectAsState()
     val navigator = rememberFeNavigator(FeRoute.Main)
     val initialRootPage = remember { rootPageForRoute(MainActivity.pendingTargetRoute) ?: 0 }
     val pagerState = rememberPagerState(initialPage = initialRootPage, pageCount = { rootTabRoutes.size })
@@ -331,6 +332,7 @@ fun FeAppMain() {
         colorSpec = colorSpec,
         isAmoled = isAmoled,
     ) {
+        FeAccountGate {
         FeNavContainer(
             navigator = navigator,
             predictiveBackAnimation = predictiveBackAnimation,
@@ -389,6 +391,8 @@ fun FeAppMain() {
                             onNavigateThemeSettings = { navigator.push(FeRoute.ThemeSettings) },
                             onNavigateLegal = { navigator.push(FeRoute.Legal) },
                             onNavigateDonate = { navigator.push(FeRoute.Donate) },
+                            onNavigateAccount = { navigator.push(FeRoute.Account) },
+                            accountSession = (feAccountState as? FeAccountGateState.Ready)?.session,
                             donateEnabled = remoteStatus?.donateEnabled ?: true,
                         )
                     }
@@ -425,6 +429,7 @@ fun FeAppMain() {
                     showLegalDialog = false
                 }
             )
+        }
         }
     }
 }

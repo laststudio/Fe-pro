@@ -34,6 +34,7 @@ import com.shuaiqiu.fuckets100.ActivationSettingsScreen
 import com.shuaiqiu.fuckets100.AnswerScreen
 import com.shuaiqiu.fuckets100.CloudActivationScreen
 import com.shuaiqiu.fuckets100.DonateScreen
+import com.shuaiqiu.fuckets100.FeAccountScreen
 import com.shuaiqiu.fuckets100.GeneralSettingsScreen
 import com.shuaiqiu.fuckets100.LegalScreen
 import com.shuaiqiu.fuckets100.PredictiveBackAnimation
@@ -168,6 +169,15 @@ fun FeNavContainer(
                             onActivationModeChanged(ActivationMode.CLOUD)
                             cloudAuthRevision++
                             navigator.pop()
+                        },
+                    )
+                }
+                entry<FeRoute.Account> {
+                    FeAccountScreen(
+                        onBack = navigator::pop,
+                        onLogoutNavigate = {
+                            navigator.popUntil { route -> route is FeRoute.Main }
+                            onSelectRootPage(0)
                         },
                     )
                 }

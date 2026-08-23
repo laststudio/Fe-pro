@@ -38,6 +38,8 @@ fun SettingsScreen(
     onNavigateThemeSettings: () -> Unit,
     onNavigateLegal: () -> Unit,
     onNavigateDonate: () -> Unit,
+    onNavigateAccount: () -> Unit,
+    accountSession: FeAccountSession?,
     donateEnabled: Boolean,
 ) {
     val context = LocalContext.current
@@ -70,6 +72,38 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState())
         ) {
             Spacer(Modifier.height(16.dp))
+
+            Surface(
+                modifier = Modifier.fillMaxWidth().clickable(onClick = onNavigateAccount),
+                shape = MaterialTheme.shapes.extraLarge,
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(20.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    AccountInitialAvatar(
+                        username = accountSession?.user?.username.orEmpty(),
+                        avatarUrl = accountSession?.user?.avatarUrl,
+                    )
+                    Spacer(Modifier.width(16.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            accountSession?.user?.username ?: "Fe 账号",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            accountSession?.user?.let { "LA Studio · 会员等级 L${it.memberLevel}" }
+                                ?: "查看账号信息",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Icon(Icons.Default.ChevronRight, contentDescription = "进入账号")
+                }
+            }
+
+            Spacer(Modifier.height(24.dp))
 
             SegmentedColumn(
                 title = "应用设置",
