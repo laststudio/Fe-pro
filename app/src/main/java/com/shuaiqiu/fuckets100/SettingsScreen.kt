@@ -85,6 +85,7 @@ fun SettingsScreen(
                     AccountInitialAvatar(
                         username = accountSession?.user?.username.orEmpty(),
                         avatarUrl = accountSession?.user?.avatarUrl,
+                        userId = accountSession?.user?.id,
                     )
                     Spacer(Modifier.width(16.dp))
                     Column(Modifier.weight(1f)) {

@@ -12,13 +12,19 @@ import android.webkit.WebViewClient
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -31,6 +37,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -40,6 +47,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -220,11 +228,45 @@ fun FeAccountScreen(
     val state by manager.gateState.collectAsState()
     val session = (state as? FeAccountGateState.Ready)?.session
     val scope = rememberCoroutineScope()
+
+    var showChangePassword by remember { mutableStateOf(false) }
+    var showBindings by remember { mutableStateOf(false) }
+    var showDevices by remember { mutableStateOf(false) }
+    var showSessions by remember { mutableStateOf(false) }
+    var bindings by remember { mutableStateOf<FeAccountProfileApi.AccountBindings?>(null) }
+    var bindingsError by remember { mutableStateOf<String?>(null) }
+    var changePasswordError by remember { mutableStateOf<String?>(null) }
     var logoutError by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(session) {
+        if (session != null) {
+            bindings = null
+            bindingsError = null
+            runCatching {
+                FeAccountProfileApi().bindings(manager.requireAccessToken())
+            }.onSuccess { bindings = it }.onFailure {
+                if (it is FeAccountApiException && it.error.statusCode == 401) {
+                    manager.revalidateOnline()
+                } else {
+                    bindingsError = it.message ?: "加载绑定信息失败"
+                }
+            }
+        }
+    }
+
+    if (showDevices) {
+        AccountDevicesPage(manager = manager, onBack = { showDevices = false })
+        return
+    }
+    if (showSessions) {
+        AccountSessionsPage(manager = manager, onBack = { showSessions = false })
+        return
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("账号") },
+                title = { Text("个人中心") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
@@ -234,19 +276,82 @@ fun FeAccountScreen(
         },
     ) { padding ->
         Column(
-            Modifier.fillMaxSize().padding(padding).padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+            Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+                .padding(20.dp),
         ) {
-            AccountInitialAvatar(
-                username = session?.user?.username.orEmpty(),
-                size = 88,
-                avatarUrl = session?.user?.avatarUrl,
-            )
-            Spacer(Modifier.height(16.dp))
-            Text(session?.user?.username.orEmpty(), style = MaterialTheme.typography.headlineSmall)
-            Text("LA Studio 用户 #${session?.user?.id ?: "-"}")
-            Text("会员等级 L${session?.user?.memberLevel ?: 0}", color = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.weight(1f))
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                AccountInitialAvatar(
+                    username = session?.user?.username.orEmpty(),
+                    size = 84,
+                    avatarUrl = session?.user?.avatarUrl,
+                    userId = session?.user?.id,
+                )
+                Spacer(Modifier.width(18.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        session?.user?.username.orEmpty(),
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        "LA Studio 用户 #${session?.user?.id ?: "-"}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        "会员等级 L${session?.user?.memberLevel ?: 0}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(24.dp))
+
+            OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+                Column {
+                    SettingsListItem(
+                        icon = Icons.Default.Lock,
+                        title = "修改密码",
+                        sub = "定期更换密码更安全",
+                        onClick = {
+                            changePasswordError = null
+                            showChangePassword = true
+                        },
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    SettingsListItem(
+                        icon = Icons.Default.Email,
+                        title = "账号绑定",
+                        sub = bindingsError
+                            ?: bindingsSummary(bindings),
+                        onClick = { showBindings = true },
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    SettingsListItem(
+                        icon = Icons.Default.Phone,
+                        title = "我的设备",
+                        sub = "管理已登录的设备",
+                        onClick = { showDevices = true },
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    SettingsListItem(
+                        icon = Icons.Default.Settings,
+                        title = "登录会话",
+                        sub = "查看和下线登录会话",
+                        onClick = { showSessions = true },
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(24.dp))
+
             if (logoutError != null) {
                 Text(logoutError!!, color = MaterialTheme.colorScheme.error)
                 Spacer(Modifier.height(8.dp))
@@ -261,41 +366,462 @@ fun FeAccountScreen(
                         }
                     }
                 },
-            ) { Text("退出登录") }
+            ) {
+                Icon(Icons.AutoMirrored.Filled.Logout, null, Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("退出登录")
+            }
+        }
+    }
+
+    if (showChangePassword) {
+        ChangePasswordDialog(
+            onDismiss = { showChangePassword = false },
+            onSubmit = { old, new, new2 ->
+                scope.launch {
+                    try {
+                        FeAccountProfileApi().changePassword(
+                            manager.requireAccessToken(),
+                            old,
+                            new,
+                            new2,
+                        )
+                        showChangePassword = false
+                        // token_version 已递增, 本地凭据失效 -> 强制重新登录
+                        manager.revalidateOnline()
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        changePasswordError = (e as? FeAccountApiException)?.error?.message
+                            ?: e.message ?: "修改失败"
+                    }
+                }
+            },
+            error = changePasswordError,
+        )
+    }
+
+    if (showBindings) {
+        BindingsDialog(
+            bindings = bindings,
+            error = bindingsError,
+            onDismiss = { showBindings = false },
+        )
+    }
+}
+
+private fun bindingsSummary(bindings: FeAccountProfileApi.AccountBindings?): String {
+    if (bindings == null) return "查看邮箱、e听说绑定情况"
+    val email = bindings.email?.let { "邮箱${if (it.isVerified) "✓" else ""}" }
+    val etingshuo = bindings.etingshuo?.let { "e听说" }
+    return listOfNotNull(email, etingshuo).joinToString(" · ").ifBlank { "未绑定邮箱/e听说" }
+}
+
+@Composable
+private fun BindingsDialog(
+    bindings: FeAccountProfileApi.AccountBindings?,
+    error: String?,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("账号绑定") },
+        text = {
+            when {
+                error != null -> Text(error, color = MaterialTheme.colorScheme.error)
+                bindings == null -> Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                    Text("加载中…")
+                }
+                else -> Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    BindingRow(
+                        title = "邮箱",
+                        value = bindings.email?.let {
+                            "${it.email}${if (it.isVerified) "（已验证）" else "（未验证）"}"
+                        } ?: "未绑定",
+                    )
+                    BindingRow(
+                        title = "e听说",
+                        value = bindings.etingshuo?.account ?: "未绑定",
+                    )
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("关闭") } },
+    )
+}
+
+@Composable
+private fun BindingRow(title: String, value: String) {
+    Column {
+        Text(title, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(2.dp))
+        Text(value, style = MaterialTheme.typography.bodyLarge)
+    }
+}
+
+@Composable
+private fun ChangePasswordDialog(
+    onDismiss: () -> Unit,
+    onSubmit: (old: String, new: String, new2: String) -> Unit,
+    error: String?,
+) {
+    var old by remember { mutableStateOf("") }
+    var new by remember { mutableStateOf("") }
+    var new2 by remember { mutableStateOf("") }
+    var loading by remember { mutableStateOf(false) }
+    var localError by remember { mutableStateOf<String?>(null) }
+    val shownError = error ?: localError
+
+    AlertDialog(
+        onDismissRequest = { if (!loading) onDismiss() },
+        title = { Text("修改密码") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (shownError != null) {
+                    Text(shownError, color = MaterialTheme.colorScheme.error)
+                }
+                OutlinedTextField(
+                    value = old,
+                    onValueChange = { old = it },
+                    label = { Text("当前密码") },
+                    singleLine = true,
+                    enabled = !loading,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                )
+                OutlinedTextField(
+                    value = new,
+                    onValueChange = { new = it },
+                    label = { Text("新密码（至少 10 位）") },
+                    singleLine = true,
+                    enabled = !loading,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                )
+                OutlinedTextField(
+                    value = new2,
+                    onValueChange = { new2 = it },
+                    label = { Text("确认新密码") },
+                    singleLine = true,
+                    enabled = !loading,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = !loading,
+                onClick = {
+                    when {
+                        old.isBlank() || new.isBlank() || new2.isBlank() -> localError = "请填写完整"
+                        new != new2 -> localError = "两次新密码不一致"
+                        new.length < 10 -> localError = "新密码至少 10 位"
+                        else -> {
+                            localError = null
+                            loading = true
+                            onSubmit(old, new, new2)
+                        }
+                    }
+                },
+            ) {
+                if (loading) {
+                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                } else {
+                    Text("确认修改")
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !loading) { Text("取消") }
+        },
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AccountDevicesPage(manager: FeAccountManager, onBack: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    var devices by remember { mutableStateOf<List<JSONObject>?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var pendingRevoke by remember { mutableStateOf<JSONObject?>(null) }
+
+    fun refresh() {
+        scope.launch {
+            error = null
+            runCatching { FeAccountProfileApi().devices(manager.requireAccessToken()) }
+                .onSuccess { devices = it }
+                .onFailure {
+                    if (it is FeAccountApiException && it.error.statusCode == 401) {
+                        manager.revalidateOnline()
+                    } else {
+                        error = it.message ?: "加载设备失败"
+                    }
+                }
+        }
+    }
+
+    LaunchedEffect(Unit) { refresh() }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("我的设备") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
+                    }
+                },
+            )
+        },
+    ) { padding ->
+        Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(20.dp)) {
+            if (devices == null && error == null) {
+                Box(Modifier.fillMaxWidth().padding(top = 80.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            } else {
+                error?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error)
+                    Spacer(Modifier.height(12.dp))
+                }
+                val list = devices.orEmpty()
+                if (list.isEmpty()) {
+                    Text("暂无设备", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    list.forEach { device ->
+                        AccountDeviceCard(
+                            device = device,
+                            onRevoke = { pendingRevoke = device },
+                        )
+                        Spacer(Modifier.height(12.dp))
+                    }
+                }
+            }
+        }
+    }
+
+    pendingRevoke?.let { device ->
+        AlertDialog(
+            onDismissRequest = { pendingRevoke = null },
+            title = { Text("下线设备？") },
+            text = { Text("将下线「${device.optString("display_name", "未知设备")}」的全部登录会话。") },
+            confirmButton = {
+                TextButton(onClick = {
+                    val id = device.optInt("id", -1)
+                    pendingRevoke = null
+                    scope.launch {
+                        runCatching { FeAccountProfileApi().revokeDevice(manager.requireAccessToken(), id) }
+                            .onSuccess { refresh() }
+                            .onFailure {
+                                if (it is FeAccountApiException && it.error.statusCode == 401) {
+                                    manager.revalidateOnline()
+                                } else {
+                                    error = it.message ?: "下线失败"
+                                }
+                            }
+                    }
+                }) { Text("下线") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingRevoke = null }) { Text("取消") }
+            },
+        )
+    }
+}
+
+@Composable
+private fun AccountDeviceCard(device: JSONObject, onRevoke: () -> Unit) {
+    OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.fillMaxWidth().padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    device.optString("display_name", "未知设备"),
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "${device.optString("platform", "android")} · ${device.optString("device_id", "")}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    "状态：${if (device.optString("status") == "active") "在线" else "已下线"}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (device.optString("status") == "active") {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                )
+            }
+            if (device.optString("status") == "active") {
+                TextButton(onClick = onRevoke) { Text("下线") }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AccountSessionsPage(manager: FeAccountManager, onBack: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    var sessions by remember { mutableStateOf<List<JSONObject>?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    fun refresh() {
+        scope.launch {
+            error = null
+            runCatching { FeAccountProfileApi().sessions(manager.requireAccessToken()) }
+                .onSuccess { sessions = it }
+                .onFailure {
+                    if (it is FeAccountApiException && it.error.statusCode == 401) {
+                        manager.revalidateOnline()
+                    } else {
+                        error = it.message ?: "加载会话失败"
+                    }
+                }
+        }
+    }
+
+    LaunchedEffect(Unit) { refresh() }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("登录会话") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
+                    }
+                },
+            )
+        },
+    ) { padding ->
+        Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(20.dp)) {
+            if (sessions == null && error == null) {
+                Box(Modifier.fillMaxWidth().padding(top = 80.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            } else {
+                error?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error)
+                    Spacer(Modifier.height(12.dp))
+                }
+                val list = sessions.orEmpty()
+                if (list.isEmpty()) {
+                    Text("暂无会话", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    list.forEach { session ->
+                        AccountSessionCard(
+                            session = session,
+                            onRevoke = {
+                                val id = session.optInt("id", -1)
+                                scope.launch {
+                                    runCatching { FeAccountProfileApi().revokeSession(manager.requireAccessToken(), id) }
+                                        .onSuccess { refresh() }
+                                        .onFailure {
+                                            if (it is FeAccountApiException && it.error.statusCode == 401) {
+                                                manager.revalidateOnline()
+                                            } else {
+                                                error = it.message ?: "下线失败"
+                                            }
+                                        }
+                                }
+                            },
+                        )
+                        Spacer(Modifier.height(12.dp))
+                    }
+                }
+            }
         }
     }
 }
 
 @Composable
-fun AccountInitialAvatar(username: String, size: Int = 56, avatarUrl: String? = null) {
-    var avatar by remember(avatarUrl) { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
-    LaunchedEffect(avatarUrl) {
-        avatar = avatarUrl?.let { path ->
-            val resolved = if (path.startsWith("/")) FeAccountApi.BASE_URL + path else path
-            try {
-                val uri = Uri.parse(resolved)
-                require(uri.scheme == "https" && uri.host == "api.lastudio.cc")
-                withContext(Dispatchers.IO) {
-                    val connection = (URL(resolved).openConnection() as HttpURLConnection).apply {
-                        connectTimeout = AVATAR_TIMEOUT_MS
-                        readTimeout = AVATAR_TIMEOUT_MS
-                        instanceFollowRedirects = false
-                    }
-                    try {
-                        require(connection.responseCode == HttpURLConnection.HTTP_OK)
-                        connection.inputStream.use {
-                            android.graphics.BitmapFactory.decodeStream(it)?.asImageBitmap()
-                        }
-                    } finally {
-                        connection.disconnect()
-                    }
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (_: Exception) {
-                null
+private fun AccountSessionCard(session: JSONObject, onRevoke: () -> Unit) {
+    OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.fillMaxWidth().padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    session.optString("user_agent", "未知客户端").take(40),
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "版本 v${session.optInt("app_version_code", 0)} · ${session.optString("client_ip", "?")}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    if (session.optString("status") == "active") "当前在线" else "已下线",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (session.optString("status") == "active") {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                )
+            }
+            if (session.optString("status") == "active") {
+                TextButton(onClick = onRevoke) { Text("下线") }
             }
         }
+    }
+}
+
+@Composable
+fun AccountInitialAvatar(
+    username: String,
+    size: Int = 56,
+    avatarUrl: String? = null,
+    userId: Long? = null,
+) {
+    val context = LocalContext.current
+    var avatar by remember(avatarUrl, userId) { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
+    LaunchedEffect(avatarUrl, userId) {
+        val version = AvatarCache.versionFrom(avatarUrl)
+        avatar = AvatarCache.load(context, userId ?: -1L, version)
+            ?: avatarUrl?.let { path ->
+                val resolved = if (path.startsWith("/")) FeAccountApi.BASE_URL + path else path
+                try {
+                    val uri = Uri.parse(resolved)
+                    require(uri.scheme == "https" && uri.host == "api.lastudio.cc")
+                    withContext(Dispatchers.IO) {
+                        val connection = (URL(resolved).openConnection() as HttpURLConnection).apply {
+                            connectTimeout = AVATAR_TIMEOUT_MS
+                            readTimeout = AVATAR_TIMEOUT_MS
+                            instanceFollowRedirects = false
+                        }
+                        try {
+                            require(connection.responseCode == HttpURLConnection.HTTP_OK)
+                            val bitmap = connection.inputStream.use {
+                                android.graphics.BitmapFactory.decodeStream(it)
+                            } ?: return@withContext null
+                            if (userId != null && version != null) {
+                                AvatarCache.save(context, userId, version, bitmap)
+                            }
+                            bitmap.asImageBitmap()
+                        } finally {
+                            connection.disconnect()
+                        }
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    null
+                }
+            }
     }
     Box(
         Modifier.size(size.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer),
