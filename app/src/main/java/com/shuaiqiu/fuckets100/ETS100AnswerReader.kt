@@ -425,6 +425,7 @@ object ETS100AnswerReader {
             return emptyList()
         }
 
+        kotlinx.coroutines.runBlocking { ResolverAuthorizer.requireAuthorized(context) }
         val reader = try {
             ETS100FileReader.getReader(mode, context)
         } catch (e: Exception) {
@@ -492,6 +493,7 @@ object ETS100AnswerReader {
             return@coroutineScope emptyList()
         }
 
+        ResolverAuthorizer.requireAuthorized(context)
         val reader = try {
             ETS100FileReader.getReader(mode, context)
         } catch (e: Exception) {

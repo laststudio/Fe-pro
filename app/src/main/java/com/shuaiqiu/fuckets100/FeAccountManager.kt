@@ -87,6 +87,19 @@ class FeAccountManager private constructor(context: Context) {
         }
     }
 
+    /**
+     * 获取一个可用的 access token (必要时自动刷新)。
+     * 未登录或会话失效时抛 [FeAccountNotAuthenticatedException]。
+     */
+    suspend fun requireAccessToken(): String = serializedSessionOperation {
+        val session = loadVerifiedSessionLocked()
+        if (session == null) {
+            _gateState.value = FeAccountGateState.LoginRequired
+            throw FeAccountNotAuthenticatedException()
+        }
+        accessToken ?: throw FeAccountNotAuthenticatedException()
+    }
+
     suspend fun login(username: String, password: String, capToken: String? = null): Result<Unit> {
         return try {
             serializedSessionOperation {
