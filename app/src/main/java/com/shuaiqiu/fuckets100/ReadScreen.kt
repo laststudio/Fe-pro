@@ -740,6 +740,14 @@ fun ReadScreen(
         homeworkInfo: ETS100ApiClient.HomeworkInfo,
         status: String = selectedCloudHomeworkStatus
     ) {
+        try {
+            ResolverAuthorizer.requireAuthorized(context)
+        } catch (e: ResolverAuthorizationDeniedException) {
+            val message = e.message ?: "答案解析功能当前不可用"
+            addLog(LogLevel.ERROR, LogCategory.SYSTEM, "✗ $message")
+            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+            return
+        }
         addLog(LogLevel.INFO, LogCategory.SYSTEM, "📥 开始下载作业: ${homeworkInfo.name}, 共 ${homeworkInfo.contents.size} 个内容")
 
         val cacheKey = cloudHomeworkCacheKey(status, homeworkInfo)
@@ -926,7 +934,15 @@ fun ReadScreen(
                             startIndex = questionIndex,
                             category = "",
                             typeName = content.groupName,
-                            sectionCaption = content.groupName
+                            sectionCaption = content.groupName,
+                            infoJson = File(extractDir, "info.json")
+                                .takeIf { it.isFile }
+                                ?.readText()
+                                .orEmpty(),
+                            content2Json = File(extractDir, "content2.json")
+                                .takeIf { it.isFile }
+                                ?.readText()
+                                .orEmpty(),
                         )
 
                         if (questions.isEmpty()) {

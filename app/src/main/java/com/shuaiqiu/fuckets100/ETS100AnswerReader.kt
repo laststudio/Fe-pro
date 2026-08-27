@@ -212,14 +212,6 @@ object ETS100AnswerReader {
 
     // category 到 structure_type 的映射
     // 用于当 content.json 中没有 structure_type 时 fallback
-    private val categoryToStructureType = mapOf(
-        "read_chapter" to StructureType.COLLECTOR_READ,
-        "simple_expression_ufi" to StructureType.COLLECTOR_ROLE,
-        "simple_expression_ufk" to StructureType.COLLECTOR_ROLE,
-        "topic" to StructureType.COLLECTOR_PICTURE,
-        "simple_expression_ufj" to StructureType.COLLECTOR_ROLE
-    )
-
     // 习题组 code_id 到 group_name 的映射
     // 喵~ 根据文档，习题组有 7 种题型（st1-st7）喵！
     private val exerciseGroupCodeIdMap = mapOf(
@@ -242,17 +234,6 @@ object ETS100AnswerReader {
         "st6" to "topic",
         "st7" to "simple_expression_ufj"
     )
-
-    /**
-     * 通用文本清洗函数
-     * 喵~ 移除 ets_th 前缀、HTML 标签、零宽空格喵！
-     */
-    private fun cleanText(text: String): String {
-        if (text.isEmpty()) return ""
-        return cleanAnswerText(text
-            .replace(Regex("ets_th\\d+\\s*"), "")  // 移除 ets_th 前缀
-        )
-    }
 
     internal fun cleanAnswerText(text: String): String {
         return cleanDisplayText(text, splitPipes = true)
@@ -280,105 +261,14 @@ object ETS100AnswerReader {
             .joinToString("\n")
     }
 
-    /**
-     * 题目文本清洗（专门针对 xt_nr 字段）
-     * 喵~ 北京选择题的题目文本需要特殊处理喵！
-     */
-    private fun cleanQuestion(text: String): String {
-        if (text.isEmpty()) return ""
-        return cleanQuestionText(text
-            .replace(Regex("ets_th\\d+\\s*"), "")  // 移除 ets_th 前缀
-        )
-    }
-    private val questionNumberFields = listOf(
-        "xt_xh",
-        "xth",
-        "xh",
-        "th",
-        "question_no",
-        "questionNo",
-        "order",
-        "sort",
-        "index"
-    )
-
-    private val officialQuestionNumberTextPatterns = listOf(
-        Regex("ets_th\\s*(\\d+)", RegexOption.IGNORE_CASE)
-    )
-
-    private val fallbackQuestionNumberTextPatterns = listOf(
-        Regex("\\u7b2c\\s*(\\d+)\\s*\\u9898"),
-        Regex("^\\s*(\\d+)\\s*[.\\u3001\\uff0e)\\uff09]")
-    )
-
-    private fun parsePositiveInt(value: String): Int? {
-        return value.trim().toIntOrNull()?.takeIf { it > 0 }
-    }
-
-    private fun extractQuestionNumberFromText(
-        patterns: List<Regex>,
-        vararg texts: String?
-    ): Int? {
-        for (text in texts) {
-            if (text.isNullOrBlank()) continue
-            for (pattern in patterns) {
-                val number = pattern.find(text)
-                    ?.groupValues
-                    ?.getOrNull(1)
-                    ?.let(::parsePositiveInt)
-                if (number != null) return number
-            }
-        }
-        return null
-    }
-
-    private fun extractQuestionNumber(item: JSONObject, vararg textKeys: String): Int? {
-        val keys = (textKeys.toList() + listOf("xt_nr", "ask", "question", "text", "topic", "value")).distinct()
-        val texts = keys.map { item.optString(it, "") }.toTypedArray()
-
-        extractQuestionNumberFromText(officialQuestionNumberTextPatterns, *texts)?.let { return it }
-
-        for (field in questionNumberFields) {
-            parsePositiveInt(item.optString(field, ""))?.let { return it }
-        }
-
-        return extractQuestionNumberFromText(fallbackQuestionNumberTextPatterns, *texts)
-    }
-
-    private fun extractChooseQuestionNumber(item: JSONObject): Int? {
-        val texts = arrayOf(
-            item.optString("xt_nr", ""),
-            item.optString("xt_value", ""),
-            item.optString("xt_wj", "")
-        )
-        extractQuestionNumberFromText(officialQuestionNumberTextPatterns, *texts)?.let { return it }
-        extractQuestionNumberFromText(fallbackQuestionNumberTextPatterns, *texts)?.let { return it }
-        return parsePositiveInt(item.optString("xt_xh", ""))
-    }
+    private fun parsePositiveInt(value: String): Int? =
+        value.trim().toIntOrNull()?.takeIf { it > 0 }
 
     private val questionOfficialOrderComparator =
         compareBy<Question> { it.displayOrder ?: it.sectionOrder }.thenBy { it.sectionOrder }
 
     private fun sortQuestionsByOfficialOrder(questions: List<Question>): List<Question> {
         return questions.sortedWith(questionOfficialOrderComparator)
-    }
-
-    private fun sortChooseQuestionsByOfficialOrder(questions: List<Question>): List<Question> {
-        val displayOrders = questions.mapNotNull { it.displayOrder }
-        val hasReliableDisplayOrder = displayOrders.size == questions.size &&
-            displayOrders.distinct().size == questions.size &&
-            displayOrders.sorted() == (1..questions.size).toList()
-
-        return if (hasReliableDisplayOrder) {
-            questions.sortedWith(questionOfficialOrderComparator)
-        } else {
-            questions.mapIndexed { index, question ->
-                question.copy(
-                    sectionOrder = index + 1,
-                    displayOrder = index + 1
-                )
-            }
-        }
     }
 
     /**
@@ -391,19 +281,6 @@ object ETS100AnswerReader {
 
     private fun getTypeName(category: String): String {
         return categoryMap[category] ?: category
-    }
-
-    /**
-     * 根据 category 获取 structure_type
-     */
-    internal fun getStructureType(category: String, json: JSONObject): String {
-        // 优先使用 content.json 中的 structure_type
-        val structureType = json.optString("structure_type", "")
-        if (structureType.isNotEmpty()) {
-            return structureType
-        }
-        // fallback 到 category 映射
-        return categoryToStructureType[category] ?: StructureType.COLLECTOR_ROLE
     }
 
     /**
@@ -1159,6 +1036,9 @@ object ETS100AnswerReader {
 
             val content = reader.readFile(contentPath) ?: continue
             val json = runCatching { JSONObject(content) }.getOrNull() ?: continue
+            val resourceDir = "${ETS100FileReader.Path.getResourceDir()}/${folder.name}"
+            val infoJson = reader.readFile("$resourceDir/info.json").orEmpty()
+            val content2Json = reader.readFile("$resourceDir/content2.json").orEmpty()
             val structureType = json.optString("structure_type", "")
             val templateSection = nextLocalTemplateSection(
                 templateSections = templateSections,
@@ -1174,7 +1054,9 @@ object ETS100AnswerReader {
                 startIndex = questionIndex,
                 category = sectionInfo.category,
                 typeName = sectionInfo.title,
-                sectionCaption = sectionInfo.title
+                sectionCaption = sectionInfo.title,
+                infoJson = infoJson,
+                content2Json = content2Json,
             )
 
             if (questions.isNotEmpty()) {
@@ -1915,7 +1797,17 @@ object ETS100AnswerReader {
 
         return try {
             val json = JSONObject(content)
-            parseContentJson(json, startIndex, category, typeName, sectionCaption)
+            parseContentJson(
+                json = json,
+                startIndex = startIndex,
+                category = category,
+                typeName = typeName,
+                sectionCaption = sectionCaption,
+                infoJson = reader.readFile("$resourceDirPath/info.json").orEmpty(),
+                content2Json = reader.readFile("$resourceDirPath/content2.json").orEmpty(),
+            )
+        } catch (e: ResolverAuthorizationDeniedException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "readAndParseContent: Failed to parse: ${e.message}", e)
             Pair(emptyList(), null)
@@ -1923,371 +1815,118 @@ object ETS100AnswerReader {
     }
 
     /**
-     * 解析content.json JSON
-     * 
-     * 喵~ 这个方法根据 structure_type 分支处理，正确解析 3 种结构类型：
-     * - collector.role: 问答题（听说/问答/询问），答案在 info.question[].std[].value
-     * - collector.picture: 信息转述，答案在 info.std[].value，原文在 info.value
-     * - collector.read: 模仿朗读，无答案，只有原文在 info.value
-     * 
-     * 5 种 category 对应关系：
-     * - read_chapter → collector.read
-     * - simple_expression_ufi → collector.role
-     * - simple_expression_ufk → collector.role
-     * - topic → collector.picture
-     * - simple_expression_ufj → collector.role
+     * 通过 libresolver.so 解析 content.json。Kotlin 只负责把 Native 结果映射为
+     * Fe 的 UI 数据模型，不再从 ETS JSON 中提取题目、答案或选项。
      */
     internal fun parseContentJson(
         json: JSONObject,
         startIndex: Int,
         category: String,
         typeName: String,
-        sectionCaption: String
+        sectionCaption: String,
+        infoJson: String = "",
+        content2Json: String = "",
     ): Pair<List<Question>, String?> {
-        val questions = mutableListOf<Question>()
-        var originalContent: String? = null
+        val originalContent = json.optJSONObject("info")
+            ?.optString("value", "")
+            ?.takeIf { it.isNotBlank() }
+            ?.replace(Regex("<[^>]*>"), "")
+            ?.trim()
 
-        val infoObj = json.optJSONObject("info")
-        if (infoObj == null) {
-            Log.w(TAG, "parseContentJson: infoObj is null")
-            return Pair(emptyList(), null)
+        val response = runCatching {
+            JSONObject(
+                ResolverNative.parseTaskAuthorized(
+                    content = json.toString(),
+                    info = infoJson,
+                    content2 = content2Json,
+                )
+            )
+        }.getOrElse {
+            throw ResolverAuthorizationDeniedException("解析器返回结果异常")
         }
 
-        // 获取 structure_type，优先用 json 中的，否则用 category 映射
-        val structureType = getStructureType(category, json)
-        
-        Log.d(TAG, "parseContentJson: category=$category, structureType=$structureType")
-
-        // Step 1: 获取 info.value 作为原文（所有类型都可能用到）
-        val infoValue = infoObj.optString("value", "")
-        if (infoValue.isNotEmpty()) {
-            originalContent = infoValue.replace(Regex("<[^>]*>"), "").trim()
+        if (!response.optBoolean("ok", false)) {
+            val error = response.optJSONObject("error")
+            val message = error?.optString("message")
+                ?.takeIf { it.isNotBlank() }
+                ?: "答案解析功能当前不可用"
+            throw ResolverAuthorizationDeniedException(message)
         }
 
-        // Step 2: 根据 structure_type 分支处理
-        when (structureType) {
-            StructureType.COLLECTOR_READ -> {
-                // 模仿朗读：无答案，只有原文
-                // read_chapter 类型对应这个
-                questions.add(Question(
-                    order = startIndex + 1,
-                    sectionOrder = 1,
-                    sectionCaption = sectionCaption,
-                    typeName = typeName,
-                    questionText = "模仿朗读原文",
-                    answers = emptyList<String>(),  // 喵~ 模仿朗读没有答案喵！
-                    originalText = originalContent,
-                    category = category
-                ))
-                return Pair(questions, originalContent)
+        val result = response.optJSONArray("result")
+            ?: throw ResolverAuthorizationDeniedException("解析器未返回题目数据")
+        val questions = (0 until result.length()).mapNotNull { index ->
+            val item = result.optJSONObject(index) ?: return@mapNotNull null
+            val collectorType = item.optString("type", json.optString("structure_type", ""))
+            val rawNumber = item.opt("no")
+            val nativeNumber = (rawNumber as? Number)?.toInt()
+                ?: (rawNumber as? String)?.toIntOrNull()
+            val displayOrder = nativeNumber ?: (startIndex + index + 1)
+            val nativeQuestion = item.optString("question", "").trim()
+            val nativeAnswers = item.optJSONArray("answers").toStringList()
+            val options = item.optJSONArray("options").toStringList()
+            val standardAnswer = nativeAnswers.firstOrNull().orEmpty()
+
+            val questionText = when {
+                collectorType.contains("read") -> "模仿朗读原文"
+                collectorType.contains("fill") && nativeQuestion.isBlank() -> "第${displayOrder}题"
+                else -> nativeQuestion
+            }
+            val answers = if (collectorType.contains("choose")) {
+                val lines = buildList {
+                    addAll(options)
+                    if (standardAnswer.isNotBlank()) add("正确答案: $standardAnswer")
+                }
+                if (lines.isEmpty()) emptyList() else listOf(lines.joinToString("\n"))
+            } else {
+                nativeAnswers
+            }
+            val questionOriginalText = when {
+                collectorType.contains("fill") -> null
+                collectorType.contains("role") && category == "simple_expression_ufj" -> null
+                else -> originalContent
+            }
+            val answerContent = if (collectorType.contains("choose") && options.isNotEmpty()) {
+                AnswerContent.Choice(
+                    listOf(
+                        ChoiceItem(
+                            question = questionText,
+                            options = options,
+                            correctAnswer = standardAnswer.firstOrNull()
+                                ?.uppercaseChar()
+                                ?.let { it.code - 'A'.code }
+                                ?.takeIf { it in options.indices }
+                                ?: -1,
+                            standardAnswer = standardAnswer,
+                        )
+                    )
+                )
+            } else {
+                AnswerContent.Reading(questionOriginalText.orEmpty())
             }
 
-            StructureType.COLLECTOR_PICTURE -> {
-                // 信息转述：答案在 info.std[].value，原文在 info.value
-                // topic 类型对应这个
-                val stdArray = infoObj.optJSONArray("std")
-                val answers = if (stdArray != null && stdArray.length() > 0) {
-                    (0 until stdArray.length()).map { idx ->
-                        stdArray.getJSONObject(idx).optString("value", "")
-                            .replace(Regex("<[^>]*>"), "").trim()
-                    }
-                } else {
-                    listOf("暂无标准答案")
-                }
-                
-                // info.topic 是题目主题
-                val topicTitle = infoObj.optString("topic", "信息转述")
-                
-                questions.add(Question(
-                    order = startIndex + 1,
-                    sectionOrder = 1,
-                    sectionCaption = sectionCaption,
-                    typeName = typeName,
-                    questionText = topicTitle,
-                    answers = answers,
-                    originalText = originalContent,  // 喵~ 原文是 info.value 喵！
-                    category = category,
-                    displayOrder = extractQuestionNumber(infoObj, "topic", "value")
-                ))
-                return Pair(questions, originalContent)
-            }
-
-            StructureType.COLLECTOR_ROLE -> {
-                // 问答题：答案在 info.question[].std[].value
-                // simple_expression_ufi, simple_expression_ufk, simple_expression_ufj 对应这个
-                val questionsArray = infoObj.optJSONArray("question") ?: infoObj.optJSONArray("questions")
-                if (questionsArray != null && questionsArray.length() > 0) {
-                    for (i in 0 until questionsArray.length()) {
-                        val q = questionsArray.getJSONObject(i)
-                        
-                        val askText = q.optString("ask", "").let {
-                            if (it.contains(" ")) it.substringAfter(" ") else it
-                        }
-                        val questionText = askText.ifEmpty { q.optString("question", q.optString("text", "")) }
-                        val displayOrder = extractQuestionNumber(q, "ask", "question", "text")
-                        
-                        val stdArray = q.optJSONArray("std")
-                        val answers = if (stdArray != null && stdArray.length() > 0) {
-                            (0 until stdArray.length()).map { idx ->
-                                stdArray.getJSONObject(idx).optString("value", "")
-                                    .replace(Regex("<[^>]*>"), "")
-                                    .replace("</br>", "")
-                                    .trim()
-                            }
-                        } else {
-                            listOf("暂无标准答案")
-                        }
-
-                        // 喵~ 这些类型不需要显示原文
-                        val questionOriginalText = when (category) {
-                            "read_chapter" -> null
-                            "simple_expression_ufj" -> null
-                            else -> originalContent
-                        }
-
-                        questions.add(Question(
-                            order = startIndex + i + 1,
-                            sectionOrder = i + 1,
-                            sectionCaption = sectionCaption,
-                            typeName = typeName,
-                            questionText = questionText,
-                            answers = answers,
-                            originalText = questionOriginalText,
-                            category = category,
-                            displayOrder = displayOrder
-                        ))
-                    }
-                    return Pair(sortQuestionsByOfficialOrder(questions), originalContent)
-                }
-
-                // 如果没有 question 数组但有 value，当作原文处理
-                if (originalContent != null) {
-                    questions.add(Question(
-                        order = startIndex + 1,
-                        sectionOrder = 1,
-                        sectionCaption = sectionCaption,
-                        typeName = typeName,
-                        questionText = "阅读理解原文",
-                        answers = listOf(originalContent),
-                        originalText = originalContent,
-                        category = category
-                    ))
-                    return Pair(questions, originalContent)
-                }
-            }
-
-            StructureType.COLLECTOR_3Q5A -> {
-                // 广东高中：3问5答，每题有多个参考答案
-                // 喵~ collector.3q5a 和 collector.role 结构相同，但每题有多个 std 答案喵！
-                val questionsArray = infoObj.optJSONArray("question") ?: infoObj.optJSONArray("questions")
-                if (questionsArray != null && questionsArray.length() > 0) {
-                    for (i in 0 until questionsArray.length()) {
-                        val q = questionsArray.getJSONObject(i)
-                        val askText = cleanText(q.optString("ask", ""))
-                        val questionText = askText.ifEmpty { q.optString("question", q.optString("text", "")) }
-                        val displayOrder = extractQuestionNumber(q, "ask", "question", "text")
-                        
-                        val stdArray = q.optJSONArray("std")
-                        val answers = if (stdArray != null && stdArray.length() > 0) {
-                            (0 until stdArray.length()).map { idx ->
-                                cleanText(stdArray.getJSONObject(idx).optString("value", ""))
-                            }
-                        } else {
-                            listOf("暂无标准答案")
-                        }
-
-                        questions.add(Question(
-                            order = startIndex + i + 1,
-                            sectionOrder = i + 1,
-                            sectionCaption = sectionCaption,
-                            typeName = typeName,
-                            questionText = questionText,
-                            answers = answers,
-                            originalText = originalContent,
-                            category = category,
-                            displayOrder = displayOrder
-                        ))
-                    }
-                    return Pair(sortQuestionsByOfficialOrder(questions), originalContent)
-                }
-            }
-
-            StructureType.COLLECTOR_CHOOSE -> {
-                // 北京：听后选择题
-                // 喵~ 答案在 info.xtlist[].answer，选项在 info.xtlist[].xxlist 喵！
-                val xtlist = infoObj.optJSONArray("xtlist")
-                if (xtlist != null && xtlist.length() > 0) {
-                    for (i in 0 until xtlist.length()) {
-                        val item = xtlist.getJSONObject(i)
-                        val displayOrder = extractChooseQuestionNumber(item)
-                        val questionText = cleanQuestion(item.optString("xt_nr", ""))
-                        val answer = item.optString("answer", "")
-                        
-                        val xxlist = item.optJSONArray("xxlist")
-                        val options = if (xxlist != null && xxlist.length() > 0) {
-                            (0 until xxlist.length()).map { j ->
-                                val opt = xxlist.getJSONObject(j)
-                                "${opt.optString("xx_mc")}. ${cleanText(opt.optString("xx_nr"))}"
-                            }
-                        } else {
-                            emptyList()
-                        }
-                        
-                        // 组装答案：选项 + 正确答案
-                        val answerText = if (options.isNotEmpty()) {
-                            options.joinToString("\n") + "\n正确答案: $answer"
-                        } else {
-                            "正确答案: $answer"
-                        }
-
-                        questions.add(Question(
-                            order = startIndex + i + 1,
-                            sectionOrder = i + 1,
-                            sectionCaption = sectionCaption,
-                            typeName = typeName,
-                            questionText = questionText,
-                            answers = listOf(answerText),
-                            originalText = originalContent,
-                            category = category,
-                            displayOrder = displayOrder
-                        ))
-                    }
-                    return Pair(sortQuestionsByOfficialOrder(questions), originalContent)
-                }
-            }
-
-            StructureType.COLLECTOR_FILL -> {
-                // 北京高中：听后记录/填空题
-                // 喵~ 答案在 info.std[].value，题号在 info.std[].xth 喵！
-                val stdArray = infoObj.optJSONArray("std")
-                if (stdArray != null && stdArray.length() > 0) {
-                    for (i in 0 until stdArray.length()) {
-                        val item = stdArray.getJSONObject(i)
-                        val number = item.optString("xth", "")
-                        val displayOrder = extractQuestionNumber(item, "xth", "value")
-                        val answer = cleanText(item.optString("value", ""))
-                        
-                        questions.add(Question(
-                            order = startIndex + i + 1,
-                            sectionOrder = i + 1,
-                            sectionCaption = sectionCaption,
-                            typeName = typeName,
-                            questionText = "第${number}题",
-                            answers = listOf(answer),
-                            originalText = null,
-                            category = category,
-                            displayOrder = displayOrder
-                        ))
-                    }
-                    return Pair(sortQuestionsByOfficialOrder(questions), originalContent)
-                }
-            }
-
-            StructureType.COLLECTOR_DIALOGUE -> {
-                // 北京高中：回答问题
-                // 喵~ 结构同 collector.role，答案在 info.question[].std[].value 喵！
-                val questionsArray = infoObj.optJSONArray("question") ?: infoObj.optJSONArray("questions")
-                if (questionsArray != null && questionsArray.length() > 0) {
-                    for (i in 0 until questionsArray.length()) {
-                        val q = questionsArray.getJSONObject(i)
-                        val askText = cleanText(q.optString("ask", ""))
-                        val questionText = askText.ifEmpty { q.optString("question", q.optString("text", "")) }
-                        val displayOrder = extractQuestionNumber(q, "ask", "question", "text")
-                        
-                        val stdArray = q.optJSONArray("std")
-                        val answers = if (stdArray != null && stdArray.length() > 0) {
-                            (0 until stdArray.length()).map { idx ->
-                                cleanText(stdArray.getJSONObject(idx).optString("value", ""))
-                            }
-                        } else {
-                            listOf("暂无标准答案")
-                        }
-
-                        questions.add(Question(
-                            order = startIndex + i + 1,
-                            sectionOrder = i + 1,
-                            sectionCaption = sectionCaption,
-                            typeName = typeName,
-                            questionText = questionText,
-                            answers = answers,
-                            originalText = originalContent,
-                            category = category,
-                            displayOrder = displayOrder
-                        ))
-                    }
-                    return Pair(sortQuestionsByOfficialOrder(questions), originalContent)
-                }
-            }
-
-            else -> {
-                // 未知 structure_type，尝试兼容处理
-                Log.w(TAG, "parseContentJson: unknown structureType=$structureType, try fallback")
-                
-                // 尝试作为 collector.role 处理（有 question 数组）
-                val questionsArray = infoObj.optJSONArray("question") ?: infoObj.optJSONArray("questions")
-                if (questionsArray != null && questionsArray.length() > 0) {
-                    for (i in 0 until questionsArray.length()) {
-                        val q = questionsArray.getJSONObject(i)
-                        val askText = q.optString("ask", "").let {
-                            if (it.contains(" ")) it.substringAfter(" ") else it
-                        }
-                        val questionText = askText.ifEmpty { q.optString("question", q.optString("text", "")) }
-                        val displayOrder = extractQuestionNumber(q, "ask", "question", "text")
-                        
-                        val stdArray = q.optJSONArray("std")
-                        val answers = if (stdArray != null && stdArray.length() > 0) {
-                            (0 until stdArray.length()).map { idx ->
-                                stdArray.getJSONObject(idx).optString("value", "")
-                                    .replace(Regex("<[^>]*>"), "")
-                                    .replace("</br>", "")
-                                    .trim()
-                            }
-                        } else {
-                            listOf("暂无标准答案")
-                        }
-
-                        questions.add(Question(
-                            order = startIndex + i + 1,
-                            sectionOrder = i + 1,
-                            sectionCaption = sectionCaption,
-                            typeName = typeName,
-                            questionText = questionText,
-                            answers = answers,
-                            originalText = null,
-                            category = category,
-                            displayOrder = displayOrder
-                        ))
-                    }
-                    return Pair(sortQuestionsByOfficialOrder(questions), originalContent)
-                }
-
-                // 尝试作为 collector.picture 处理（有 std 数组）
-                val stdArray = infoObj.optJSONArray("std")
-                if (stdArray != null && stdArray.length() > 0) {
-                    val answers = (0 until stdArray.length()).map { idx ->
-                        stdArray.getJSONObject(idx).optString("value", "")
-                            .replace(Regex("<[^>]*>"), "").trim()
-                    }
-                    val topicTitle = infoObj.optString("topic", "信息转述")
-                    
-                    questions.add(Question(
-                        order = startIndex + 1,
-                        sectionOrder = 1,
-                        sectionCaption = sectionCaption,
-                        typeName = typeName,
-                        questionText = topicTitle,
-                        answers = answers,
-                        originalText = originalContent,
-                        category = category,
-                        displayOrder = extractQuestionNumber(infoObj, "topic", "value")
-                    ))
-                    return Pair(questions, originalContent)
-                }
-            }
+            Question(
+                order = startIndex + index + 1,
+                sectionOrder = index + 1,
+                sectionCaption = sectionCaption,
+                typeName = typeName,
+                questionText = questionText,
+                answers = answers,
+                originalText = questionOriginalText,
+                category = category,
+                displayOrder = displayOrder,
+                content = answerContent,
+            )
         }
 
-        Log.w(TAG, "parseContentJson: 无法解析JSON内容 structureType=$structureType")
-        return Pair(emptyList(), null)
+        return Pair(sortQuestionsByOfficialOrder(questions), originalContent)
+    }
+
+    private fun org.json.JSONArray?.toStringList(): List<String> {
+        if (this == null) return emptyList()
+        return (0 until length())
+            .map { optString(it, "").trim() }
+            .filter { it.isNotEmpty() }
     }
 
     /**
@@ -2297,6 +1936,8 @@ object ETS100AnswerReader {
         if (!ETS100FileReader.isModeAvailable(mode, context)) {
             return null
         }
+
+        kotlinx.coroutines.runBlocking { ResolverAuthorizer.requireAuthorized(context) }
 
         val reader = try {
             ETS100FileReader.getReader(mode, context)
