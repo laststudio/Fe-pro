@@ -14,6 +14,7 @@
 
 # JNI symbols in libresolver.so bind this exact class and native method names.
 -keep class com.shuaiqiu.fuckets100.ResolverNative { *; }
+-keep class com.shuaiqiu.fuckets100.CloudNative { *; }
 
 # Shizuku manager reflects on these API methods at runtime.
 -keep class rikka.shizuku.Shizuku { *; }

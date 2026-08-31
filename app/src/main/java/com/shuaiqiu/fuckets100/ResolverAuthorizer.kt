@@ -34,7 +34,7 @@ internal object ResolverAuthorizer {
 
     /** 配置 SO 共用的后端、签名公钥和 access token，不提前指定实际功能权限。 */
     suspend fun requireConfigured(context: Context) {
-        val reason = configure(context)
+        val reason = configureCloud(context)
         if (reason != null) throw ResolverAuthorizationDeniedException(reason)
     }
 
@@ -44,9 +44,9 @@ internal object ResolverAuthorizer {
     }
 
     private suspend fun ensureCloudAuthorized(context: Context): String? = withContext(Dispatchers.IO) {
-        configure(context)?.let { return@withContext it }
+        configureCloud(context)?.let { return@withContext it }
         try {
-            val result = JSONObject(ResolverNative.cloudAuthorizeFeature())
+            val result = JSONObject(CloudNative.cloudAuthorizeFeature())
             if (result.optBoolean("ok", false) &&
                 result.optJSONObject("result")?.optBoolean("allowed", false) == true
             ) {
@@ -65,7 +65,7 @@ internal object ResolverAuthorizer {
      * @return null 表示授权通过; 否则返回阻断原因
      */
     suspend fun ensureAuthorized(context: Context): String? = withContext(Dispatchers.IO) {
-        configure(context)?.let { return@withContext it }
+        configureResolver(context)?.let { return@withContext it }
         try {
             val json = ResolverNative.authorizeFeature()
             val obj = JSONObject(json)
@@ -82,10 +82,9 @@ internal object ResolverAuthorizer {
         }
     }
 
-    private suspend fun configure(context: Context): String? = withContext(Dispatchers.IO) {
+    private suspend fun configureResolver(context: Context): String? = withContext(Dispatchers.IO) {
         try {
-            // 完整性自校验：包名/签名/so 篡改检测，任一不符则拒绝对接授权与解析。
-            AppIntegrityGuard.ensure(context)
+            AppIntegrityGuard.ensureResolver(context)
             val manager = FeAccountManager.get(context)
             if (manager.gateState.value is FeAccountGateState.Checking) {
                 manager.checkGate()
@@ -112,6 +111,36 @@ internal object ResolverAuthorizer {
             if (e.error.statusCode == 401) "登录已失效，请重新登录" else e.error.message
         } catch (e: Exception) {
             "无法连接授权服务，请检查网络后重试"
+        }
+    }
+
+    private suspend fun configureCloud(context: Context): String? = withContext(Dispatchers.IO) {
+        try {
+            AppIntegrityGuard.ensureCloud(context)
+            val manager = FeAccountManager.get(context)
+            if (manager.gateState.value is FeAccountGateState.Checking) {
+                manager.checkGate()
+            }
+            val token = manager.requireAccessToken()
+            val rc = CloudNative.setAuthConfig(
+                baseUrl = BASE_URL,
+                softwareKey = SOFTWARE_KEY,
+                featureKey = "cloud_mode",
+                publicKeyB64 = PUBLIC_KEY_B64,
+                appVersionCode = BuildConfig.VERSION_CODE.toLong(),
+            )
+            if (rc != 0) return@withContext "云端库授权配置失败 (code=$rc)"
+            CloudNative.setAccessToken(token)
+            CloudNative.setAuthEnabled(true)
+            null
+        } catch (e: AppIntegrityGuard.IntegrityFailure) {
+            e.message
+        } catch (e: FeAccountNotAuthenticatedException) {
+            "请先登录 LA Studio 账号"
+        } catch (e: FeAccountApiException) {
+            if (e.error.statusCode == 401) "登录已失效，请重新登录" else e.error.message
+        } catch (e: Exception) {
+            "无法连接云端授权服务，请检查网络后重试"
         }
     }
 }

@@ -14,7 +14,7 @@ import java.security.MessageDigest
  * 校验三点，任一不符即判定为被篡改/重打包：
  * 1. 包名必须等于签名时预期值（防改包名）。
  * 2. 当 CI 注入了期望签名证书 sha256（正式版）时，运行时签名必须与之一致（防换签名/重打包）。
- * 3. libresolver.so 自校验必须通过（防调试注入、so 被替换或内存段被篡改）。
+ * 3. resolver/cloud 两个 so 分别自校验（防调试注入、so 被替换或内存段被篡改）。
  */
 internal object AppIntegrityGuard {
 
@@ -45,8 +45,19 @@ internal object AppIntegrityGuard {
         return sha256LowerHex(bytes)
     }
 
-    /** 在授权链路前调用；任一不符抛 [IntegrityFailure]。 */
-    suspend fun ensure(context: Context) {
+    suspend fun ensureResolver(context: Context) {
+        ensure(context, "解析器", ResolverNative::selfIntegrityCheck)
+    }
+
+    suspend fun ensureCloud(context: Context) {
+        ensure(context, "云端库", CloudNative::selfIntegrityCheck)
+    }
+
+    private suspend fun ensure(
+        context: Context,
+        libraryName: String,
+        nativeCheck: () -> String,
+    ) {
         val failures = withContext(Dispatchers.IO) {
             buildList {
                 // 1) 包名
@@ -63,9 +74,9 @@ internal object AppIntegrityGuard {
                     }
                 }
                 // 3) so 自校验
-                val integrity = runCatching { JSONObject(ResolverNative.selfIntegrityCheck()) }.getOrNull()
+                val integrity = runCatching { JSONObject(nativeCheck()) }.getOrNull()
                 if (integrity == null || integrity.optBoolean("ok", false) == false) {
-                    add("解析器自校验未通过")
+                    add("${libraryName}自校验未通过")
                 }
             }
         }

@@ -234,7 +234,7 @@ open class ChangyanWebLoginActivity : ComponentActivity() {
                 val result = withContext(Dispatchers.IO) {
                     ResolverAuthorizer.requireConfigured(this@ChangyanWebLoginActivity)
                     JSONObject(
-                        ResolverNative.cloudLoginChangyan(
+                        CloudNative.cloudLoginChangyan(
                             login = login,
                             userId = userId,
                             captchaResult = sucUserToken,
