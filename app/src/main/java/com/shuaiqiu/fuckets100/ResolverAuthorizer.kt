@@ -32,12 +32,63 @@ internal object ResolverAuthorizer {
         if (reason != null) throw ResolverAuthorizationDeniedException(reason)
     }
 
+    /** 配置 SO 共用的后端、签名公钥和 access token，不提前指定实际功能权限。 */
+    suspend fun requireConfigured(context: Context) {
+        val reason = configure(context)
+        if (reason != null) throw ResolverAuthorizationDeniedException(reason)
+    }
+
+    suspend fun requireCloudAuthorized(context: Context) {
+        val reason = ensureCloudAuthorized(context)
+        if (reason != null) throw ResolverAuthorizationDeniedException(reason)
+    }
+
+    private suspend fun ensureCloudAuthorized(context: Context): String? = withContext(Dispatchers.IO) {
+        configure(context)?.let { return@withContext it }
+        try {
+            val result = JSONObject(ResolverNative.cloudAuthorizeFeature())
+            if (result.optBoolean("ok", false) &&
+                result.optJSONObject("result")?.optBoolean("allowed", false) == true
+            ) {
+                null
+            } else {
+                result.optJSONObject("error")?.optString("message")
+                    ?.takeIf { it.isNotBlank() }
+                    ?: "云端模式当前不可用"
+            }
+        } catch (e: Exception) {
+            "无法连接云端授权服务，请检查网络后重试"
+        }
+    }
+
     /**
      * @return null 表示授权通过; 否则返回阻断原因
      */
     suspend fun ensureAuthorized(context: Context): String? = withContext(Dispatchers.IO) {
+        configure(context)?.let { return@withContext it }
         try {
-            val token = FeAccountManager.get(context).requireAccessToken()
+            val json = ResolverNative.authorizeFeature()
+            val obj = JSONObject(json)
+            if (obj.optBoolean("allowed", false)) {
+                null
+            } else {
+                obj.optJSONObject("error")?.optString("message")
+                    ?.takeIf { it.isNotBlank() }
+                    ?: obj.optString("message").takeIf { it.isNotBlank() }
+                    ?: "该功能当前不可用"
+            }
+        } catch (e: Exception) {
+            "无法连接授权服务，请检查网络后重试"
+        }
+    }
+
+    private suspend fun configure(context: Context): String? = withContext(Dispatchers.IO) {
+        try {
+            val manager = FeAccountManager.get(context)
+            if (manager.gateState.value is FeAccountGateState.Checking) {
+                manager.checkGate()
+            }
+            val token = manager.requireAccessToken()
             val rc = ResolverNative.setAuthConfig(
                 baseUrl = BASE_URL,
                 softwareKey = SOFTWARE_KEY,
@@ -50,16 +101,7 @@ internal object ResolverAuthorizer {
             }
             ResolverNative.setAccessToken(token)
             ResolverNative.setAuthEnabled(true)
-
-            val json = ResolverNative.authorizeFeature()
-            val obj = JSONObject(json)
-            if (obj.optBoolean("allowed", false)) {
-                null
-            } else {
-                obj.optJSONObject("error")?.optString("message")
-                    ?: obj.optString("message")
-                    ?: "该功能当前不可用"
-            }
+            null
         } catch (e: FeAccountNotAuthenticatedException) {
             "请先登录 LA Studio 账号"
         } catch (e: FeAccountApiException) {

@@ -196,7 +196,7 @@ private fun UpdateStatus?.toRemoteContentRoute(): FeRoute.RemoteContent = FeRout
     changelogTitle = this?.changelogTitle?.takeIf { it.isNotBlank() } ?: "更新日志",
     changelogSummary = this?.changelogSummary.orEmpty()
         .ifBlank { this?.message.orEmpty().ifBlank { "暂无更新内容" } },
-    changelogUrl = this?.changelogUrl.orEmpty(),
+    changelogContent = this?.changelogContent.orEmpty(),
 )
 
 private fun handleTargetRoute(
@@ -216,7 +216,9 @@ private fun handleTargetRoute(
 fun FeAppMain() {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    val feAccountState by FeAccountManager.get(context).gateState.collectAsState()
+    val accountManager = remember(context) { FeAccountManager.get(context) }
+    val feAccountState by accountManager.gateState.collectAsState()
+    val accountOnline = feAccountState is FeAccountGateState.Ready
     val navigator = rememberFeNavigator(FeRoute.Main)
     val initialRootPage = remember { rootPageForRoute(MainActivity.pendingTargetRoute) ?: 0 }
     val pagerState = rememberPagerState(initialPage = initialRootPage, pageCount = { rootTabRoutes.size })
@@ -248,6 +250,7 @@ fun FeAppMain() {
     var verificationDialogStatus by remember { mutableStateOf<com.shuaiqiu.fuckets100.UpdateStatus?>(null) }
     var remoteStatus by remember { mutableStateOf(FeApplication.remoteStatus) }
     var showLegalDialog by remember { mutableStateOf(!SettingsManager.hasAcceptedLegal()) }
+    var showAnnouncementDialog by remember { mutableStateOf(false) }
     
     // 鐩戝惉鏇存柊鐘舵€?Flow锛岀‘淇濇瘡娆￠兘鑳芥敹鍒伴€氱煡鍠祣
     LaunchedEffect(Unit) {
@@ -265,6 +268,12 @@ fun FeAppMain() {
             remoteStatus = status
             if (status != null && status.requiresVerification) {
                 verificationDialogStatus = status
+            }
+            if (status != null &&
+                status.announcementMessage.isNotBlank() &&
+                status.announcementUpdatedAt != SettingsManager.getLastSeenAnnouncementUpdatedAt()
+            ) {
+                showAnnouncementDialog = true
             }
         }
     }
@@ -365,6 +374,7 @@ fun FeAppMain() {
                         0 -> HomeScreen(
                             mode = currentMode,
                             shizukuState = shizukuState,
+                            accountState = feAccountState,
                             onNavigateToActivation = {
                                 navigator.push(FeRoute.Activation)
                             },
@@ -376,6 +386,7 @@ fun FeAppMain() {
 
                         1 -> ReadScreen(
                             currentMode = currentMode,
+                            accountOnline = accountOnline,
                             onNavigateToActivation = {
                                 navigator.push(FeRoute.Activation)
                             },
@@ -392,7 +403,7 @@ fun FeAppMain() {
                             onNavigateLegal = { navigator.push(FeRoute.Legal) },
                             onNavigateDonate = { navigator.push(FeRoute.Donate) },
                             onNavigateAccount = { navigator.push(FeRoute.Account) },
-                            accountSession = (feAccountState as? FeAccountGateState.Ready)?.session,
+                             accountSession = feAccountState.cachedSessionOrNull,
                             donateEnabled = remoteStatus?.donateEnabled ?: true,
                         )
                     }
@@ -428,6 +439,23 @@ fun FeAppMain() {
                     SettingsManager.saveLegalAccepted(true)
                     showLegalDialog = false
                 }
+            )
+        }
+
+        if (showAnnouncementDialog && remoteStatus != null) {
+            val status = remoteStatus!!
+            AnnouncementDialog(
+                title = status.announcementTitle.ifBlank { "公告" },
+                message = status.announcementMessage,
+                onViewDetail = {
+                    showAnnouncementDialog = false
+                    SettingsManager.saveLastSeenAnnouncementUpdatedAt(status.announcementUpdatedAt)
+                    navigator.push(status.toRemoteContentRoute())
+                },
+                onDismiss = {
+                    showAnnouncementDialog = false
+                    SettingsManager.saveLastSeenAnnouncementUpdatedAt(status.announcementUpdatedAt)
+                },
             )
         }
         }

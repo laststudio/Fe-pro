@@ -1,5 +1,6 @@
 package com.shuaiqiu.fuckets100
 
+import android.content.Context
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -50,6 +51,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.net.URL
 import java.net.URLConnection
+import java.security.MessageDigest
 
 data class RemoteContent(
     val announcementTitle: String,
@@ -58,7 +60,7 @@ data class RemoteContent(
     val announcementUrl: String,
     val changelogTitle: String,
     val changelogSummary: String,
-    val changelogUrl: String
+    val changelogContent: String = "",
 )
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -77,7 +79,7 @@ fun RemoteContentScreen(
     }
     var fetchStatus by remember(content) {
         mutableStateOf(
-            if (content.announcementUrl.isNotBlank() || content.changelogUrl.isNotBlank()) {
+            if (content.announcementUrl.isNotBlank() || content.changelogContent.isNotBlank()) {
                 "正在同步远程内容..."
             } else {
                 "显示本地缓存公告"
@@ -90,20 +92,20 @@ fun RemoteContentScreen(
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     LaunchedEffect(content) {
-        val announcementResult = fetchRemoteTextOrNull(content.announcementUrl)
-        val changelogResult = fetchRemoteTextOrNull(content.changelogUrl)
+        val announcementResult = fetchRemoteTextOrNull(context, content.announcementUrl)
         var successCount = 0
         if (!announcementResult.isNullOrBlank()) {
             announcementBody = parseRemoteContent(announcementResult)
             successCount++
         }
-        if (!changelogResult.isNullOrBlank()) {
-            changelogBody = parseCurrentVersionChangelog(changelogResult, BuildConfig.VERSION_NAME)
-                .ifBlank { parseRemoteContent(changelogResult) }
+        if (content.changelogContent.isNotBlank()) {
+            changelogBody = parseCurrentVersionChangelog(content.changelogContent, BuildConfig.VERSION_NAME)
+                .ifBlank { parseRemoteContent(content.changelogContent) }
             successCount++
         }
         fetchStatus = when {
-            content.announcementUrl.isBlank() && content.changelogUrl.isBlank() -> "显示本地缓存内容"
+            content.announcementUrl.isBlank() && content.changelogContent.isBlank() ->
+                "显示本地缓存内容"
             successCount > 0 -> "远程内容同步完成"
             else -> "获取失败，已显示缓存内容"
         }
@@ -228,18 +230,40 @@ private fun RemoteContentSection(
     }
 }
 
-private suspend fun fetchRemoteTextOrNull(url: String): String? {
+private suspend fun fetchRemoteTextOrNull(context: Context, url: String): String? {
     if (url.isBlank()) return null
     return withContext(Dispatchers.IO) {
-        runCatching {
+        val cacheFile = runCatching {
+            java.io.File(context.cacheDir, "remote_content/${sha256(url)}.txt")
+        }.getOrNull()
+        val cached = cacheFile?.takeIf { it.isFile }?.let { file ->
+            val age = System.currentTimeMillis() - file.lastModified()
+            if (age in 0..REMOTE_CONTENT_CACHE_TTL_MS) file.readText() else null
+        }
+        if (!cached.isNullOrBlank()) return@withContext cached
+
+        val fetched = runCatching {
             val connection = URL(url).openConnection() as URLConnection
             connection.connectTimeout = 5000
             connection.readTimeout = 5000
             connection.connect()
             connection.inputStream.bufferedReader().use { it.readText() }
         }.getOrNull()
+        if (!fetched.isNullOrBlank()) {
+            runCatching {
+                cacheFile?.parentFile?.mkdirs()
+                cacheFile?.writeText(fetched)
+            }
+        }
+        fetched ?: cacheFile?.takeIf { it.isFile }?.let { it.readText() }
     }
 }
+
+private fun sha256(value: String): String = MessageDigest.getInstance("SHA-256")
+    .digest(value.toByteArray(Charsets.UTF_8))
+    .joinToString("") { "%02x".format(it) }
+
+private const val REMOTE_CONTENT_CACHE_TTL_MS = 5 * 60 * 1000L
 
 private fun parseRemoteContent(raw: String): String {
     return raw

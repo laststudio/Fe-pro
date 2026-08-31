@@ -22,6 +22,10 @@ package com.shuaiqiu.fuckets100
  * @param donateEnabled 是否展示捐赠入口
  */
 data class RemoteConfig(
+    val key: String = "",
+    val releaseId: Long? = null,
+    val configRevision: Int = 0,
+    val version: String = "",
     val latestVersionCode: Int,
     val updateUrl: String,
     val isKillSwitchOn: Boolean,
@@ -32,9 +36,9 @@ data class RemoteConfig(
     val announcementMessage: String = "",
     val announcementUpdatedAt: String = "",
     val announcementUrl: String = "",
-    val changelogUrl: String = "",
     val changelogTitle: String = "",
     val changelogSummary: String = "",
+    val changelogContent: String = "",
     val verificationCode: String = "",
     val verificationTitle: String = "",
     val verificationMessage: String = "",
@@ -56,9 +60,9 @@ data class UpdateStatus(
     val announcementMessage: String = "",
     val announcementUpdatedAt: String = "",
     val announcementUrl: String = "",
-    val changelogUrl: String = "",
     val changelogTitle: String = "",
     val changelogSummary: String = "",
+    val changelogContent: String = "",
     val requiresVerification: Boolean = false,
     val verificationCode: String = "",
     val verificationTitle: String = "",

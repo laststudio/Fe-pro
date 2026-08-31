@@ -31,10 +31,14 @@ import com.materialkolor.PaletteStyle
 import com.materialkolor.dynamiccolor.ColorSpec
 import com.shuaiqiu.fuckets100.ActivationMode
 import com.shuaiqiu.fuckets100.ActivationSettingsScreen
+import com.shuaiqiu.fuckets100.AccountDevicesPage
+import com.shuaiqiu.fuckets100.AccountSessionsPage
 import com.shuaiqiu.fuckets100.AnswerScreen
 import com.shuaiqiu.fuckets100.CloudActivationScreen
 import com.shuaiqiu.fuckets100.DonateScreen
+import com.shuaiqiu.fuckets100.FeAccountManager
 import com.shuaiqiu.fuckets100.FeAccountScreen
+import com.shuaiqiu.fuckets100.FeApplication
 import com.shuaiqiu.fuckets100.GeneralSettingsScreen
 import com.shuaiqiu.fuckets100.LegalScreen
 import com.shuaiqiu.fuckets100.PredictiveBackAnimation
@@ -77,11 +81,9 @@ fun FeNavContainer(
     ) {
         when (predictiveBackAnimation) {
             PredictiveBackAnimation.None -> NoPredictiveBackAnimation()
-            PredictiveBackAnimation.AOSP -> AOSPCrossActivityAnimation(predictiveBackExitDirection)
             PredictiveBackAnimation.Scale -> ScalePredictiveBackAnimation(
                 predictiveBackExitDirection,
             )
-            PredictiveBackAnimation.KernelSUClassic -> KernelSUClassicPredictiveBackAnimation()
             PredictiveBackAnimation.MIUIX -> MiuixPredictiveBackAnimation()
         }
     }
@@ -175,11 +177,19 @@ fun FeNavContainer(
                 entry<FeRoute.Account> {
                     FeAccountScreen(
                         onBack = navigator::pop,
+                        onNavigateToDevices = { navigator.push(FeRoute.AccountDevices) },
+                        onNavigateToSessions = { navigator.push(FeRoute.AccountSessions) },
                         onLogoutNavigate = {
                             navigator.popUntil { route -> route is FeRoute.Main }
                             onSelectRootPage(0)
                         },
                     )
+                }
+                entry<FeRoute.AccountDevices> {
+                    AccountDevicesPage(manager = FeAccountManager.get(FeApplication.appCtx), onBack = navigator::pop)
+                }
+                entry<FeRoute.AccountSessions> {
+                    AccountSessionsPage(manager = FeAccountManager.get(FeApplication.appCtx), onBack = navigator::pop)
                 }
                 entry<FeRoute.GeneralSettings> { GeneralSettingsScreen(onBack = navigator::pop) }
                 entry<FeRoute.ThemeSettings> {
@@ -213,7 +223,7 @@ fun FeNavContainer(
                             announcementUrl = route.announcementUrl,
                             changelogTitle = route.changelogTitle,
                             changelogSummary = route.changelogSummary,
-                            changelogUrl = route.changelogUrl,
+                            changelogContent = route.changelogContent,
                         ),
                         onBack = navigator::pop,
                     )

@@ -5,14 +5,17 @@ import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
+import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.view.ViewGroup
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
+import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.webkit.CookieManager
 import android.widget.ArrayAdapter
 import android.widget.FrameLayout
 import android.widget.ProgressBar
@@ -21,9 +24,14 @@ import androidx.activity.ComponentActivity
 import androidx.activity.addCallback
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
+import java.security.MessageDigest
+import java.security.SecureRandom
+import android.util.Base64
 
 open class ChangyanWebLoginActivity : ComponentActivity() {
 
@@ -31,6 +39,10 @@ open class ChangyanWebLoginActivity : ComponentActivity() {
     private lateinit var progressBar: ProgressBar
     @Volatile
     private var isHandlingLogin = false
+    private var lastConsumedAssertionHash: String? = null
+    private val loginAttemptNonce = ByteArray(24).also(SecureRandom()::nextBytes).let {
+        Base64.encodeToString(it, Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         applyPredictiveBackWindowTheme()
@@ -55,7 +67,11 @@ open class ChangyanWebLoginActivity : ComponentActivity() {
             )
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
-            settings.databaseEnabled = true
+            settings.allowFileAccess = false
+            settings.allowContentAccess = false
+            settings.javaScriptCanOpenWindowsAutomatically = false
+            settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+            settings.safeBrowsingEnabled = true
             settings.cacheMode = WebSettings.LOAD_DEFAULT
             settings.useWideViewPort = true
             settings.loadWithOverviewMode = true
@@ -65,7 +81,7 @@ open class ChangyanWebLoginActivity : ComponentActivity() {
             settings.textZoom = 100
             setInitialScale(INITIAL_PAGE_SCALE)
             settings.userAgentString = MOBILE_USER_AGENT
-            Log.i(TAG, "WebView 初始化完成: ua=${settings.userAgentString}, scale=$INITIAL_PAGE_SCALE")
+            Log.i(TAG, "WebView 初始化完成")
             addJavascriptInterface(ChangyanBridge(), "etsBridge")
             webChromeClient = object : WebChromeClient() {
                 override fun onProgressChanged(view: WebView?, newProgress: Int) {
@@ -76,13 +92,18 @@ open class ChangyanWebLoginActivity : ComponentActivity() {
             webViewClient = object : WebViewClient() {
                 override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                     super.onPageStarted(view, url, favicon)
-                    Log.d(TAG, "WebView 页面开始加载: $url")
+                    Log.d(TAG, "WebView 页面开始加载: ${safePageLabel(url)}")
                 }
 
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
-                    Log.d(TAG, "WebView 页面加载完成，准备注入 JS: $url")
-                    injectAjaxCapture()
+                    Log.d(TAG, "WebView 页面加载完成: ${safePageLabel(url)}")
+                    if (isTrustedCapturePage(url)) injectAjaxCapture()
+                }
+
+                override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                    if (request?.isForMainFrame != true) return false
+                    return !isAllowedNavigation(request.url)
                 }
             }
         }
@@ -111,7 +132,13 @@ open class ChangyanWebLoginActivity : ComponentActivity() {
         if (::webView.isInitialized) {
             webView.stopLoading()
             webView.removeJavascriptInterface("etsBridge")
+            webView.clearHistory()
+            webView.clearCache(true)
             webView.destroy()
+        }
+        if (isFinishing || !isChangingConfigurations) {
+            clearCookiesFor("https://pass.changyan.com", ".changyan.com")
+            clearCookiesFor("https://www.ets100.com", ".ets100.com")
         }
         super.onDestroy()
     }
@@ -142,6 +169,7 @@ open class ChangyanWebLoginActivity : ComponentActivity() {
                         }
                     }
                     window.etsBridge.capture(JSON.stringify({
+                        attemptNonce: ${JSONObject.quote(loginAttemptNonce)},
                         url: settings.url,
                         method: settings.type || 'GET',
                         queryParams: queryParams,
@@ -159,12 +187,14 @@ open class ChangyanWebLoginActivity : ComponentActivity() {
     }
 
     private fun handleCapturedData(raw: String) {
-        Log.d(TAG, "Bridge 收到 WebView 数据: length=${raw.length}, preview=${raw.take(240)}")
+        Log.d(TAG, "Bridge 收到 checkLogin 结果: length=${raw.length}")
         if (isHandlingLogin) return
+        if (raw.length !in 1..MAX_CAPTURE_BYTES) return
 
         try {
             val data = JSONObject(raw)
-            if (!data.optString("url").contains("/login/checkLogin")) return
+            if (data.optString("attemptNonce") != loginAttemptNonce) return
+            if (!isTrustedCheckLoginUrl(data.optString("url"))) return
             if (data.optInt("status") != 200) {
                 showFailure("网页登录请求失败：HTTP ${data.optInt("status")}")
                 return
@@ -179,16 +209,14 @@ open class ChangyanWebLoginActivity : ComponentActivity() {
             val responseData = JSONObject(responseBody.getString("Data"))
             val userId = responseData.optString("uid")
             val sucUserToken = responseData.optString("captchaResult")
-            Log.d(
-                TAG,
-                "checkLogin 成功: uid=$userId, captchaResult=${maskToken(sucUserToken)}, " +
-                    "captchaResultLength=${sucUserToken.length}"
-            )
 
-            if (userId.isBlank() || sucUserToken.isBlank()) {
+            if (userId.isBlank() || userId.length > 128 || sucUserToken.isBlank() || sucUserToken.length > 4096) {
                 showFailure("网页登录返回信息不完整")
                 return
             }
+            val assertionHash = sha256("$userId\u0000$sucUserToken")
+            if (assertionHash == lastConsumedAssertionHash) return
+            lastConsumedAssertionHash = assertionHash
 
             isHandlingLogin = true
             exchangeToken(userId, userId, sucUserToken)
@@ -201,67 +229,46 @@ open class ChangyanWebLoginActivity : ComponentActivity() {
     private fun exchangeToken(login: String, userId: String, sucUserToken: String) {
         lifecycleScope.launch {
             try {
-                val deviceCode = ETS100AuthManager.getDeviceCode(this@ChangyanWebLoginActivity)
-                Log.d(
-                    TAG,
-                    "准备换取 ETS token: login=$login, userId=$userId, " +
-                        "deviceCode=${maskDeviceCode(deviceCode)}, sucUserToken=${maskToken(sucUserToken)}"
-                )
-                val loginResult = ETS100ApiClient.loginZt(login, userId, sucUserToken, deviceCode)
-                loginResult.onSuccess { loginResponse ->
-                    Log.i(
-                        TAG,
-                        "login-zt 换 token 成功: token=${maskToken(loginResponse.token)}, " +
-                            "tokenLength=${loginResponse.token.length}"
-                    )
-                    Log.d(TAG, "开始使用 token 获取父账户信息")
-                    val savedEcardId = ETS100AuthManager.getSelectedEcardId(this@ChangyanWebLoginActivity)
-                    val preferredAccountId = savedEcardId ?: loginResponse.recentAccountId
-                    val ecardResult = ETS100ApiClient.getEcardSelection(
-                        loginResponse.token,
-                        preferredAccountId
-                    )
-                    ecardResult.onSuccess { selectionResult ->
-                        val validAccounts = selectionResult.validAccounts
-                        val shouldAskUser = savedEcardId.isNullOrBlank() && validAccounts.size > 1
-
-                        if (shouldAskUser) {
-                            showAccountSelectionDialog(
-                                login = login,
-                                token = loginResponse.token,
-                                accounts = validAccounts
-                            )
-                        } else {
-                            completeLogin(
-                                login = login,
-                                token = loginResponse.token,
-                                account = selectionResult.selectedAccount
-                            )
-                        }
-                    }.onFailure { error ->
-                        isHandlingLogin = false
-                        Log.e(
-                            TAG,
-                            "token 已获取但父账户信息失败: token=${maskToken(loginResponse.token)}, " +
-                                "error=${error.message}",
-                            error
+                val deviceCode = FeAccountManager.get(this@ChangyanWebLoginActivity).cloudDeviceCode()
+                val savedEcardId = ETS100AuthManager.getSelectedEcardId(this@ChangyanWebLoginActivity).orEmpty()
+                val result = withContext(Dispatchers.IO) {
+                    ResolverAuthorizer.requireConfigured(this@ChangyanWebLoginActivity)
+                    JSONObject(
+                        ResolverNative.cloudLoginChangyan(
+                            login = login,
+                            userId = userId,
+                            captchaResult = sucUserToken,
+                            deviceCode = deviceCode,
+                            preferredAccountId = savedEcardId,
                         )
-                        showFailure("获取账户信息失败：${error.message}")
-                    }
-                }.onFailure { error ->
-                    isHandlingLogin = false
-                    Log.e(
-                        TAG,
-                        "login-zt 换 token 失败: login=$login, userId=$userId, " +
-                            "sucUserToken=${maskToken(sucUserToken)}, error=${error.message}",
-                        error
                     )
-                    showFailure("讯飞登录失败：${error.message}")
                 }
+                if (!result.optBoolean("ok", false)) {
+                    val message = result.optJSONObject("error")?.optString("message")
+                        ?.takeIf { it.isNotBlank() }
+                        ?: "讯飞登录失败"
+                    throw IllegalStateException(message)
+                }
+                val nativeResult = result.getJSONObject("result")
+                val token = nativeResult.getString("token")
+                val selectedAccount = parseNativeAccount(nativeResult.getJSONObject("selected_account"))
+                val validAccounts = parseNativeAccounts(nativeResult.optJSONArray("valid_accounts"))
+                if (validAccounts.isEmpty()) {
+                    throw IllegalStateException("当前账号没有可用的班级信息")
+                }
+                val shouldAskUser = validAccounts.size > 1 &&
+                    (savedEcardId.isBlank() || selectedAccount.id != savedEcardId)
+                if (shouldAskUser) {
+                    showAccountSelectionDialog(login, token, validAccounts)
+                } else {
+                    completeLogin(login, token, selectedAccount)
+                }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 isHandlingLogin = false
-                Log.e(TAG, "换取或保存 token 流程异常: ${e.message}", e)
-                showFailure("讯飞登录异常：${e.message}")
+                Log.e(TAG, "讯飞登录流程失败: ${e.message}")
+                showFailure(e.message ?: "讯飞登录失败")
             }
         }
     }
@@ -271,11 +278,7 @@ open class ChangyanWebLoginActivity : ComponentActivity() {
         token: String,
         account: ETS100ApiClient.EcardAccount
     ) {
-        Log.i(
-            TAG,
-            "父账户信息选择完成: ecardId=${account.id}, name=${account.name}, " +
-                "grade=${account.grade}, parentAccountId=${account.parentId}"
-        )
+        Log.i(TAG, "讯飞父账户选择完成")
         ETS100AuthManager.saveLoginInfo(
             this@ChangyanWebLoginActivity,
             login,
@@ -293,11 +296,7 @@ open class ChangyanWebLoginActivity : ComponentActivity() {
             account.grade,
             account.classId
         )
-        Log.i(
-            TAG,
-            "登录信息已保存: login=$login, parentAccountId=${account.parentId}, " +
-                "ecardId=${account.id}, token=${maskToken(token)}"
-        )
+        Log.i(TAG, "讯飞登录信息已安全保存")
         withContext(Dispatchers.Main) {
             Toast.makeText(
                 this@ChangyanWebLoginActivity,
@@ -349,26 +348,79 @@ open class ChangyanWebLoginActivity : ComponentActivity() {
     private inner class ChangyanBridge {
         @JavascriptInterface
         fun capture(data: String) {
-            Log.d(TAG, "JavascriptInterface.capture 被调用: length=${data.length}")
-            handleCapturedData(data)
+            if (data.length !in 1..MAX_CAPTURE_BYTES) return
+            webView.post {
+                if (isTrustedCapturePage(webView.url)) handleCapturedData(data)
+            }
         }
     }
 
-    private fun maskToken(token: String): String {
-        if (token.isBlank()) return "(empty)"
-        if (token.length <= 12) return "${token.take(3)}***${token.takeLast(3)}"
-        return "${token.take(6)}***${token.takeLast(6)}"
+    private fun parseNativeAccounts(array: JSONArray?): List<ETS100ApiClient.EcardAccount> {
+        if (array == null) return emptyList()
+        return (0 until array.length()).mapNotNull { index ->
+            array.optJSONObject(index)?.let(::parseNativeAccount)
+        }
     }
 
-    private fun maskDeviceCode(deviceCode: String): String {
-        val parts = deviceCode.split("|")
-        if (parts.size != 2) return maskToken(deviceCode)
-        return "${maskToken(parts[0])}|${maskToken(parts[1])}"
+    private fun parseNativeAccount(account: JSONObject) = ETS100ApiClient.EcardAccount(
+        key = account.optString("key"),
+        id = account.optString("id"),
+        parentId = account.optString("parent_id"),
+        userAccountId = account.optString("user_account_id"),
+        name = account.optString("name"),
+        grade = account.optString("grade"),
+        status = account.optString("status"),
+        mobileStatus = account.optString("mobile_status"),
+        outOfDate = account.optString("out_of_date"),
+        classId = account.optString("class_id"),
+        className = account.optString("class_name"),
+        machineCodeStatus = account.optString("machine_code_status"),
+    )
+
+    private fun isTrustedCapturePage(url: String?): Boolean {
+        val uri = url?.let(Uri::parse) ?: return false
+        return uri.scheme == "https" && uri.host == "pass.changyan.com"
+    }
+
+    private fun isAllowedNavigation(uri: Uri): Boolean {
+        if (uri.scheme != "https") return false
+        val host = uri.host.orEmpty()
+        return host == "changyan.com" || host.endsWith(".changyan.com") ||
+            host == "ets100.com" || host.endsWith(".ets100.com")
+    }
+
+    private fun isTrustedCheckLoginUrl(url: String): Boolean {
+        if (url.startsWith("/")) return url.substringBefore('?') == "/login/checkLogin"
+        val uri = runCatching { Uri.parse(url) }.getOrNull() ?: return false
+        return uri.scheme == "https" && uri.host == "pass.changyan.com" && uri.path == "/login/checkLogin"
+    }
+
+    private fun safePageLabel(url: String?): String {
+        val uri = url?.let(Uri::parse) ?: return "(empty)"
+        return "${uri.scheme}://${uri.host}${uri.path.orEmpty()}"
+    }
+
+    private fun sha256(value: String): String = MessageDigest.getInstance("SHA-256")
+        .digest(value.toByteArray(Charsets.UTF_8))
+        .joinToString("") { "%02x".format(it) }
+
+    private fun clearCookiesFor(origin: String, domain: String) {
+        val manager = CookieManager.getInstance()
+        manager.getCookie(origin)
+            ?.split(';')
+            ?.map { it.substringBefore('=').trim() }
+            ?.filter { it.isNotEmpty() }
+            ?.forEach { name ->
+                manager.setCookie(origin, "$name=; Max-Age=0; Path=/; Secure; SameSite=Lax")
+                manager.setCookie(origin, "$name=; Max-Age=0; Domain=$domain; Path=/; Secure; SameSite=Lax")
+            }
+        manager.flush()
     }
 
     companion object {
         private const val TAG = "ChangyanWebLogin"
         private const val INITIAL_PAGE_SCALE = 85
+        private const val MAX_CAPTURE_BYTES = 64 * 1024
         private const val MOBILE_USER_AGENT =
             "Mozilla/5.0 (Linux; Android 16; PLC110 Build/BP2A.250605.015) " +
                 "AppleWebKit/537.36 (KHTML, like Gecko) " +
@@ -380,9 +432,7 @@ open class ChangyanWebLoginActivity : ComponentActivity() {
             return Intent(
                 context,
                 predictiveBackActivityClass(
-                    ChangyanWebLoginActivity::class.java,
                     ChangyanWebLoginOpaqueActivity::class.java,
-                    ChangyanWebLoginKernelSuClassicActivity::class.java
                 )
             )
         }

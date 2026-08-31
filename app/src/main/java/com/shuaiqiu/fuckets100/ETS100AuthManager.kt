@@ -20,6 +20,7 @@ object ETS100AuthManager {
     private const val PREFS_NAME = "ets100_auth"
     const val LOGIN_METHOD_PASSWORD = "password"
     const val LOGIN_METHOD_CHANGYAN_WEB = "changyan_web"
+    const val LOGIN_METHOD_BACKEND_BOUND = "backend_bound"
 
     // ============================================================================
     // 认证信息 Key
@@ -45,11 +46,21 @@ object ETS100AuthManager {
     
     @Volatile
     private var prefsInstance: SharedPreferences? = null
+    @Volatile
+    private var secureTokenStoreInstance: ETS100SecureTokenStore? = null
     
     private fun getPrefs(context: Context): SharedPreferences {
         return prefsInstance ?: synchronized(this) {
             prefsInstance ?: context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).also {
                 prefsInstance = it
+            }
+        }
+    }
+
+    private fun getSecureTokenStore(context: Context): ETS100SecureTokenStore {
+        return secureTokenStoreInstance ?: synchronized(this) {
+            secureTokenStoreInstance ?: ETS100SecureTokenStore(context).also {
+                secureTokenStoreInstance = it
             }
         }
     }
@@ -89,6 +100,11 @@ object ETS100AuthManager {
         return newCode
     }
 
+    fun saveDeviceCode(context: Context, deviceCode: String) {
+        require(Regex("[0-9a-f]{16}\\|[0-9a-f]{16}").matches(deviceCode))
+        getPrefs(context).edit().putString(Keys.DEVICE_CODE, deviceCode).apply()
+    }
+
     /**
      * 生成随机十六进制字符串
      */
@@ -123,15 +139,16 @@ object ETS100AuthManager {
      * 喵~ 登录成功后调用喵！
      */
     fun saveLoginInfo(context: Context, phone: String, token: String, parentAccountId: String) {
+        getSecureTokenStore(context).write(token)
         val prefs = getPrefs(context)
         prefs.edit().apply {
             putString(Keys.PHONE, phone)
-            putString(Keys.TOKEN, token)
+            remove(Keys.TOKEN)
             putString(Keys.PARENT_ACCOUNT_ID, parentAccountId)
             putBoolean(Keys.IS_LOGGED_IN, true)
             apply()
         }
-        Log.d(TAG, "保存登录信息成功: phone=$phone")
+        Log.d(TAG, "保存登录信息成功")
     }
 
     fun saveLoginMethod(context: Context, method: String) {
@@ -149,6 +166,10 @@ object ETS100AuthManager {
         return getLoginMethod(context) == LOGIN_METHOD_CHANGYAN_WEB
     }
 
+    fun isBackendBoundLogin(context: Context): Boolean {
+        return getLoginMethod(context) == LOGIN_METHOD_BACKEND_BOUND
+    }
+
     fun saveSelectedEcard(
         context: Context,
         ecardId: String,
@@ -164,7 +185,7 @@ object ETS100AuthManager {
             putString(Keys.SELECTED_ECARD_CLASS_ID, classId)
             apply()
         }
-        Log.d(TAG, "保存选择账号: id=$ecardId, name=$name, grade=$grade, classId=$classId")
+        Log.d(TAG, "保存账号选择成功")
     }
 
     /**
@@ -173,7 +194,15 @@ object ETS100AuthManager {
      */
     fun getToken(context: Context): String? {
         val prefs = getPrefs(context)
-        return prefs.getString(Keys.TOKEN, null)
+        getSecureTokenStore(context).read()?.let { return it }
+        val legacyToken = prefs.getString(Keys.TOKEN, null) ?: return null
+        return runCatching {
+            getSecureTokenStore(context).write(legacyToken)
+            check(prefs.edit().remove(Keys.TOKEN).commit()) {
+                "无法移除旧 ETS100 登录凭据"
+            }
+            legacyToken
+        }.getOrNull()
     }
 
     /**
@@ -181,8 +210,8 @@ object ETS100AuthManager {
      * 宝贝用于 token 刷新后更新本地存储喵~
      */
     fun updateToken(context: Context, newToken: String) {
-        val prefs = getPrefs(context)
-        prefs.edit().putString(Keys.TOKEN, newToken).apply()
+        getSecureTokenStore(context).write(newToken)
+        getPrefs(context).edit().remove(Keys.TOKEN).apply()
         Log.d(TAG, "Token 已更新，新 token 长度: ${newToken.length}")
     }
 
@@ -225,15 +254,22 @@ object ETS100AuthManager {
         return prefs.getString(Keys.PASSWORD, null)
     }
 
+    fun clearPassword(context: Context) {
+        getPrefs(context).edit().remove(Keys.PASSWORD).apply()
+    }
+
     /**
      * 检查是否已登录
      * 喵~ 需要同时有 Token 和 ParentAccountId 才算已登录喵！
      */
     fun isLoggedIn(context: Context): Boolean {
         val prefs = getPrefs(context)
-        val token = prefs.getString(Keys.TOKEN, null)
+        val token = getToken(context)
         val parentId = prefs.getString(Keys.PARENT_ACCOUNT_ID, null)
-        return !token.isNullOrEmpty() && !parentId.isNullOrEmpty()
+        val method = prefs.getString(Keys.LOGIN_METHOD, null)
+        return !token.isNullOrEmpty() &&
+            !parentId.isNullOrEmpty() &&
+            method in setOf(LOGIN_METHOD_BACKEND_BOUND, LOGIN_METHOD_CHANGYAN_WEB)
     }
 
     /**
@@ -243,6 +279,7 @@ object ETS100AuthManager {
     fun logout(context: Context) {
         val prefs = getPrefs(context)
         val deviceCode = prefs.getString(Keys.DEVICE_CODE, null)  // 保留机器码
+        getSecureTokenStore(context).clear()
         
         prefs.edit().clear().apply()
         
@@ -259,6 +296,7 @@ object ETS100AuthManager {
      * 喵~ 包括机器码也清除，用于完全重置喵！
      */
     fun clearAll(context: Context) {
+        getSecureTokenStore(context).clear()
         val prefs = getPrefs(context)
         prefs.edit().clear().apply()
         Log.d(TAG, "已清除所有认证数据")

@@ -18,6 +18,12 @@ sealed interface FeRoute : NavKey, Parcelable {
     data object Account : FeRoute
 
     @Parcelize
+    data object AccountDevices : FeRoute
+
+    @Parcelize
+    data object AccountSessions : FeRoute
+
+    @Parcelize
     data object GeneralSettings : FeRoute
 
     @Parcelize
@@ -40,6 +46,6 @@ sealed interface FeRoute : NavKey, Parcelable {
         val announcementUrl: String,
         val changelogTitle: String,
         val changelogSummary: String,
-        val changelogUrl: String,
+        val changelogContent: String = "",
     ) : FeRoute
 }

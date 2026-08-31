@@ -18,6 +18,17 @@ class FeNavigatorTest {
     }
 
     @Test
+    fun accountSubpageBackReturnsToAccount() {
+        val navigator = FeNavigator(FeRoute.Main)
+        navigator.push(FeRoute.Account)
+        navigator.push(FeRoute.AccountDevices)
+
+        navigator.pop()
+
+        assertEquals(FeRoute.Account, navigator.current())
+    }
+
+    @Test
     fun popRemovesAnswerPaperFromStore() {
         val key = PaperStore.put(
             com.shuaiqiu.fuckets100.ETS100AnswerReader.Paper(

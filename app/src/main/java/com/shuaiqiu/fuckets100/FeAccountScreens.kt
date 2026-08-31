@@ -1,7 +1,6 @@
 package com.shuaiqiu.fuckets100
 
 import android.annotation.SuppressLint
-import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
 import android.webkit.JavascriptInterface
@@ -14,6 +13,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -37,6 +38,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -52,71 +54,38 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 @Composable
-fun FeAccountGate(content: @Composable () -> Unit) {
+fun FeAccountGate(
+    content: @Composable () -> Unit,
+) {
     val context = LocalContext.current
     val manager = remember { FeAccountManager.get(context) }
-    val state by manager.gateState.collectAsState()
-    val scope = rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
     LaunchedEffect(manager) { manager.checkGate() }
     LaunchedEffect(manager, lifecycleOwner) {
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             val resumedState = manager.gateState.value
-            if (resumedState is FeAccountGateState.Ready || resumedState is FeAccountGateState.Blocked) {
+            if (resumedState is FeAccountGateState.Ready ||
+                resumedState is FeAccountGateState.Offline
+            ) {
                 manager.revalidateOnline()
             }
             while (true) {
                 delay(ONLINE_REVALIDATION_INTERVAL_MS)
-                if (manager.gateState.value is FeAccountGateState.Ready) {
+                if (manager.gateState.value is FeAccountGateState.Ready ||
+                    manager.gateState.value is FeAccountGateState.Offline
+                ) {
                     manager.revalidateOnline()
                 }
             }
         }
     }
 
-    when (val current = state) {
-        FeAccountGateState.Checking -> AccountGateMessage("正在连接 LA Studio…", showProgress = true)
-        FeAccountGateState.LoginRequired -> FeLoginScreen(manager)
-        is FeAccountGateState.Blocked -> AccountGateMessage(
-            message = current.message,
-            actionLabel = current.updateUrl?.let { "立即更新" } ?: if (current.retryable) "重试" else null,
-            onAction = if (current.updateUrl != null) {
-                { openTrustedHttps(context, current.updateUrl, setOf("oplist.lastudio.cc", "lastudio.cc")) }
-            } else if (current.retryable) {
-                { scope.launch { manager.checkGate() } }
-            } else null,
-        )
-        is FeAccountGateState.Ready -> content()
-    }
-}
-
-@Composable
-private fun AccountGateMessage(
-    message: String,
-    showProgress: Boolean = false,
-    actionLabel: String? = null,
-    onAction: (() -> Unit)? = null,
-) {
-    Box(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(
-            modifier = Modifier.padding(32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            if (showProgress) CircularProgressIndicator()
-            Text(message, style = MaterialTheme.typography.bodyLarge)
-            if (actionLabel != null && onAction != null) Button(onClick = onAction) { Text(actionLabel) }
-        }
-    }
+    content()
 }
 
 @Composable
 private fun FeLoginScreen(manager: FeAccountManager) {
     val scope = rememberCoroutineScope()
-    val context = LocalContext.current
     var username by rememberSaveable { mutableStateOf("") }
     // Password is deliberately not saveable and never leaves this in-memory field except for login.
     var password by remember { mutableStateOf("") }
@@ -124,6 +93,7 @@ private fun FeLoginScreen(manager: FeAccountManager) {
     var loading by remember { mutableStateOf(false) }
     var captchaVisible by remember { mutableStateOf(false) }
     var pendingCaptchaToken by remember { mutableStateOf<String?>(null) }
+    var showRegister by remember { mutableStateOf(false) }
 
     fun submit(capToken: String? = pendingCaptchaToken) {
         if (username.isBlank() || password.isBlank()) {
@@ -149,57 +119,115 @@ private fun FeLoginScreen(manager: FeAccountManager) {
     }
 
     Scaffold(containerColor = MaterialTheme.colorScheme.surface) { padding ->
-        Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(28.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally,
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+            contentAlignment = Alignment.Center,
         ) {
-            Icon(Icons.Default.AccountCircle, null, Modifier.size(72.dp), tint = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.height(16.dp))
-            Text("登录 Fe", style = MaterialTheme.typography.headlineMedium)
-            Text("使用 LA Studio 账号继续", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(28.dp))
-            OutlinedTextField(
-                value = username,
-                onValueChange = { username = it },
-                enabled = !loading,
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("用户名") },
-                leadingIcon = { Icon(Icons.Default.Person, null) },
-                singleLine = true,
-            )
-            Spacer(Modifier.height(12.dp))
-            OutlinedTextField(
-                value = password,
-                onValueChange = { password = it },
-                enabled = !loading,
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("密码") },
-                leadingIcon = { Icon(Icons.Default.Lock, null) },
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                singleLine = true,
-            )
-            if (error != null) {
-                Spacer(Modifier.height(12.dp))
-                Text(error!!, color = MaterialTheme.colorScheme.error)
-            }
-            Spacer(Modifier.height(20.dp))
-            Button(onClick = { submit() }, enabled = !loading, modifier = Modifier.fillMaxWidth()) {
-                if (loading) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-                else Text("登录")
-            }
-            TextButton(
-                enabled = !loading,
-                onClick = {
-                    openTrustedHttps(
-                        context,
-                        "https://auth.lastudio.cc/register",
-                        setOf("auth.lastudio.cc"),
+            Column(
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState())
+                    .imePadding()
+                    .padding(horizontal = 24.dp, vertical = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(92.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primaryContainer),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Image(
+                        painter = painterResource(id = R.drawable.fe_logo),
+                        contentDescription = "Fe",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .size(56.dp)
+                            .clip(RoundedCornerShape(14.dp)),
                     )
-                },
-            ) { Text("注册 LA Studio 账号") }
+                }
+                Spacer(Modifier.height(20.dp))
+                Text(
+                    "登录 Fe",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "使用 LA Studio 账号继续",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(32.dp))
+
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(28.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainer,
+                ) {
+                    Column(modifier = Modifier.padding(24.dp)) {
+                        OutlinedTextField(
+                            value = username,
+                            onValueChange = { username = it },
+                            enabled = !loading,
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("用户名") },
+                            leadingIcon = { Icon(Icons.Default.Person, null) },
+                            singleLine = true,
+                            shape = RoundedCornerShape(16.dp),
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        OutlinedTextField(
+                            value = password,
+                            onValueChange = { password = it },
+                            enabled = !loading,
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("密码") },
+                            leadingIcon = { Icon(Icons.Default.Lock, null) },
+                            visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                            singleLine = true,
+                            shape = RoundedCornerShape(16.dp),
+                        )
+                        if (error != null) {
+                            Spacer(Modifier.height(12.dp))
+                            Text(
+                                error!!,
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                        Spacer(Modifier.height(20.dp))
+                        Button(
+                            onClick = { submit() },
+                            enabled = !loading,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(52.dp),
+                            shape = RoundedCornerShape(16.dp),
+                        ) {
+                            if (loading) {
+                                CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.5.dp)
+                            } else {
+                                Text("登录", style = MaterialTheme.typography.titleMedium)
+                            }
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(8.dp))
+                TextButton(
+                    enabled = !loading,
+                    onClick = { showRegister = true },
+                ) { Text("注册 LA Studio 账号") }
+            }
         }
+    }
+
+    if (showRegister) {
+        InAppRegisterScreen(onBack = { showRegister = false })
     }
 
     if (captchaVisible) {
@@ -217,50 +245,110 @@ private fun FeLoginScreen(manager: FeAccountManager) {
     }
 }
 
+private const val REGISTER_URL = "https://auth.lastudio.cc/register"
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun InAppRegisterScreen(onBack: () -> Unit) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("注册 LA Studio 账号") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
+                    }
+                },
+            )
+        },
+        containerColor = MaterialTheme.colorScheme.surface,
+    ) { padding ->
+        AndroidView(
+            modifier = Modifier.fillMaxSize().padding(padding),
+            factory = { context ->
+                WebView(context).apply {
+                    settings.javaScriptEnabled = true
+                    settings.domStorageEnabled = true
+                    settings.allowFileAccess = false
+                    settings.allowContentAccess = false
+                    webViewClient = object : WebViewClient() {
+                        override fun shouldOverrideUrlLoading(
+                            view: WebView,
+                            request: WebResourceRequest,
+                        ): Boolean = !isTrustedAuthHost(request.url)
+                    }
+                    loadUrl(REGISTER_URL)
+                }
+            },
+            update = { webView -> webView.loadUrl(REGISTER_URL) },
+            onRelease = { webView ->
+                webView.stopLoading()
+                webView.destroy()
+            },
+        )
+    }
+}
+
+private fun isTrustedAuthHost(uri: Uri): Boolean =
+    uri.scheme == "https" && uri.host in setOf("auth.lastudio.cc", "lastudio.cc")
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FeAccountScreen(
     onBack: () -> Unit,
+    onNavigateToDevices: () -> Unit,
+    onNavigateToSessions: () -> Unit,
     onLogoutNavigate: () -> Unit,
 ) {
     val context = LocalContext.current
     val manager = remember { FeAccountManager.get(context) }
     val state by manager.gateState.collectAsState()
-    val session = (state as? FeAccountGateState.Ready)?.session
+    val session = state.cachedSessionOrNull
     val scope = rememberCoroutineScope()
+
+    if (state is FeAccountGateState.LoginRequired) {
+        FeLoginScreen(manager)
+        return
+    }
+
+    if (session == null) {
+        AccountOfflineMessage(
+            message = when (val current = state) {
+                is FeAccountGateState.Checking -> "正在连接 LA Studio…"
+                is FeAccountGateState.Offline -> current.message
+                is FeAccountGateState.Blocked -> current.message
+                is FeAccountGateState.Ready -> ""
+                FeAccountGateState.LoginRequired -> ""
+            },
+            showProgress = state is FeAccountGateState.Checking,
+            onRetry = { scope.launch { manager.checkGate() } },
+            onBack = onBack,
+        )
+        return
+    }
+
+    val cachedSession = session
 
     var showChangePassword by remember { mutableStateOf(false) }
     var showBindings by remember { mutableStateOf(false) }
-    var showDevices by remember { mutableStateOf(false) }
-    var showSessions by remember { mutableStateOf(false) }
     var bindings by remember { mutableStateOf<FeAccountProfileApi.AccountBindings?>(null) }
     var bindingsError by remember { mutableStateOf<String?>(null) }
     var changePasswordError by remember { mutableStateOf<String?>(null) }
     var logoutError by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(session) {
-        if (session != null) {
-            bindings = null
+    LaunchedEffect(cachedSession, state is FeAccountGateState.Ready) {
+        if (state is FeAccountGateState.Ready) {
             bindingsError = null
-            runCatching {
-                FeAccountProfileApi().bindings(manager.requireAccessToken())
-            }.onSuccess { bindings = it }.onFailure {
-                if (it is FeAccountApiException && it.error.statusCode == 401) {
-                    manager.revalidateOnline()
-                } else {
-                    bindingsError = it.message ?: "加载绑定信息失败"
+            runCatching { manager.accountBindings() }
+                .onSuccess { bindings = it }
+                .onFailure {
+                    if (it is FeAccountApiException && it.error.statusCode == 401) {
+                        manager.revalidateOnline()
+                    } else {
+                        bindingsError = it.message ?: "加载绑定信息失败"
+                    }
                 }
             }
-        }
-    }
-
-    if (showDevices) {
-        AccountDevicesPage(manager = manager, onBack = { showDevices = false })
-        return
-    }
-    if (showSessions) {
-        AccountSessionsPage(manager = manager, onBack = { showSessions = false })
-        return
     }
 
     Scaffold(
@@ -280,32 +368,40 @@ fun FeAccountScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(20.dp),
+            .padding(20.dp),
         ) {
+            if (state is FeAccountGateState.Offline || state is FeAccountGateState.Checking) {
+                Text(
+                    text = if (state is FeAccountGateState.Checking) "正在连接 LA Studio…" else "已离线",
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.labelMedium,
+                )
+                Spacer(Modifier.height(12.dp))
+            }
             Row(
                 Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 AccountInitialAvatar(
-                    username = session?.user?.username.orEmpty(),
+                    username = cachedSession.user.username,
                     size = 84,
-                    avatarUrl = session?.user?.avatarUrl,
-                    userId = session?.user?.id,
+                    avatarUrl = cachedSession.user.avatarUrl,
+                    userId = cachedSession.user.id,
                 )
                 Spacer(Modifier.width(18.dp))
                 Column(Modifier.weight(1f)) {
                     Text(
-                        session?.user?.username.orEmpty(),
+                        cachedSession.user.username,
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold,
                     )
                     Text(
-                        "LA Studio 用户 #${session?.user?.id ?: "-"}",
+                        "LA Studio 用户 #${cachedSession.user.id}",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Text(
-                        "会员等级 L${session?.user?.memberLevel ?: 0}",
+                        "会员等级 L${cachedSession.user.memberLevel}",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.primary,
                     )
@@ -338,14 +434,14 @@ fun FeAccountScreen(
                         icon = Icons.Default.Phone,
                         title = "我的设备",
                         sub = "管理已登录的设备",
-                        onClick = { showDevices = true },
+                        onClick = onNavigateToDevices,
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     SettingsListItem(
                         icon = Icons.Default.Settings,
                         title = "登录会话",
                         sub = "查看和下线登录会话",
-                        onClick = { showSessions = true },
+                        onClick = onNavigateToSessions,
                     )
                 }
             }
@@ -407,6 +503,38 @@ fun FeAccountScreen(
             error = bindingsError,
             onDismiss = { showBindings = false },
         )
+    }
+}
+
+@Composable
+private fun AccountOfflineMessage(
+    message: String,
+    showProgress: Boolean,
+    onRetry: () -> Unit,
+    onBack: () -> Unit,
+) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("个人中心") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
+                    }
+                },
+            )
+        },
+    ) { padding ->
+        Column(
+            modifier = Modifier.fillMaxSize().padding(padding).padding(28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            if (showProgress) CircularProgressIndicator()
+            Text(message, style = MaterialTheme.typography.bodyLarge)
+            Spacer(Modifier.height(16.dp))
+            Button(onClick = onRetry) { Text("重试连接") }
+        }
     }
 }
 
@@ -544,16 +672,16 @@ private fun ChangePasswordDialog(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AccountDevicesPage(manager: FeAccountManager, onBack: () -> Unit) {
+internal fun AccountDevicesPage(manager: FeAccountManager, onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     var devices by remember { mutableStateOf<List<JSONObject>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var pendingRevoke by remember { mutableStateOf<JSONObject?>(null) }
 
-    fun refresh() {
+    fun refresh(force: Boolean = false) {
         scope.launch {
             error = null
-            runCatching { FeAccountProfileApi().devices(manager.requireAccessToken()) }
+            runCatching { manager.accountDevices(force = force) }
                 .onSuccess { devices = it }
                 .onFailure {
                     if (it is FeAccountApiException && it.error.statusCode == 401) {
@@ -574,6 +702,11 @@ private fun AccountDevicesPage(manager: FeAccountManager, onBack: () -> Unit) {
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { refresh(force = true) }) {
+                        Icon(Icons.Default.Refresh, "刷新设备")
                     }
                 },
             )
@@ -615,8 +748,11 @@ private fun AccountDevicesPage(manager: FeAccountManager, onBack: () -> Unit) {
                     val id = device.optInt("id", -1)
                     pendingRevoke = null
                     scope.launch {
-                        runCatching { FeAccountProfileApi().revokeDevice(manager.requireAccessToken(), id) }
-                            .onSuccess { refresh() }
+                    runCatching { FeAccountProfileApi().revokeDevice(manager.requireAccessToken(), id) }
+                            .onSuccess {
+                                manager.invalidateAccountData()
+                                refresh(force = true)
+                            }
                             .onFailure {
                                 if (it is FeAccountApiException && it.error.statusCode == 401) {
                                     manager.revalidateOnline()
@@ -671,15 +807,15 @@ private fun AccountDeviceCard(device: JSONObject, onRevoke: () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AccountSessionsPage(manager: FeAccountManager, onBack: () -> Unit) {
+internal fun AccountSessionsPage(manager: FeAccountManager, onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     var sessions by remember { mutableStateOf<List<JSONObject>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
 
-    fun refresh() {
+    fun refresh(force: Boolean = false) {
         scope.launch {
             error = null
-            runCatching { FeAccountProfileApi().sessions(manager.requireAccessToken()) }
+            runCatching { manager.accountSessions(force = force) }
                 .onSuccess { sessions = it }
                 .onFailure {
                     if (it is FeAccountApiException && it.error.statusCode == 401) {
@@ -700,6 +836,11 @@ private fun AccountSessionsPage(manager: FeAccountManager, onBack: () -> Unit) {
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { refresh(force = true) }) {
+                        Icon(Icons.Default.Refresh, "刷新会话")
                     }
                 },
             )
@@ -726,7 +867,10 @@ private fun AccountSessionsPage(manager: FeAccountManager, onBack: () -> Unit) {
                                 val id = session.optInt("id", -1)
                                 scope.launch {
                                     runCatching { FeAccountProfileApi().revokeSession(manager.requireAccessToken(), id) }
-                                        .onSuccess { refresh() }
+                                        .onSuccess {
+                                            manager.invalidateAccountData()
+                                            refresh(force = true)
+                                        }
                                         .onFailure {
                                             if (it is FeAccountApiException && it.error.statusCode == 401) {
                                                 manager.revalidateOnline()
@@ -921,12 +1065,6 @@ private fun capHtml(widgetScript: String): String = """<!doctype html><html><hea
 
 private fun isExpectedCaptchaTopLevel(uri: Uri): Boolean =
     uri.scheme == "https" && uri.host in setOf("lastudio.cc", "auth.lastudio.cc")
-
-private fun openTrustedHttps(context: android.content.Context, rawUrl: String, allowedHosts: Set<String>) {
-    val uri = runCatching { Uri.parse(rawUrl) }.getOrNull() ?: return
-    if (uri.scheme != "https" || uri.host !in allowedHosts) return
-    context.startActivity(Intent(Intent.ACTION_VIEW, uri))
-}
 
 private const val ONLINE_REVALIDATION_INTERVAL_MS = 60_000L
 private const val AVATAR_TIMEOUT_MS = 5_000

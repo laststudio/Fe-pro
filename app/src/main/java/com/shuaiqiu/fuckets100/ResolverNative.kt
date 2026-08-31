@@ -47,4 +47,16 @@ internal object ResolverNative {
 
     /** 授权后批量解析: tasks 为 JSON 数组字符串。返回包裹结果 JSON。 */
     external fun parseBatchAuthorized(tasksJson: String): String
+
+    /** cloud_mode 授权后用畅言一次性断言换取 ETS100 token，并返回 ecard 选择结果。 */
+    external fun cloudLoginChangyan(
+        login: String,
+        userId: String,
+        captchaResult: String,
+        deviceCode: String,
+        preferredAccountId: String,
+    ): String
+
+    /** 仅验证 cloud_mode 功能，返回统一 JSON。 */
+    external fun cloudAuthorizeFeature(): String
 }

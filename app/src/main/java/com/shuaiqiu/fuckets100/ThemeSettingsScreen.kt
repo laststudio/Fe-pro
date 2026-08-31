@@ -351,8 +351,7 @@ fun ThemeSettingsScreen(
                     ),
                 )
 
-                val showExitDirection = predictiveBackAnimation == PredictiveBackAnimation.AOSP ||
-                    predictiveBackAnimation == PredictiveBackAnimation.Scale
+                val showExitDirection = predictiveBackAnimation == PredictiveBackAnimation.Scale
                 val predictiveBackItemCount = if (showExitDirection) 2 else 1
                 SegmentedColumn(
                     modifier = Modifier.padding(top = 4.dp),

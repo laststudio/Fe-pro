@@ -19,6 +19,7 @@ object SettingsManager {
     private const val KEY_PREDICTIVE_BACK_EXIT_DIRECTION = "predictive_back_exit_direction"
     private const val KEY_LOCAL_VERIFICATION_CODE = "local_verification_code"
     private const val KEY_COMPACT_ANSWER_DISPLAY = "compact_answer_display"
+    private const val KEY_LAST_SEEN_ANNOUNCEMENT = "last_seen_announcement_updated_at"
     
     private lateinit var prefs: SharedPreferences
     
@@ -97,6 +98,14 @@ object SettingsManager {
         return prefs.getString(KEY_LOCAL_VERIFICATION_CODE, "").orEmpty()
     }
 
+    fun getLastSeenAnnouncementUpdatedAt(): String {
+        return prefs.getString(KEY_LAST_SEEN_ANNOUNCEMENT, "").orEmpty()
+    }
+
+    fun saveLastSeenAnnouncementUpdatedAt(value: String) {
+        prefs.edit { putString(KEY_LAST_SEEN_ANNOUNCEMENT, value) }
+    }
+
     fun savePredictiveBackAnimation(animation: PredictiveBackAnimation) {
         prefs.edit {
             putString(KEY_PREDICTIVE_BACK_ANIMATION, animation.value)
@@ -105,12 +114,16 @@ object SettingsManager {
 
     fun getPredictiveBackAnimation(): PredictiveBackAnimation {
         prefs.getString(KEY_PREDICTIVE_BACK_ANIMATION, null)?.let {
-            return PredictiveBackAnimation.fromValueOrDefault(it)
+            val animation = PredictiveBackAnimation.fromValueOrDefault(it)
+            if (animation != PredictiveBackAnimation.Scale || it == animation.value) {
+                return animation
+            }
+            savePredictiveBackAnimation(animation)
+            return animation
         }
 
         val legacyAnimation = when (prefs.getString(KEY_PREDICTIVE_BACK_MODE, null)) {
-            "AOSP" -> PredictiveBackAnimation.AOSP
-            "KERNELSU_CLASSIC" -> PredictiveBackAnimation.KernelSUClassic
+            "AOSP", "KERNELSU_CLASSIC" -> PredictiveBackAnimation.Scale
             "SLIDE" -> PredictiveBackAnimation.MIUIX
             "NONE" -> PredictiveBackAnimation.None
             else -> null
@@ -123,17 +136,15 @@ object SettingsManager {
 
         if (prefs.contains(KEY_AOSP_PREDICTIVE_BACK)) {
             val legacyAnimation = if (prefs.getBoolean(KEY_AOSP_PREDICTIVE_BACK, false)) {
-                PredictiveBackAnimation.AOSP
-            } else {
-                PredictiveBackAnimation.MIUIX
-            }
+                PredictiveBackAnimation.Scale
+            } else PredictiveBackAnimation.MIUIX
             savePredictiveBackAnimation(legacyAnimation)
             return legacyAnimation
         }
 
         if (prefs.all.isNotEmpty()) {
-            savePredictiveBackAnimation(PredictiveBackAnimation.AOSP)
-            return PredictiveBackAnimation.AOSP
+            savePredictiveBackAnimation(PredictiveBackAnimation.Scale)
+            return PredictiveBackAnimation.Scale
         }
 
         savePredictiveBackAnimation(PredictiveBackAnimation.Scale)
@@ -155,10 +166,8 @@ object SettingsManager {
 
 enum class PredictiveBackAnimation(val value: String) {
     None("none"),
-    AOSP("aosp"),
     MIUIX("miuix"),
-    Scale("scale"),
-    KernelSUClassic("ksu_classic");
+    Scale("scale");
 
     companion object {
         fun fromValueOrDefault(value: String) =
@@ -180,10 +189,8 @@ enum class PredictiveBackExitDirection(val value: String) {
 val PredictiveBackAnimation.label: String
     get() = when (this) {
         PredictiveBackAnimation.None -> "无"
-        PredictiveBackAnimation.AOSP -> "AOSP"
         PredictiveBackAnimation.MIUIX -> "Miuix"
         PredictiveBackAnimation.Scale -> "缩放"
-        PredictiveBackAnimation.KernelSUClassic -> "KernelSU 经典"
     }
 
 val PredictiveBackExitDirection.label: String

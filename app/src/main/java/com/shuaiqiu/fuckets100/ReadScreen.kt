@@ -357,6 +357,7 @@ private fun formatAnswerForDisplay(
 @Composable
 fun ReadScreen(
     currentMode: ActivationMode,
+    accountOnline: Boolean = true,
     onNavigateToActivation: () -> Unit,
     onOpenPaperDetail: (ETS100AnswerReader.Paper) -> Unit,
     compactAnswerDisplay: Boolean = SettingsManager.getCompactAnswerDisplay()
@@ -541,22 +542,64 @@ fun ReadScreen(
      * 加载云端作业列表
      */
     suspend fun loadCloudHomeworkList(status: String = selectedCloudHomeworkStatus) {
+        if (!accountOnline) {
+            cloudHomeworkError = "已离线"
+            return
+        }
+        try {
+            ResolverAuthorizer.requireCloudAuthorized(context)
+        } catch (e: ResolverAuthorizationDeniedException) {
+            cloudHomeworkError = e.message ?: "云端模式当前不可用"
+            CloudHomeworkState.error = cloudHomeworkError
+            return
+        }
         selectedCloudHomeworkStatus = status
         CloudHomeworkState.selectedStatus = status
 
-        if (!ETS100AuthManager.isLoggedIn(context)) {
-            cloudHomeworkError = "未登录，请先在设置中登录云端账号"
-            addLog(LogLevel.ERROR, LogCategory.SYSTEM, "✗ 未登录云端账号")
-            return
-        }
-
-        val savedToken = ETS100AuthManager.getToken(context)
-        val parentId = ETS100AuthManager.getParentAccountId(context)
-
-        if (savedToken == null || parentId == null) {
-            cloudHomeworkError = "登录信息不完整，请重新登录"
-            addLog(LogLevel.ERROR, LogCategory.SYSTEM, "✗ 登录信息不完整")
-            return
+        val isChangyanLogin = ETS100AuthManager.isChangyanWebLogin(context)
+        val savedToken: String
+        var parentId: String
+        if (isChangyanLogin) {
+            savedToken = ETS100AuthManager.getToken(context).orEmpty()
+            parentId = ETS100AuthManager.getParentAccountId(context).orEmpty()
+            if (savedToken.isEmpty() || parentId.isEmpty()) {
+                cloudHomeworkError = "讯飞登录信息不完整，请重新登录"
+                addLog(LogLevel.ERROR, LogCategory.SYSTEM, "✗ 讯飞登录信息不完整")
+                return
+            }
+        } else {
+            try {
+                val cloudSession = FeAccountManager.get(context).cloudSession(
+                    ETS100AuthManager.getSelectedEcardId(context).orEmpty()
+                )
+                ETS100AuthManager.saveDeviceCode(context, cloudSession.deviceCode)
+                ETS100AuthManager.saveLoginInfo(
+                    context,
+                    cloudSession.accountDisplay,
+                    cloudSession.token,
+                    cloudSession.parentAccountId,
+                )
+                ETS100AuthManager.saveLoginMethod(
+                    context,
+                    ETS100AuthManager.LOGIN_METHOD_BACKEND_BOUND,
+                )
+                ETS100AuthManager.clearPassword(context)
+                val account = cloudSession.selectedAccount
+                ETS100AuthManager.saveSelectedEcard(
+                    context,
+                    account.optString("id"),
+                    account.optString("name"),
+                    account.optString("grade"),
+                    account.optString("class_id"),
+                )
+                savedToken = cloudSession.token
+                parentId = cloudSession.parentAccountId
+            } catch (e: Exception) {
+                cloudHomeworkError = e.message ?: "无法读取 LA Studio 绑定账号"
+                CloudHomeworkState.error = cloudHomeworkError
+                addLog(LogLevel.ERROR, LogCategory.SYSTEM, "✗ 后端绑定账号不可用: ${e.message}")
+                return
+            }
         }
 
         isLoadingCloudHomework = true
@@ -607,7 +650,46 @@ fun ReadScreen(
         var responses = requestHomeworkLists(savedToken)
 
         if (responses.isEmpty()) {
-            if (ETS100AuthManager.isChangyanWebLogin(context)) {
+            if (!isChangyanLogin) {
+                try {
+                    val cloudSession = FeAccountManager.get(context).cloudSession(
+                        ETS100AuthManager.getSelectedEcardId(context).orEmpty()
+                    )
+                    ETS100AuthManager.saveDeviceCode(context, cloudSession.deviceCode)
+                    ETS100AuthManager.saveLoginInfo(
+                        context,
+                        cloudSession.accountDisplay,
+                        cloudSession.token,
+                        cloudSession.parentAccountId,
+                    )
+                    parentId = cloudSession.parentAccountId
+                    ETS100AuthManager.saveLoginMethod(
+                        context,
+                        ETS100AuthManager.LOGIN_METHOD_BACKEND_BOUND,
+                    )
+                    ETS100AuthManager.clearPassword(context)
+                    val account = cloudSession.selectedAccount
+                    ETS100AuthManager.saveSelectedEcard(
+                        context,
+                        account.optString("id"),
+                        account.optString("name"),
+                        account.optString("grade"),
+                        account.optString("class_id"),
+                    )
+                    addLog(LogLevel.INFO, LogCategory.SYSTEM, "✓ 已从 LA Studio 后端刷新绑定账号会话")
+                    responses = requestHomeworkLists(cloudSession.token)
+                } catch (e: Exception) {
+                    lastError = e
+                    addLog(LogLevel.ERROR, LogCategory.SYSTEM, "✗ 后端绑定账号会话刷新失败: ${e.message}")
+                }
+                if (responses.isEmpty()) {
+                    cloudHomeworkError = lastError?.message ?: "后端绑定账号不可用"
+                    CloudHomeworkState.error = cloudHomeworkError
+                    isLoadingCloudHomework = false
+                    CloudHomeworkState.isLoading = false
+                    return
+                }
+            } else {
                 val login = ETS100AuthManager.getPhone(context).orEmpty()
                 cloudHomeworkError = "企业账号 Token 已失效，请重新进行讯飞登录"
                 changyanTokenExpired = true
@@ -620,33 +702,6 @@ fun ReadScreen(
                 isLoadingCloudHomework = false
                 CloudHomeworkState.isLoading = false
                 return
-            }
-
-            addLog(LogLevel.WARN, LogCategory.SYSTEM, "保存的 Token 请求失败，尝试重新登录后重试")
-            val phone = ETS100AuthManager.getPhone(context)
-            val savedPassword = ETS100AuthManager.getPassword(context)
-            val deviceCode = ETS100AuthManager.getDeviceCode(context)
-
-            if (phone != null && savedPassword != null) {
-                try {
-                    val loginResponse = ETS100ApiClient.login(phone, savedPassword, deviceCode).getOrThrow()
-                    val parentAccountId = ETS100ApiClient.getEcardList(loginResponse.token).getOrThrow()
-                    ETS100AuthManager.saveLoginInfo(context, phone, loginResponse.token, parentAccountId)
-                    addLog(LogLevel.INFO, LogCategory.SYSTEM, "✓ 登录成功，Token 已更新，正在重试作业列表")
-                    responses = requestHomeworkLists(loginResponse.token)
-                } catch (e: ETS100ApiClient.SmsVerificationRequiredException) {
-                    lastError = e
-                    addLog(LogLevel.ERROR, LogCategory.SYSTEM, "✗ 账号需要短信验证，请在设置中重新登录")
-                } catch (e: ETS100ApiClient.DeviceBindRequiredException) {
-                    lastError = e
-                    addLog(LogLevel.ERROR, LogCategory.SYSTEM, "✗ 设备需要重新绑定，请在设置中重新登录")
-                } catch (e: Exception) {
-                    lastError = e
-                    addLog(LogLevel.ERROR, LogCategory.SYSTEM, "✗ 登录失败: ${e.message}")
-                    addLog(LogLevel.ERROR, LogCategory.SYSTEM, "请在设置中重新登录")
-                }
-            } else {
-                addLog(LogLevel.ERROR, LogCategory.SYSTEM, "✗ 未保存密码，请先在设置中登录")
             }
         }
 
@@ -740,7 +795,12 @@ fun ReadScreen(
         homeworkInfo: ETS100ApiClient.HomeworkInfo,
         status: String = selectedCloudHomeworkStatus
     ) {
+        if (!accountOnline) {
+            Toast.makeText(context, "已离线", Toast.LENGTH_SHORT).show()
+            return
+        }
         try {
+            ResolverAuthorizer.requireCloudAuthorized(context)
             ResolverAuthorizer.requireAuthorized(context)
         } catch (e: ResolverAuthorizationDeniedException) {
             val message = e.message ?: "答案解析功能当前不可用"
@@ -1068,7 +1128,7 @@ fun ReadScreen(
         }
     }
 
-    LaunchedEffect(currentMode, reloadTrigger) {
+    LaunchedEffect(currentMode, reloadTrigger, accountOnline) {
         currentModeRef.value = currentMode
         isParsingLocalAnswers = false
 
@@ -1100,6 +1160,13 @@ fun ReadScreen(
             isLoading = false
             isParsingLocalAnswers = false
             addLog(LogLevel.INFO, LogCategory.SYSTEM, "已恢复上次读取的本地试卷内容")
+            return@LaunchedEffect
+        }
+
+        if (!accountOnline) {
+            isLoading = false
+            isParsingLocalAnswers = false
+            errorMessage = if (papers.isEmpty()) "已离线" else null
             return@LaunchedEffect
         }
 
@@ -1355,7 +1422,10 @@ fun ReadScreen(
                 title = { Text("读取答案") },
                 actions = {
                     Box {
-                        IconButton(onClick = { showReadActionsMenu = true }) {
+                        IconButton(
+                            onClick = { showReadActionsMenu = true },
+                            enabled = accountOnline,
+                        ) {
                             Icon(Icons.Default.MoreVert, contentDescription = "更多操作")
                         }
                         DropdownMenu(
@@ -1408,6 +1478,10 @@ fun ReadScreen(
             SmallExtendedFloatingActionButton(
                 expanded = readFabExpanded,
                 onClick = {
+                    if (!accountOnline) {
+                        Toast.makeText(context, "已离线", Toast.LENGTH_SHORT).show()
+                        return@SmallExtendedFloatingActionButton
+                    }
                     if (currentMode == ActivationMode.CLOUD) {
                         showCloudReadConfirmDialog = true
                     } else {

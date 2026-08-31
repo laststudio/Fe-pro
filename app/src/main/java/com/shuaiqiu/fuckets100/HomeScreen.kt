@@ -75,6 +75,7 @@ private object HomeRuntimeStatusStore {
 fun HomeScreen(
     mode: ActivationMode,
     shizukuState: ShizukuState,
+    accountState: FeAccountGateState,
     onNavigateToActivation: () -> Unit,
     onNavigateToRemoteContent: (UpdateStatus?) -> Unit,
     onNavigateToDonate: () -> Unit,
@@ -176,6 +177,7 @@ fun HomeScreen(
             StatusCard(
                 mode = mode, 
                 shizukuState = shizukuState, 
+                accountState = accountState,
                 isTrulyActivated = isTrulyActivated, 
                 cloudLoggedIn = runtimeStatus.cloudLoggedIn,
                 hasFilesPerm = runtimeStatus.hasFilesPerm,
@@ -228,6 +230,7 @@ private suspend fun loadHomeRuntimeStatus(
 fun StatusCard(
     mode: ActivationMode,
     shizukuState: ShizukuState,
+    accountState: FeAccountGateState,
     isTrulyActivated: Boolean,
     cloudLoggedIn: Boolean,
     hasFilesPerm: Boolean,
@@ -238,15 +241,24 @@ fun StatusCard(
     onNavigateToActivation: () -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
-    val statusContainerColor = if (isTrulyActivated) {
-        MaterialTheme.colorScheme.secondaryContainer
-    } else {
-        MaterialTheme.colorScheme.errorContainer
+    val isConnecting = accountState is FeAccountGateState.Checking
+    val needsLogin = accountState is FeAccountGateState.LoginRequired
+    val isOffline = accountState is FeAccountGateState.Offline
+    val isBlocked = accountState is FeAccountGateState.Blocked
+    val effectiveActivated = accountState is FeAccountGateState.Ready && isTrulyActivated
+    val statusContainerColor = when {
+        isConnecting -> MaterialTheme.colorScheme.surfaceContainerHighest
+        effectiveActivated -> MaterialTheme.colorScheme.secondaryContainer
+        else -> MaterialTheme.colorScheme.errorContainer
     }
     val statusContentColor = contentColorFor(statusContainerColor)
 
     // 根据当前状态显示不同的标题
     val displayTitle = when {
+        isConnecting -> "正在连接 LA Studio"
+        needsLogin -> "需要登录"
+        isOffline -> "LA Studio 已离线"
+        isBlocked -> "LA Studio 当前不可用"
         mode == ActivationMode.CLOUD && cloudLoggedIn -> "云端模式已激活"
         mode == ActivationMode.CLOUD -> "云端模式未激活"
         // 基础权限未授予时显示等待授权提示
@@ -258,11 +270,15 @@ fun StatusCard(
     }
 
     val displayIcon = when {
-        isTrulyActivated -> Icons.Outlined.CheckCircle
+        effectiveActivated -> Icons.Outlined.CheckCircle
         mode == ActivationMode.DEFAULT -> Icons.Outlined.Block
         else -> Icons.Outlined.Warning
     }
     val summary = when {
+        isConnecting -> "正在验证账号和软件授权，请稍候"
+        needsLogin -> "请先登录 LA Studio 账号后继续使用"
+        isOffline -> "已离线"
+        isBlocked -> accountState.message
         mode == ActivationMode.CLOUD -> null
         !hasAllBasicPermissions -> when {
             !hasFilesPerm -> "需要文件访问权限才能读取题库，请授权"
@@ -321,11 +337,30 @@ fun StatusCard(
                 )
             },
             trailingContent = {
-                StatusTag(
-                    label = if (isTrulyActivated) mode.shortLabel else "未就绪",
-                    containerColor = if (isTrulyActivated) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-                    contentColor = if (isTrulyActivated) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onError,
-                )
+                if (isConnecting) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                            color = statusContentColor,
+                        )
+                        Text("连接中", color = statusContentColor, style = MaterialTheme.typography.labelMedium)
+                    }
+                } else {
+                    StatusTag(
+                        label = when {
+                            isOffline -> "离线"
+                            needsLogin -> "未登录"
+                            effectiveActivated -> mode.shortLabel
+                            else -> "未就绪"
+                        },
+                        containerColor = if (effectiveActivated) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                        contentColor = if (effectiveActivated) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onError,
+                    )
+                }
             },
             colors = ListItemDefaults.colors(
                 containerColor = androidx.compose.ui.graphics.Color.Transparent,

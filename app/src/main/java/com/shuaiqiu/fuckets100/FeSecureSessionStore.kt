@@ -5,6 +5,7 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import java.security.KeyStore
+import org.json.JSONObject
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -51,6 +52,46 @@ class FeSecureSessionStore(context: Context) {
         }
     }
 
+    @Synchronized
+    fun readCachedSession(): FeAccountSession? {
+        val raw = prefs.getString(KEY_CACHED_SESSION, null) ?: return null
+        return runCatching {
+            val json = JSONObject(raw)
+            val user = json.getJSONObject("user")
+            FeAccountSession(
+                sessionId = json.getString("session_id"),
+                deviceId = json.optString("device_id").takeIf { it.isNotBlank() },
+                user = FeAccountUser(
+                    id = user.getLong("id"),
+                    username = user.getString("username"),
+                    memberLevel = user.optInt("member_level", 0),
+                    avatarUrl = user.optString("avatar_url").takeIf { it.isNotBlank() },
+                ),
+            )
+        }.getOrNull()
+    }
+
+    @Synchronized
+    fun writeCachedSession(session: FeAccountSession) {
+        val user = JSONObject()
+            .put("id", session.user.id)
+            .put("username", session.user.username)
+            .put("member_level", session.user.memberLevel)
+        session.user.avatarUrl?.let { user.put("avatar_url", it) }
+        val json = JSONObject()
+            .put("session_id", session.sessionId)
+            .put("device_id", session.deviceId)
+            .put("user", user)
+        check(prefs.edit().putString(KEY_CACHED_SESSION, json.toString()).commit()) {
+            "无法保存账号缓存"
+        }
+    }
+
+    @Synchronized
+    fun clearCachedSession() {
+        prefs.edit().remove(KEY_CACHED_SESSION).commit()
+    }
+
     private fun getOrCreateKey(): SecretKey {
         val keyStore = KeyStore.getInstance(ANDROID_KEY_STORE).apply { load(null) }
         (keyStore.getKey(KEY_ALIAS, null) as? SecretKey)?.let { return it }
@@ -71,6 +112,7 @@ class FeSecureSessionStore(context: Context) {
     companion object {
         const val PREFS_NAME = "fe_account_secure"
         private const val KEY_REFRESH_TOKEN = "refresh_token"
+        private const val KEY_CACHED_SESSION = "cached_session"
         private const val KEY_ALIAS = "fe_account_refresh_v1"
         private const val ANDROID_KEY_STORE = "AndroidKeyStore"
         private const val TRANSFORMATION = "AES/GCM/NoPadding"

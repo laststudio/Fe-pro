@@ -3,9 +3,13 @@
     <cloud-backup>
         <exclude domain="sharedpref" path="fe_account_secure.xml" />
         <exclude domain="sharedpref" path="fe_account_device.xml" />
+        <exclude domain="sharedpref" path="ets100_secure.xml" />
+        <exclude domain="sharedpref" path="ets100_auth.xml" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="sharedpref" path="fe_account_secure.xml" />
         <exclude domain="sharedpref" path="fe_account_device.xml" />
+        <exclude domain="sharedpref" path="ets100_secure.xml" />
+        <exclude domain="sharedpref" path="ets100_auth.xml" />
     </device-transfer>
 </data-extraction-rules>

@@ -17,10 +17,7 @@ object RemoteConfigManager {
     private const val TAG = "RemoteConfigManager"
     private val CONFIG_URLS = listOf(
         "https://api.lastudio.cc/software/fe/config",
-        "https://raw.giteeusercontent.com/qiuqiqiuqid/fe_config/raw/master/config.json",
-        "https://raw.githubusercontent.com/laststudio/Fe_config/main/config.json"
     )
-    private const val DEFAULT_CHANGELOG_URL = "https://api.lastudio.cc/software/fe/changelog"
     private const val TIMEOUT_MS = 5000L  // 5秒超时喵~
     
     /**
@@ -47,9 +44,9 @@ object RemoteConfigManager {
             announcementMessage = announcementMessage,
             announcementUpdatedAt = announcementUpdatedAt,
             announcementUrl = announcementUrl,
-            changelogUrl = changelogUrl,
             changelogTitle = changelogTitle,
             changelogSummary = changelogSummary,
+            changelogContent = changelogContent,
             verificationCode = verificationCode,
             verificationTitle = verificationTitle,
             verificationMessage = verificationMessage,
@@ -178,12 +175,17 @@ object RemoteConfigManager {
                 val noticeMessage = json.optString("noticeMessage", "")
                 val announcementMessage = json.optString("announcementMessage", noticeMessage)
                 val changelogSummary = json.optString("changelogSummary", "")
-                val changelogUrl = json.optString("changelogUrl", DEFAULT_CHANGELOG_URL)
                 val verificationCode = json.optString("verificationCode", "")
                 val verificationTitle = json.optString("verificationTitle", "")
                 val verificationMessage = json.optString("verificationMessage", "")
 
                 val config = RemoteConfig(
+                    key = json.optString("key", ""),
+                    releaseId = if (json.has("releaseId") && !json.isNull("releaseId")) {
+                        json.optLong("releaseId")
+                    } else null,
+                    configRevision = json.optInt("configRevision", 0),
+                    version = json.optString("version", ""),
                     latestVersionCode = json.optInt("latestVersionCode", BuildConfig.VERSION_CODE),
                     updateUrl = json.optString("updateUrl", ""),
                     isKillSwitchOn = json.optBoolean("isKillSwitchOn", false),
@@ -196,11 +198,11 @@ object RemoteConfigManager {
                     announcementMessage = announcementMessage,
                     announcementUpdatedAt = json.optString("announcementUpdatedAt", ""),
                     announcementUrl = json.optString("announcementUrl", ""),
-                    changelogUrl = changelogUrl,
                     changelogTitle = json.optString("changelogTitle", "").ifBlank {
-                        if (changelogSummary.isNotBlank() || changelogUrl.isNotBlank()) "更新日志" else ""
+                        if (changelogSummary.isNotBlank()) "更新日志" else ""
                     },
                     changelogSummary = changelogSummary,
+                    changelogContent = json.optString("changelogContent", ""),
                     verificationCode = verificationCode,
                     verificationTitle = verificationTitle,
                     verificationMessage = verificationMessage,
@@ -218,7 +220,6 @@ object RemoteConfigManager {
                 Log.d(TAG, "   - announcementMessage: ${config.announcementMessage.take(120)}")
                 Log.d(TAG, "   - announcementUpdatedAt: ${config.announcementUpdatedAt}")
                 Log.d(TAG, "   - announcementUrl: ${config.announcementUrl}")
-                Log.d(TAG, "   - changelogUrl: ${config.changelogUrl}")
                 Log.d(TAG, "   - changelogTitle: ${config.changelogTitle}")
                 Log.d(TAG, "   - changelogSummary: ${config.changelogSummary.take(120)}")
                 Log.d(TAG, "   - verificationCode: ${if (config.verificationCode.isBlank()) "<empty>" else "***"}")

@@ -26,8 +26,6 @@ class MiuixPredictiveBackAnimation : PredictiveBackAnimationHandler {
         contentPageKey: Any,
         currentPageKey: FeRoute?,
     ): Modifier {
-        // NavDisplay automatically handles dimming and corner clipping internally
-        // through NavDisplayTransitionEffects, so we return unmodified this.
         return this
     }
 

@@ -16,15 +16,29 @@ data class FeAccountSession(
 )
 
 sealed interface FeAccountGateState {
-    data object Checking : FeAccountGateState
+    data class Checking(val cachedSession: FeAccountSession? = null) : FeAccountGateState
     data object LoginRequired : FeAccountGateState
     data class Ready(val session: FeAccountSession) : FeAccountGateState
+    data class Offline(
+        val cachedSession: FeAccountSession?,
+        val message: String = "已离线",
+    ) : FeAccountGateState
     data class Blocked(
         val message: String,
         val retryable: Boolean,
         val updateUrl: String? = null,
+        val cachedSession: FeAccountSession? = null,
     ) : FeAccountGateState
 }
+
+val FeAccountGateState.cachedSessionOrNull: FeAccountSession?
+    get() = when (this) {
+        is FeAccountGateState.Checking -> cachedSession
+        FeAccountGateState.LoginRequired -> null
+        is FeAccountGateState.Ready -> session
+        is FeAccountGateState.Offline -> cachedSession
+        is FeAccountGateState.Blocked -> cachedSession
+    }
 
 internal data class FeApiError(
     val statusCode: Int,

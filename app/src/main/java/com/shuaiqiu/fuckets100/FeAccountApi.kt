@@ -16,6 +16,14 @@ internal class FeAccountApi(private val context: Context) {
     )
     data class LoginTokens(val accessToken: String, val refreshToken: String)
     data class RefreshTokens(val accessToken: String, val refreshToken: String)
+    data class CloudSession(
+        val accountDisplay: String,
+        val token: String,
+        val deviceCode: String,
+        val parentAccountId: String,
+        val selectedAccount: JSONObject,
+        val validAccounts: List<JSONObject>,
+    )
     data class SoftwarePolicy(
         val killSwitch: Boolean,
         val latestVersionCode: Int,
@@ -76,6 +84,55 @@ internal class FeAccountApi(private val context: Context) {
 
     suspend fun logout(accessToken: String) {
         request("POST", "/client-auth/logout", "SoftwareAccess $accessToken")
+    }
+
+    suspend fun cloudDeviceCode(accessToken: String): String {
+        val response = request(
+            "GET",
+            "/client-auth/cloud/device-code",
+            "SoftwareAccess $accessToken",
+        )
+        return JSONObject(response.body).getString("device_code")
+    }
+
+    suspend fun cloudSession(accessToken: String, preferredAccountId: String): CloudSession {
+        val response = request(
+            "POST",
+            "/client-auth/cloud/session",
+            "SoftwareAccess $accessToken",
+            JSONObject().put("preferred_account_id", preferredAccountId).toString(),
+        )
+        val json = JSONObject(response.body)
+        val accounts = json.optJSONArray("valid_accounts")
+        return CloudSession(
+            accountDisplay = json.optString("account_display"),
+            token = json.getString("token"),
+            deviceCode = json.getString("device_code"),
+            parentAccountId = json.getString("parent_account_id"),
+            selectedAccount = json.getJSONObject("selected_account"),
+            validAccounts = if (accounts == null) emptyList() else {
+                (0 until accounts.length()).map { accounts.getJSONObject(it) }
+            },
+        )
+    }
+
+    suspend fun bindEts100Account(
+        accessToken: String,
+        phone: String,
+        password: String,
+        deviceCode: String,
+    ) {
+        val body = JSONObject()
+            .put("provider", "ets100-phone")
+            .put("account", phone)
+            .put("password", password)
+            .put("platform_device_code", deviceCode)
+        request(
+            "POST",
+            "/client-auth/platform-account/bind",
+            authorization = "SoftwareAccess $accessToken",
+            body = body.toString(),
+        )
     }
 
     fun cancelActiveRequests() {

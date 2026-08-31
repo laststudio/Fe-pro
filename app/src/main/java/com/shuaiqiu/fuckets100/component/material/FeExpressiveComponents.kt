@@ -2,6 +2,7 @@ package com.shuaiqiu.fuckets100.component.material
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -28,6 +29,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ListItemColors
 import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.ListItemShapes
 import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -272,6 +274,11 @@ fun ExpressiveSegmentedListItem(
     colors: ListItemColors = expressiveSegmentedColors(),
 ) {
     val hapticFeedback = LocalHapticFeedback.current
+    val itemShapes = if (count == 1) {
+        singleSegmentedShapes()
+    } else {
+        ListItemDefaults.segmentedShapes(index, count)
+    }
     SegmentedListItem(
         onClick = {
             if (onClick != null) {
@@ -283,12 +290,36 @@ fun ExpressiveSegmentedListItem(
         },
         enabled = enabled,
         colors = colors,
-        shapes = ListItemDefaults.segmentedShapes(index, count),
+        shapes = itemShapes,
         modifier = modifier.fillMaxWidth(),
         leadingContent = leadingContent,
         trailingContent = trailingContent,
         supportingContent = supportingContent,
         content = headlineContent,
+    )
+}
+
+@Composable
+private fun singleSegmentedShapes(): ListItemShapes {
+    val top = ListItemDefaults.segmentedShapes(index = 0, count = 2)
+    val bottom = ListItemDefaults.segmentedShapes(index = 1, count = 2)
+
+    fun combine(topShape: Shape, bottomShape: Shape): Shape {
+        val topCorners = topShape as? CornerBasedShape ?: return topShape
+        val bottomCorners = bottomShape as? CornerBasedShape ?: return topShape
+        return topCorners.copy(
+            bottomEnd = bottomCorners.bottomEnd,
+            bottomStart = bottomCorners.bottomStart,
+        )
+    }
+
+    return ListItemDefaults.shapes(
+        shape = combine(top.shape, bottom.shape),
+        selectedShape = combine(top.selectedShape, bottom.selectedShape),
+        pressedShape = combine(top.pressedShape, bottom.pressedShape),
+        focusedShape = combine(top.focusedShape, bottom.focusedShape),
+        hoveredShape = combine(top.hoveredShape, bottom.hoveredShape),
+        draggedShape = combine(top.draggedShape, bottom.draggedShape),
     )
 }
 
