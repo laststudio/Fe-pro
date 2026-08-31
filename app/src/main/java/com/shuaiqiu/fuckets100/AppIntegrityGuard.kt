@@ -1,0 +1,76 @@
+package com.shuaiqiu.fuckets100
+
+import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.security.MessageDigest
+
+/**
+ * App 完整性自校验门禁。
+ *
+ * 校验三点，任一不符即判定为被篡改/重打包：
+ * 1. 包名必须等于签名时预期值（防改包名）。
+ * 2. 当 CI 注入了期望签名证书 sha256（正式版）时，运行时签名必须与之一致（防换签名/重打包）。
+ * 3. libresolver.so 自校验必须通过（防调试注入、so 被替换或内存段被篡改）。
+ */
+internal object AppIntegrityGuard {
+
+    /** 判定包名/签名被篡改。 */
+    class IntegrityFailure(message: String) : Exception(message)
+
+    private fun sha256LowerHex(bytes: ByteArray): String =
+        MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+
+    @Suppress("DEPRECATION")
+    private fun currentSigningCertSha256(context: Context): String {
+        val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            context.packageManager.getPackageInfo(
+                context.packageName,
+                PackageManager.GET_SIGNING_CERTIFICATES,
+            )
+        } else {
+            context.packageManager.getPackageInfo(
+                context.packageName,
+                PackageManager.GET_SIGNATURES,
+            )
+        }
+        val bytes = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            packageInfo.signingInfo?.apkContentsSigners?.firstOrNull()?.toByteArray()
+        } else {
+            packageInfo.signatures?.firstOrNull()?.toByteArray()
+        } ?: throw IntegrityFailure("无法读取应用签名")
+        return sha256LowerHex(bytes)
+    }
+
+    /** 在授权链路前调用；任一不符抛 [IntegrityFailure]。 */
+    suspend fun ensure(context: Context) {
+        val failures = withContext(Dispatchers.IO) {
+            buildList {
+                // 1) 包名
+                val expectedPackage = BuildConfig.EXPECTED_PACKAGE_NAME
+                if (expectedPackage.isNotBlank() && context.packageName != expectedPackage) {
+                    add("包名不匹配")
+                }
+                // 2) 签名（仅 CI 注入了期望值才强制，正式分发生效）
+                val expectedSignature = BuildConfig.EXPECTED_SIGNATURE_SHA256
+                if (expectedSignature.isNotBlank()) {
+                    val actual = runCatching { currentSigningCertSha256(context) }.getOrNull()
+                    if (actual == null || !actual.equals(expectedSignature, ignoreCase = true)) {
+                        add("签名证书不匹配")
+                    }
+                }
+                // 3) so 自校验
+                val integrity = runCatching { JSONObject(ResolverNative.selfIntegrityCheck()) }.getOrNull()
+                if (integrity == null || integrity.optBoolean("ok", false) == false) {
+                    add("解析器自校验未通过")
+                }
+            }
+        }
+        if (failures.isNotEmpty()) {
+            throw IntegrityFailure("完整性校验失败：${failures.joinToString("、")}")
+        }
+    }
+}

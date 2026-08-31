@@ -59,4 +59,7 @@ internal object ResolverNative {
 
     /** 仅验证 cloud_mode 功能，返回统一 JSON。 */
     external fun cloudAuthorizeFeature(): String
+
+    /** so 自身完整性自校验（反调试 TracerPid + 内存段完整性）。返回 JSON。 */
+    external fun selfIntegrityCheck(): String
 }

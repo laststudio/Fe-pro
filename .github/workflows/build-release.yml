@@ -57,12 +57,26 @@ jobs:
           echo "${ANDROID_KEYSTORE_BASE64}" | base64 -d > keystore.jks
           ls -la keystore.jks
 
+      - name: Derive expected signing certificate SHA256
+        id: sign
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          keytool -exportcert -keystore keystore.jks \
+            -alias "${ANDROID_KEY_ALIAS}" -storepass "${ANDROID_KEYSTORE_PASSWORD}" \
+            -file signing.der 2>/dev/null
+          SHA=$(openssl dgst -sha256 -hex signing.der | awk '{print $2}')
+          echo "signature_sha256=${SHA}" >> "$GITHUB_OUTPUT"
+          echo "derived sha256=${SHA}"
+
       - name: Build signed release APK
         env:
           ANDROID_KEYSTORE_PATH: "${{ github.workspace }}/keystore.jks"
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          EXPECTED_SIGNATURE_SHA256: ${{ steps.sign.outputs.signature_sha256 }}
         run: |
           ./gradlew :app:assembleRelease --no-daemon --stacktrace
 

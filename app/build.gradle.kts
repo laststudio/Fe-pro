@@ -15,6 +15,8 @@ android {
     val releaseKeystorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
     val releaseKeyAlias = System.getenv("ANDROID_KEY_ALIAS")
     val releaseKeyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+    // CI 注入期望签名证书 sha256（十六进制小写，去掉冒号）。本地为空时不强制签名校验。
+    val expectedSignatureSha256 = System.getenv("EXPECTED_SIGNATURE_SHA256").orEmpty().trim()
     val hasReleaseSigningConfig = listOf(
         releaseKeystorePath,
         releaseKeystorePassword,
@@ -30,6 +32,8 @@ android {
         versionName = "1.3.11"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "EXPECTED_SIGNATURE_SHA256", "\"$expectedSignatureSha256\"")
+        buildConfigField("String", "EXPECTED_PACKAGE_NAME", "\"$applicationId\"")
     }
 
     signingConfigs {

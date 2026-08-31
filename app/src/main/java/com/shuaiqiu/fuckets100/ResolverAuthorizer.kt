@@ -84,6 +84,8 @@ internal object ResolverAuthorizer {
 
     private suspend fun configure(context: Context): String? = withContext(Dispatchers.IO) {
         try {
+            // 完整性自校验：包名/签名/so 篡改检测，任一不符则拒绝对接授权与解析。
+            AppIntegrityGuard.ensure(context)
             val manager = FeAccountManager.get(context)
             if (manager.gateState.value is FeAccountGateState.Checking) {
                 manager.checkGate()
@@ -102,6 +104,8 @@ internal object ResolverAuthorizer {
             ResolverNative.setAccessToken(token)
             ResolverNative.setAuthEnabled(true)
             null
+        } catch (e: AppIntegrityGuard.IntegrityFailure) {
+            e.message
         } catch (e: FeAccountNotAuthenticatedException) {
             "请先登录 LA Studio 账号"
         } catch (e: FeAccountApiException) {
