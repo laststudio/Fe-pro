@@ -13,6 +13,7 @@ data class FeAccountSession(
     val sessionId: String,
     val deviceId: String?,
     val user: FeAccountUser,
+    val integrityCheckEnabled: Boolean = true,
 )
 
 sealed interface FeAccountGateState {
@@ -92,6 +93,7 @@ internal object FeAuthResponseParser {
                 memberLevel = user.optInt("member_level", 0),
                 avatarUrl = user.optString("avatar_url").takeIf { it.isNotBlank() },
             ),
+            integrityCheckEnabled = json.optBoolean("integrity_check_enabled", true),
         )
     }
 }

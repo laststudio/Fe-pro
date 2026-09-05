@@ -67,6 +67,7 @@ class FeSecureSessionStore(context: Context) {
                     memberLevel = user.optInt("member_level", 0),
                     avatarUrl = user.optString("avatar_url").takeIf { it.isNotBlank() },
                 ),
+                integrityCheckEnabled = json.optBoolean("integrity_check_enabled", true),
             )
         }.getOrNull()
     }
@@ -82,6 +83,7 @@ class FeSecureSessionStore(context: Context) {
             .put("session_id", session.sessionId)
             .put("device_id", session.deviceId)
             .put("user", user)
+            .put("integrity_check_enabled", session.integrityCheckEnabled)
         check(prefs.edit().putString(KEY_CACHED_SESSION, json.toString()).commit()) {
             "无法保存账号缓存"
         }

@@ -59,4 +59,17 @@ class FeAccountGatePolicyTest {
         )
         assertTrue(remoteConfig.integrityCheckEnabled)
     }
+
+    @Test
+    fun `session integrity check defaults to true and can be disabled`() {
+        val sessionDefault = FeAccountSession(
+            sessionId = "sess-1",
+            deviceId = "dev-1",
+            user = FeAccountUser(1, "tester", 1),
+        )
+        assertTrue(sessionDefault.integrityCheckEnabled)
+
+        val sessionDisabled = sessionDefault.copy(integrityCheckEnabled = false)
+        assertTrue(!sessionDisabled.integrityCheckEnabled)
+    }
 }

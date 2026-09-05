@@ -49,7 +49,7 @@ class FeAccountManager private constructor(context: Context) {
         private set
 
     fun isIntegrityCheckEnabled(): Boolean =
-        latestSoftwarePolicy?.integrityCheckEnabled ?: RemoteConfigManager.isIntegrityCheckEnabled()
+        verifiedSession?.integrityCheckEnabled ?: true
 
     suspend fun checkGate() = validateOnline(showChecking = true)
 
