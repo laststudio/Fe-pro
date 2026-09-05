@@ -3,6 +3,7 @@ package com.shuaiqiu.fuckets100
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -17,6 +18,7 @@ import java.security.MessageDigest
  * 3. resolver/cloud 两个 so 分别自校验（防调试注入、so 被替换或内存段被篡改）。
  */
 internal object AppIntegrityGuard {
+    private const val TAG = "AppIntegrityGuard"
 
     /** 判定包名/签名被篡改。 */
     class IntegrityFailure(message: String) : Exception(message)
@@ -45,11 +47,25 @@ internal object AppIntegrityGuard {
         return sha256LowerHex(bytes)
     }
 
-    suspend fun ensureResolver(context: Context) {
+    suspend fun ensureResolver(context: Context, enabled: Boolean? = null) {
+        val shouldCheck = enabled ?: runCatching {
+            FeAccountManager.get(context).isIntegrityCheckEnabled()
+        }.getOrDefault(true)
+        if (!shouldCheck) {
+            Log.w(TAG, "服务器端已关闭软件校验，跳过解析器完整性检查")
+            return
+        }
         ensure(context, "解析器", ResolverNative::selfIntegrityCheck)
     }
 
-    suspend fun ensureCloud(context: Context) {
+    suspend fun ensureCloud(context: Context, enabled: Boolean? = null) {
+        val shouldCheck = enabled ?: runCatching {
+            FeAccountManager.get(context).isIntegrityCheckEnabled()
+        }.getOrDefault(true)
+        if (!shouldCheck) {
+            Log.w(TAG, "服务器端已关闭软件校验，跳过云端库完整性检查")
+            return
+        }
         ensure(context, "云端库", CloudNative::selfIntegrityCheck)
     }
 

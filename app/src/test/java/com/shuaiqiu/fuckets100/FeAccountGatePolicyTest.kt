@@ -34,4 +34,29 @@ class FeAccountGatePolicyTest {
         assertTrue(!isRetryableFeGateStatus(400))
         assertTrue(!isRetryableFeGateStatus(401))
     }
+
+    @Test
+    fun `software policy and remote config integrity flag defaults to true`() {
+        val policyDefault = FeAccountApi.SoftwarePolicy(
+            killSwitch = false,
+            latestVersionCode = 17,
+            forceUpdate = false,
+            updateUrl = "",
+            message = "",
+        )
+        assertTrue(policyDefault.integrityCheckEnabled)
+
+        val policyDisabled = policyDefault.copy(integrityCheckEnabled = false)
+        assertTrue(!policyDisabled.integrityCheckEnabled)
+
+        val remoteConfig = RemoteConfig(
+            latestVersionCode = 17,
+            updateUrl = "",
+            isKillSwitchOn = false,
+            isForce = false,
+            updateMessage = "",
+            noticeMessage = "",
+        )
+        assertTrue(remoteConfig.integrityCheckEnabled)
+    }
 }

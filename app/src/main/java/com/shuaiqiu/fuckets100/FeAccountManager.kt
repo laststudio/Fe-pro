@@ -44,6 +44,13 @@ class FeAccountManager private constructor(context: Context) {
     )
     val gateState: StateFlow<FeAccountGateState> = _gateState.asStateFlow()
 
+    @Volatile
+    internal var latestSoftwarePolicy: FeAccountApi.SoftwarePolicy? = null
+        private set
+
+    fun isIntegrityCheckEnabled(): Boolean =
+        latestSoftwarePolicy?.integrityCheckEnabled ?: RemoteConfigManager.isIntegrityCheckEnabled()
+
     suspend fun checkGate() = validateOnline(showChecking = true)
 
     suspend fun revalidateOnline() = validateOnline(showChecking = false)
@@ -52,6 +59,7 @@ class FeAccountManager private constructor(context: Context) {
         if (showChecking) _gateState.value = FeAccountGateState.Checking(verifiedSession)
         try {
             val policy = api.softwarePolicy()
+            latestSoftwarePolicy = policy
             when (val decision = evaluateFeSoftwarePolicy(
                 currentVersionCode = BuildConfig.VERSION_CODE,
                 killSwitch = policy.killSwitch,

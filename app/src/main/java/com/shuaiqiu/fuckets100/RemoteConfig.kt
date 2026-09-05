@@ -42,7 +42,8 @@ data class RemoteConfig(
     val verificationCode: String = "",
     val verificationTitle: String = "",
     val verificationMessage: String = "",
-    val donateEnabled: Boolean = true
+    val donateEnabled: Boolean = true,
+    val integrityCheckEnabled: Boolean = true
 )
 
 /**
@@ -67,5 +68,6 @@ data class UpdateStatus(
     val verificationCode: String = "",
     val verificationTitle: String = "",
     val verificationMessage: String = "",
-    val donateEnabled: Boolean = true
+    val donateEnabled: Boolean = true,
+    val integrityCheckEnabled: Boolean = true
 )

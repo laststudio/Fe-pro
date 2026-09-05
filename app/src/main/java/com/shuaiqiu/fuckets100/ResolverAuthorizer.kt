@@ -84,11 +84,11 @@ internal object ResolverAuthorizer {
 
     private suspend fun configureResolver(context: Context): String? = withContext(Dispatchers.IO) {
         try {
-            AppIntegrityGuard.ensureResolver(context)
             val manager = FeAccountManager.get(context)
             if (manager.gateState.value is FeAccountGateState.Checking) {
                 manager.checkGate()
             }
+            AppIntegrityGuard.ensureResolver(context, enabled = manager.isIntegrityCheckEnabled())
             val token = manager.requireAccessToken()
             val rc = ResolverNative.setAuthConfig(
                 baseUrl = BASE_URL,
@@ -116,11 +116,11 @@ internal object ResolverAuthorizer {
 
     private suspend fun configureCloud(context: Context): String? = withContext(Dispatchers.IO) {
         try {
-            AppIntegrityGuard.ensureCloud(context)
             val manager = FeAccountManager.get(context)
             if (manager.gateState.value is FeAccountGateState.Checking) {
                 manager.checkGate()
             }
+            AppIntegrityGuard.ensureCloud(context, enabled = manager.isIntegrityCheckEnabled())
             val token = manager.requireAccessToken()
             val rc = CloudNative.setAuthConfig(
                 baseUrl = BASE_URL,

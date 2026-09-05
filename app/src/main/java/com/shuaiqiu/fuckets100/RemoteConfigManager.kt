@@ -19,6 +19,12 @@ object RemoteConfigManager {
         "https://api.lastudio.cc/software/fe/config",
     )
     private const val TIMEOUT_MS = 5000L  // 5秒超时喵~
+
+    @Volatile
+    var cachedConfig: RemoteConfig? = null
+        private set
+
+    fun isIntegrityCheckEnabled(): Boolean = cachedConfig?.integrityCheckEnabled ?: true
     
     /**
      * 网络异常 - 用于标识网络问题导致配置获取失败
@@ -50,7 +56,8 @@ object RemoteConfigManager {
             verificationCode = verificationCode,
             verificationTitle = verificationTitle,
             verificationMessage = verificationMessage,
-            donateEnabled = donateEnabled
+            donateEnabled = donateEnabled,
+            integrityCheckEnabled = integrityCheckEnabled
         )
     }
 
@@ -206,7 +213,8 @@ object RemoteConfigManager {
                     verificationCode = verificationCode,
                     verificationTitle = verificationTitle,
                     verificationMessage = verificationMessage,
-                    donateEnabled = json.optBoolean("donateEnabled", true)
+                    donateEnabled = json.optBoolean("donateEnabled", true),
+                    integrityCheckEnabled = json.optBoolean("integrityCheckEnabled", true)
                 )
                 
                 Log.d(TAG, "📋 解析后的配置:")
@@ -226,9 +234,11 @@ object RemoteConfigManager {
                 Log.d(TAG, "   - verificationTitle: ${config.verificationTitle}")
                 Log.d(TAG, "   - verificationMessage: ${config.verificationMessage.take(120)}")
                 Log.d(TAG, "   - donateEnabled: ${config.donateEnabled}")
+                Log.d(TAG, "   - integrityCheckEnabled: ${config.integrityCheckEnabled}")
                 Log.d(TAG, "   - 当前版本: ${BuildConfig.VERSION_CODE}")
                 Log.d(TAG, "═══════════════════════════════════════════")
                 
+                cachedConfig = config
                 config
             } catch (e: Exception) {
                 when (e) {

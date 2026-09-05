@@ -30,6 +30,7 @@ internal class FeAccountApi(private val context: Context) {
         val forceUpdate: Boolean,
         val updateUrl: String,
         val message: String,
+        val integrityCheckEnabled: Boolean = true,
     )
 
     suspend fun softwarePolicy(): SoftwarePolicy {
@@ -45,6 +46,7 @@ internal class FeAccountApi(private val context: Context) {
             } else {
                 json.optString("updateMessage", "").ifBlank { "当前版本不可用" }
             },
+            integrityCheckEnabled = json.optBoolean("integrityCheckEnabled", true),
         )
     }
 
