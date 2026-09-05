@@ -65,6 +65,10 @@ internal class FeAccountProfileApi {
         request("DELETE", "/client-auth/account/devices/$rowId", token)
     }
 
+    suspend fun unbindPlatformAccount(token: String) {
+        request("DELETE", "/client-auth/platform-account", token)
+    }
+
     private suspend fun requestArray(path: String, token: String): List<JSONObject> {
         val array = JSONArray(request("GET", path, token))
         return (0 until array.length()).map { array.getJSONObject(it) }

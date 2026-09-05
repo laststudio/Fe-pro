@@ -12,7 +12,7 @@ object SettingsManager {
     
     private const val PREFS_NAME = "fe_settings"
     private const val KEY_ACTIVATION_MODE = "activation_mode"
-    private const val KEY_LEGAL_ACCEPTED = "legal_accepted"
+    private const val KEY_LEGAL_ACCEPTED = "legal_accepted_v2"
     private const val KEY_AOSP_PREDICTIVE_BACK = "aosp_predictive_back"
     private const val KEY_PREDICTIVE_BACK_MODE = "predictive_back_mode"
     private const val KEY_PREDICTIVE_BACK_ANIMATION = "predictive_back_animation"

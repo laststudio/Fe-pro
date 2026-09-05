@@ -326,7 +326,7 @@ fun AboutDialog(
                         )
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            "开源协议: GPL 3.0",
+                            "软件许可: 专有商业软件 · 保留所有权利",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -351,20 +351,20 @@ fun AboutDialog(
                             Spacer(Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    "开源地址",
+                                    "官方仓库与发布",
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.Medium,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
-                                    "查看项目仓库",
+                                    "查看版本动态与更新",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                             Icon(
                                 Icons.AutoMirrored.Filled.OpenInNew,
-                                contentDescription = "打开开源仓库",
+                                contentDescription = "打开项目地址",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(18.dp)
                             )

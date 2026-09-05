@@ -189,6 +189,21 @@ class FeAccountManager private constructor(context: Context) {
             }
         }
 
+    internal suspend fun bindPlatformAccount(phone: String, password: String) =
+        serializedSessionOperation {
+            val token = requireAccessTokenLocked()
+            val deviceCode = api.cloudDeviceCode(token)
+            api.bindEts100Account(token, phone, password, deviceCode)
+            clearProfileCacheLocked()
+        }
+
+    internal suspend fun unbindPlatformAccount() =
+        serializedSessionOperation {
+            val token = requireAccessTokenLocked()
+            profileApi.unbindPlatformAccount(token)
+            clearProfileCacheLocked()
+        }
+
     internal suspend fun accountDevices(force: Boolean = false): List<org.json.JSONObject> =
         serializedSessionOperation {
             val cached = cachedDevices

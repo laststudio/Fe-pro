@@ -1,6 +1,8 @@
 package com.shuaiqiu.fuckets100
 
 import android.app.Activity
+import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -23,6 +25,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Login
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.Button
@@ -55,6 +58,8 @@ import com.shuaiqiu.fuckets100.component.material.expressiveTopAppBarColors
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import org.json.JSONObject
+
+private const val ACCOUNT_CENTER_URL = "https://lastudio.cc/account"
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -216,13 +221,34 @@ fun CloudActivationScreen(
                             Text("使用绑定账号", style = MaterialTheme.typography.titleMedium)
                         }
                     }
-                    TextButton(
-                        onClick = {
-                            changyanLoginLauncher.launch(ChangyanWebLoginActivity.createIntent(context))
-                        },
-                        enabled = !isLoading,
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text("讯飞登录")
+                        TextButton(
+                            onClick = {
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(ACCOUNT_CENTER_URL))
+                                context.startActivity(intent)
+                            },
+                            enabled = !isLoading,
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.OpenInNew,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text("前往个人中心绑定")
+                        }
+                        TextButton(
+                            onClick = {
+                                changyanLoginLauncher.launch(ChangyanWebLoginActivity.createIntent(context))
+                            },
+                            enabled = !isLoading,
+                        ) {
+                            Text("讯飞登录")
+                        }
                     }
                 }
             }

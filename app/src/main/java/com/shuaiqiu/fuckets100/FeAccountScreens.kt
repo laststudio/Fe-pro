@@ -1,6 +1,7 @@
 package com.shuaiqiu.fuckets100
 
 import android.annotation.SuppressLint
+import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
 import android.webkit.JavascriptInterface
@@ -8,6 +9,7 @@ import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -19,6 +21,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
@@ -246,6 +249,7 @@ private fun FeLoginScreen(manager: FeAccountManager) {
 }
 
 private const val REGISTER_URL = "https://auth.lastudio.cc/register"
+private const val ACCOUNT_CENTER_URL = "https://lastudio.cc/account"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -331,15 +335,20 @@ fun FeAccountScreen(
 
     var showChangePassword by remember { mutableStateOf(false) }
     var showBindings by remember { mutableStateOf(false) }
+    var showBindEts100 by remember { mutableStateOf(false) }
+    var showUnbindConfirm by remember { mutableStateOf(false) }
+    var bindEts100Error by remember { mutableStateOf<String?>(null) }
+    var isBindingEts100 by remember { mutableStateOf(false) }
+    var isUnbindingEts100 by remember { mutableStateOf(false) }
     var bindings by remember { mutableStateOf<FeAccountProfileApi.AccountBindings?>(null) }
     var bindingsError by remember { mutableStateOf<String?>(null) }
     var changePasswordError by remember { mutableStateOf<String?>(null) }
     var logoutError by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(cachedSession, state is FeAccountGateState.Ready) {
-        if (state is FeAccountGateState.Ready) {
+    fun refreshBindings() {
+        scope.launch {
             bindingsError = null
-            runCatching { manager.accountBindings() }
+            runCatching { manager.accountBindings(force = true) }
                 .onSuccess { bindings = it }
                 .onFailure {
                     if (it is FeAccountApiException && it.error.statusCode == 401) {
@@ -348,7 +357,13 @@ fun FeAccountScreen(
                         bindingsError = it.message ?: "加载绑定信息失败"
                     }
                 }
-            }
+        }
+    }
+
+    LaunchedEffect(cachedSession, state is FeAccountGateState.Ready) {
+        if (state is FeAccountGateState.Ready) {
+            refreshBindings()
+        }
     }
 
     Scaffold(
@@ -443,6 +458,16 @@ fun FeAccountScreen(
                         sub = "查看和下线登录会话",
                         onClick = onNavigateToSessions,
                     )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    SettingsListItem(
+                        icon = Icons.AutoMirrored.Filled.OpenInNew,
+                        title = "前往官网个人中心",
+                        sub = "前往 lastudio.cc 管理绑定、会员与账号安全",
+                        onClick = {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(ACCOUNT_CENTER_URL))
+                            context.startActivity(intent)
+                        },
+                    )
                 }
             }
 
@@ -502,6 +527,67 @@ fun FeAccountScreen(
             bindings = bindings,
             error = bindingsError,
             onDismiss = { showBindings = false },
+            onOpenWebAccountCenter = {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(ACCOUNT_CENTER_URL))
+                context.startActivity(intent)
+            },
+            onBindEts100 = {
+                bindEts100Error = null
+                showBindEts100 = true
+            },
+            onUnbindEts100 = {
+                showUnbindConfirm = true
+            },
+        )
+    }
+
+    if (showBindEts100) {
+        BindEts100Dialog(
+            onDismiss = { showBindEts100 = false },
+            onSubmit = { phone, password ->
+                scope.launch {
+                    isBindingEts100 = true
+                    bindEts100Error = null
+                    try {
+                        manager.bindPlatformAccount(phone, password)
+                        showBindEts100 = false
+                        Toast.makeText(context, "绑定 ETS100 账号成功", Toast.LENGTH_SHORT).show()
+                        refreshBindings()
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        bindEts100Error = (e as? FeAccountApiException)?.error?.message ?: e.message ?: "绑定失败"
+                    } finally {
+                        isBindingEts100 = false
+                    }
+                }
+            },
+            error = bindEts100Error,
+            isLoading = isBindingEts100,
+        )
+    }
+
+    if (showUnbindConfirm) {
+        UnbindConfirmDialog(
+            onDismiss = { showUnbindConfirm = false },
+            onConfirm = {
+                scope.launch {
+                    isUnbindingEts100 = true
+                    try {
+                        manager.unbindPlatformAccount()
+                        showUnbindConfirm = false
+                        Toast.makeText(context, "已解除 ETS100 账号绑定", Toast.LENGTH_SHORT).show()
+                        refreshBindings()
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Toast.makeText(context, e.message ?: "解除绑定失败", Toast.LENGTH_SHORT).show()
+                    } finally {
+                        isUnbindingEts100 = false
+                    }
+                }
+            },
+            isLoading = isUnbindingEts100,
         )
     }
 }
@@ -550,6 +636,9 @@ private fun BindingsDialog(
     bindings: FeAccountProfileApi.AccountBindings?,
     error: String?,
     onDismiss: () -> Unit,
+    onOpenWebAccountCenter: () -> Unit,
+    onBindEts100: () -> Unit,
+    onUnbindEts100: () -> Unit,
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -571,14 +660,182 @@ private fun BindingsDialog(
                             "${it.email}${if (it.isVerified) "（已验证）" else "（未验证）"}"
                         } ?: "未绑定",
                     )
-                    BindingRow(
-                        title = "e听说",
-                        value = bindings.etingshuo?.account ?: "未绑定",
-                    )
+                    Column {
+                        Text(
+                            "e听说 (ETS100)",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            bindings.etingshuo?.account ?: "未绑定",
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "用于云端模式自动读取作业与解析答案",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        if (bindings.etingshuo == null) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                OutlinedButton(
+                                    onClick = onBindEts100,
+                                    modifier = Modifier.weight(1f),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                                ) {
+                                    Text("应用内绑定", style = MaterialTheme.typography.labelMedium)
+                                }
+                                Button(
+                                    onClick = onOpenWebAccountCenter,
+                                    modifier = Modifier.weight(1f),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                                ) {
+                                    Icon(Icons.AutoMirrored.Filled.OpenInNew, null, Modifier.size(14.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("前往官网绑定", style = MaterialTheme.typography.labelMedium)
+                                }
+                            }
+                        } else {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                OutlinedButton(
+                                    onClick = onUnbindEts100,
+                                    modifier = Modifier.weight(1f),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                                ) {
+                                    Text("解除绑定", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelMedium)
+                                }
+                                Button(
+                                    onClick = onBindEts100,
+                                    modifier = Modifier.weight(1f),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                                ) {
+                                    Text("更换绑定", style = MaterialTheme.typography.labelMedium)
+                                }
+                            }
+                        }
+                    }
                 }
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("关闭") } },
+        dismissButton = {
+            TextButton(onClick = onOpenWebAccountCenter) {
+                Icon(Icons.AutoMirrored.Filled.OpenInNew, null, Modifier.size(16.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("前往官网个人中心")
+            }
+        },
+    )
+}
+
+@Composable
+private fun BindEts100Dialog(
+    onDismiss: () -> Unit,
+    onSubmit: (phone: String, pass: String) -> Unit,
+    error: String?,
+    isLoading: Boolean,
+) {
+    var phone by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = { if (!isLoading) onDismiss() },
+        title = { Text("绑定 ETS100 账号") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "绑定的 ETS100 账号凭据将安全加密存储于 LA Studio 后端，仅用于云端作业拉取。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (error != null) {
+                    Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
+                OutlinedTextField(
+                    value = phone,
+                    onValueChange = { phone = it },
+                    label = { Text("手机号 / 账号") },
+                    singleLine = true,
+                    enabled = !isLoading,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text("密码") },
+                    singleLine = true,
+                    enabled = !isLoading,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onSubmit(phone.trim(), password) },
+                enabled = !isLoading && phone.isNotBlank() && password.isNotBlank(),
+            ) {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary,
+                    )
+                } else {
+                    Text("确定绑定")
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !isLoading) {
+                Text("取消")
+            }
+        },
+    )
+}
+
+@Composable
+private fun UnbindConfirmDialog(
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+    isLoading: Boolean,
+) {
+    AlertDialog(
+        onDismissRequest = { if (!isLoading) onDismiss() },
+        title = { Text("解除 ETS100 绑定") },
+        text = { Text("解除绑定后，云端模式将无法自动拉取该账号的作业。确定要解除绑定吗？") },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                enabled = !isLoading,
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+            ) {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onError,
+                    )
+                } else {
+                    Text("确定解除")
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !isLoading) {
+                Text("取消")
+            }
+        },
     )
 }
 

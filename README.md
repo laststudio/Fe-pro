@@ -1,6 +1,6 @@
 # Fuck ets100 - e听说答案提取器 📱
 
-[![GPL-3.0 License](https://img.shields.io/badge/License-GPL%203.0-blue.svg)](LICENSE)
+![License](https://img.shields.io/badge/License-Proprietary-red.svg)
 [![Kotlin](https://img.shields.io/badge/kotlin-2.3.21-7F52FF)](https://kotlinlang.org/)
 [![Compose Multiplatform](https://img.shields.io/badge/compose-1.10.3-4285F4)](https://www.jetbrains.com/compose-multiplatform)
 ![Android](https://img.shields.io/badge/Android-3DDC84?logo=android&logoColor=white)
@@ -237,4 +237,4 @@ Fuck ets100 的诞生离不开这些"小伙伴"的帮助 💕
 |:---:|:---:|
 | ![支付宝](./donate/alipay.png) | ![微信](./donate/wechat.png) |
 
-> 💖 每一份捐赠都是对开源精神的肯定，感谢你的支持！
+> 💖 每一份赞赏与支持都是持续更新的最大动力，感谢大家！
