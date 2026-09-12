@@ -1,4 +1,4 @@
-﻿package com.shuaiqiu.fuckets100
+package com.shuaiqiu.fuckets100
 
 import android.content.Intent
 import android.net.Uri
@@ -249,7 +249,7 @@ fun FeAppMain() {
     var updateDialogStatus by remember { mutableStateOf<com.shuaiqiu.fuckets100.UpdateStatus?>(null) }
     var verificationDialogStatus by remember { mutableStateOf<com.shuaiqiu.fuckets100.UpdateStatus?>(null) }
     var remoteStatus by remember { mutableStateOf(FeApplication.remoteStatus) }
-    var showLegalDialog by remember { mutableStateOf(!SettingsManager.hasAcceptedLegal()) }
+    var showOnboarding by remember { mutableStateOf(!SettingsManager.hasCompletedOnboarding()) }
     var showAnnouncementDialog by remember { mutableStateOf(false) }
     
     // 鐩戝惉鏇存柊鐘舵€?Flow锛岀‘淇濇瘡娆￠兘鑳芥敹鍒伴€氱煡鍠祣
@@ -341,8 +341,16 @@ fun FeAppMain() {
         colorSpec = colorSpec,
         isAmoled = isAmoled,
     ) {
-        FeAccountGate {
-        FeNavContainer(
+        if (showOnboarding) {
+            OnboardingScreen(
+                onFinished = {
+                    showOnboarding = false
+                    currentMode = SettingsManager.getSavedActivationMode() ?: ShizukuManager.getCurrentActivationMode()
+                },
+            )
+        } else {
+            FeAccountGate {
+            FeNavContainer(
             navigator = navigator,
             predictiveBackAnimation = predictiveBackAnimation,
             predictiveBackExitDirection = predictiveBackExitDirection,
@@ -433,13 +441,6 @@ fun FeAppMain() {
                     FeApplication.refreshRemoteStatusAfterVerification()
                 }
             )
-        } else if (showLegalDialog) {
-            LegalAcceptanceDialog(
-                onAccepted = {
-                    SettingsManager.saveLegalAccepted(true)
-                    showLegalDialog = false
-                }
-            )
         }
 
         if (showAnnouncementDialog && remoteStatus != null) {
@@ -457,6 +458,7 @@ fun FeAppMain() {
                     SettingsManager.saveLastSeenAnnouncementUpdatedAt(status.announcementUpdatedAt)
                 },
             )
+        }
         }
         }
     }

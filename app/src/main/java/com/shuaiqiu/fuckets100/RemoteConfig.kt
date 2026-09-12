@@ -43,7 +43,8 @@ data class RemoteConfig(
     val verificationTitle: String = "",
     val verificationMessage: String = "",
     val donateEnabled: Boolean = true,
-    val integrityCheckEnabled: Boolean = true
+    val integrityCheckEnabled: Boolean = true,
+    val features: Map<String, Boolean> = emptyMap()
 )
 
 /**
@@ -69,5 +70,6 @@ data class UpdateStatus(
     val verificationTitle: String = "",
     val verificationMessage: String = "",
     val donateEnabled: Boolean = true,
-    val integrityCheckEnabled: Boolean = true
+    val integrityCheckEnabled: Boolean = true,
+    val features: Map<String, Boolean> = emptyMap()
 )

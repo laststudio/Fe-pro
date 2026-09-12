@@ -38,6 +38,11 @@ fun AnswerScreen(
         onBack = onBack,
         categoryColors = answerCategoryColors(),
         onCopyText = {
+            val (available, reason) = FeAccountManager.get(context).isFeatureAvailable(FeAccountFeatures.ANSWER_SHARE)
+            if (!available) {
+                Toast.makeText(context, reason ?: "答案分享功能当前不可用", Toast.LENGTH_SHORT).show()
+                return@PaperDetailScreen
+            }
             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             clipboard.setPrimaryClip(ClipData.newPlainText(paper.title, formatPaperAsText(paper)))
             Toast.makeText(context, "已复制答案到剪贴板", Toast.LENGTH_SHORT).show()

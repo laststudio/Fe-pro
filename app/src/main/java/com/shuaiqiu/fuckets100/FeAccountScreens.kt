@@ -253,7 +253,7 @@ private const val ACCOUNT_CENTER_URL = "https://lastudio.cc/account"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun InAppRegisterScreen(onBack: () -> Unit) {
+internal fun InAppRegisterScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
@@ -416,7 +416,7 @@ fun FeAccountScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Text(
-                        "会员等级 L${cachedSession.user.memberLevel}",
+                        cachedSession.user.tierDisplayName,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.primary,
                     )
@@ -1238,7 +1238,7 @@ fun AccountInitialAvatar(
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-private fun CapVerificationDialog(
+internal fun CapVerificationDialog(
     onDismiss: () -> Unit,
     onToken: (String) -> Unit,
 ) {

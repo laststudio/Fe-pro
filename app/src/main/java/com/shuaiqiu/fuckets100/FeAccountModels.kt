@@ -6,8 +6,20 @@ data class FeAccountUser(
     val id: Long,
     val username: String,
     val memberLevel: Int,
+    val tier: String = when (memberLevel) {
+        2 -> "ultra"
+        1 -> "pro"
+        else -> "free"
+    },
     val avatarUrl: String? = null,
-)
+) {
+    val tierDisplayName: String
+        get() = when (tier.lowercase()) {
+            "ultra" -> "Ultra 会员"
+            "pro" -> "Pro 会员"
+            else -> "免费版"
+        }
+}
 
 data class FeAccountSession(
     val sessionId: String,
@@ -84,16 +96,69 @@ internal object FeAuthResponseParser {
     fun session(response: String): FeAccountSession {
         val json = JSONObject(response)
         val user = json.getJSONObject("user")
+        val level = user.optInt("member_level", 0)
+        val tier = user.optString("tier").takeIf { it.isNotBlank() } ?: when (level) {
+            2 -> "ultra"
+            1 -> "pro"
+            else -> "free"
+        }
         return FeAccountSession(
             sessionId = json.getString("session_id"),
             deviceId = json.optString("device_id").takeIf { it.isNotBlank() },
             user = FeAccountUser(
                 id = user.getLong("id"),
                 username = user.getString("username"),
-                memberLevel = user.optInt("member_level", 0),
+                memberLevel = level,
+                tier = tier,
                 avatarUrl = user.optString("avatar_url").takeIf { it.isNotBlank() },
             ),
             integrityCheckEnabled = json.optBoolean("integrity_check_enabled", true),
         )
     }
+}
+
+data class FeFeatureConfig(
+    val featureKey: String,
+    val name: String,
+    val description: String = "",
+    val status: String = "enabled",
+    val availableForVersion: Boolean = true,
+    val reason: String? = null,
+    val requiresMembership: Boolean = false,
+    val minMemberLevel: Int = 0,
+    val minMemberTier: String = when (minMemberLevel) {
+        2 -> "ultra"
+        1 -> "pro"
+        else -> "free"
+    },
+) {
+    val requiredTierDisplayName: String
+        get() = when (minMemberTier.lowercase()) {
+            "ultra" -> "Ultra 会员"
+            "pro" -> "Pro 会员"
+            else -> "会员"
+        }
+}
+
+data class FeClientFeatureConfig(
+    val featureKey: String,
+    val name: String,
+    val description: String = "",
+    val status: String = "enabled",
+    val authorized: Boolean = true,
+    val reason: String? = null,
+    val requiresMembership: Boolean = false,
+    val minMemberLevel: Int = 0,
+    val minMemberTier: String = when (minMemberLevel) {
+        2 -> "ultra"
+        1 -> "pro"
+        else -> "free"
+    },
+) {
+    val requiredTierDisplayName: String
+        get() = when (minMemberTier.lowercase()) {
+            "ultra" -> "Ultra 会员"
+            "pro" -> "Pro 会员"
+            else -> "会员"
+        }
 }

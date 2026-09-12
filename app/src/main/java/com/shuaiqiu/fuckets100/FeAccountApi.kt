@@ -31,11 +31,21 @@ internal class FeAccountApi(private val context: Context) {
         val updateUrl: String,
         val message: String,
         val integrityCheckEnabled: Boolean = true,
+        val features: Map<String, Boolean> = emptyMap(),
     )
 
     suspend fun softwarePolicy(): SoftwarePolicy {
-        val response = request("GET", "/software/$SOFTWARE_KEY/config")
+        val response = request("GET", "/software/$SOFTWARE_KEY/config?version_code=${BuildConfig.VERSION_CODE}")
         val json = JSONObject(response.body)
+        val featuresJson = json.optJSONObject("features")
+        val features = mutableMapOf<String, Boolean>()
+        if (featuresJson != null) {
+            val keys = featuresJson.keys()
+            while (keys.hasNext()) {
+                val k = keys.next()
+                features[k] = featuresJson.optBoolean(k, true)
+            }
+        }
         return SoftwarePolicy(
             killSwitch = json.optBoolean("isKillSwitchOn", false),
             latestVersionCode = json.optInt("latestVersionCode", BuildConfig.VERSION_CODE),
@@ -47,6 +57,7 @@ internal class FeAccountApi(private val context: Context) {
                 json.optString("updateMessage", "").ifBlank { "当前版本不可用" }
             },
             integrityCheckEnabled = json.optBoolean("integrityCheckEnabled", true),
+            features = features,
         )
     }
 
@@ -135,6 +146,56 @@ internal class FeAccountApi(private val context: Context) {
             authorization = "SoftwareAccess $accessToken",
             body = body.toString(),
         )
+    }
+
+    suspend fun fetchPublicFeatures(versionCode: Int = BuildConfig.VERSION_CODE): List<FeFeatureConfig> {
+        val response = request("GET", "/software/$SOFTWARE_KEY/features?version_code=$versionCode")
+        val array = org.json.JSONArray(response.body)
+        return (0 until array.length()).map { i ->
+            val item = array.getJSONObject(i)
+            val minLevel = item.optInt("min_member_level", 0)
+            val minTier = item.optString("min_member_tier").takeIf { it.isNotBlank() } ?: when (minLevel) {
+                2 -> "ultra"
+                1 -> "pro"
+                else -> "free"
+            }
+            FeFeatureConfig(
+                featureKey = item.getString("feature_key"),
+                name = item.getString("name"),
+                description = item.optString("description", ""),
+                status = item.optString("status", "enabled"),
+                availableForVersion = item.optBoolean("available_for_version", true),
+                reason = item.optString("reason").takeIf { it.isNotBlank() },
+                requiresMembership = item.optBoolean("requires_membership", false),
+                minMemberLevel = minLevel,
+                minMemberTier = minTier,
+            )
+        }
+    }
+
+    suspend fun fetchClientFeatures(accessToken: String, versionCode: Int = BuildConfig.VERSION_CODE): List<FeClientFeatureConfig> {
+        val response = request("GET", "/client-auth/features?version_code=$versionCode", "SoftwareAccess $accessToken")
+        val array = org.json.JSONArray(response.body)
+        return (0 until array.length()).map { i ->
+            val item = array.getJSONObject(i)
+            val minLevel = item.optInt("min_member_level", 0)
+            val minTier = item.optString("min_member_tier").takeIf { it.isNotBlank() } ?: when (minLevel) {
+                2 -> "ultra"
+                1 -> "pro"
+                else -> "free"
+            }
+            FeClientFeatureConfig(
+                featureKey = item.getString("feature_key"),
+                name = item.getString("name"),
+                description = item.optString("description", ""),
+                status = item.optString("status", "enabled"),
+                authorized = item.optBoolean("authorized", true),
+                reason = item.optString("reason").takeIf { it.isNotBlank() },
+                requiresMembership = item.optBoolean("requires_membership", false),
+                minMemberLevel = minLevel,
+                minMemberTier = minTier,
+            )
+        }
     }
 
     fun cancelActiveRequests() {

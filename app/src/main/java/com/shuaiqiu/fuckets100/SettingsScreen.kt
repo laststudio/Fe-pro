@@ -95,7 +95,7 @@ fun SettingsScreen(
                             fontWeight = FontWeight.SemiBold,
                         )
                         Text(
-                            accountSession?.user?.let { "LA Studio · 会员等级 L${it.memberLevel}" }
+                            accountSession?.user?.let { "LA Studio · ${it.tierDisplayName}" }
                                 ?: "查看账号信息",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

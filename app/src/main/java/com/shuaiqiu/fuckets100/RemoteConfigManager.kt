@@ -16,7 +16,7 @@ import java.net.URLConnection
 object RemoteConfigManager {
     private const val TAG = "RemoteConfigManager"
     private val CONFIG_URLS = listOf(
-        "https://api.lastudio.cc/software/fe/config",
+        "https://api.lastudio.cc/software/fe/config?version_code=${BuildConfig.VERSION_CODE}",
     )
     private const val TIMEOUT_MS = 5000L  // 5秒超时喵~
 
@@ -25,6 +25,9 @@ object RemoteConfigManager {
         private set
 
     fun isIntegrityCheckEnabled(): Boolean = cachedConfig?.integrityCheckEnabled ?: true
+
+    fun isFeatureEnabled(featureKey: String, defaultValue: Boolean = true): Boolean =
+        cachedConfig?.features?.get(featureKey) ?: defaultValue
     
     /**
      * 网络异常 - 用于标识网络问题导致配置获取失败
@@ -57,7 +60,8 @@ object RemoteConfigManager {
             verificationTitle = verificationTitle,
             verificationMessage = verificationMessage,
             donateEnabled = donateEnabled,
-            integrityCheckEnabled = integrityCheckEnabled
+            integrityCheckEnabled = integrityCheckEnabled,
+            features = features
         )
     }
 
@@ -185,6 +189,15 @@ object RemoteConfigManager {
                 val verificationCode = json.optString("verificationCode", "")
                 val verificationTitle = json.optString("verificationTitle", "")
                 val verificationMessage = json.optString("verificationMessage", "")
+                val featuresJson = json.optJSONObject("features")
+                val features = mutableMapOf<String, Boolean>()
+                if (featuresJson != null) {
+                    val keys = featuresJson.keys()
+                    while (keys.hasNext()) {
+                        val k = keys.next()
+                        features[k] = featuresJson.optBoolean(k, true)
+                    }
+                }
 
                 val config = RemoteConfig(
                     key = json.optString("key", ""),
@@ -214,11 +227,13 @@ object RemoteConfigManager {
                     verificationTitle = verificationTitle,
                     verificationMessage = verificationMessage,
                     donateEnabled = json.optBoolean("donateEnabled", true),
-                    integrityCheckEnabled = json.optBoolean("integrityCheckEnabled", true)
+                    integrityCheckEnabled = json.optBoolean("integrityCheckEnabled", true),
+                    features = features
                 )
                 
                 Log.d(TAG, "📋 解析后的配置:")
                 Log.d(TAG, "   - latestVersionCode: ${config.latestVersionCode}")
+                Log.d(TAG, "   - features: ${config.features}")
                 Log.d(TAG, "   - updateUrl: ${config.updateUrl}")
                 Log.d(TAG, "   - isKillSwitchOn: ${config.isKillSwitchOn}")
                 Log.d(TAG, "   - isForce: ${config.isForce}")

@@ -12,12 +12,29 @@
     @android.webkit.JavascriptInterface <methods>;
 }
 
-# JNI symbols in libresolver.so bind this exact class and native method names.
+# JNI symbols and BuildConfig integrity constants.
 -keep class com.shuaiqiu.fuckets100.ResolverNative { *; }
 -keep class com.shuaiqiu.fuckets100.CloudNative { *; }
+-keep class com.shuaiqiu.fuckets100.BuildConfig { *; }
 
 # Shizuku manager reflects on these API methods at runtime.
 -keep class rikka.shizuku.Shizuku { *; }
 
 # kotlinx.coroutines debug agent, referenced via reflection in some toolchains.
 -dontwarn kotlinx.coroutines.debug.**
+
+# Aggressive R8 / ProGuard Optimization & Obfuscation
+-optimizationpasses 5
+-overloadaggressively
+-repackageclasses ""
+-allowaccessmodification
+-renamesourcefileattribute SourceFile
+-keepattributes SourceFile,LineNumberTable
+
+# Strip debug Log statements in release builds
+-assumenosideeffects class android.util.Log {
+    public static boolean isLoggable(java.lang.String, int);
+    public static int v(...);
+    public static int d(...);
+    public static int i(...);
+}

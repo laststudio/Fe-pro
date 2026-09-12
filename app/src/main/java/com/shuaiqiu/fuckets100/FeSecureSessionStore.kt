@@ -58,13 +58,20 @@ class FeSecureSessionStore(context: Context) {
         return runCatching {
             val json = JSONObject(raw)
             val user = json.getJSONObject("user")
+            val level = user.optInt("member_level", 0)
+            val tier = user.optString("tier").takeIf { it.isNotBlank() } ?: when (level) {
+                2 -> "ultra"
+                1 -> "pro"
+                else -> "free"
+            }
             FeAccountSession(
                 sessionId = json.getString("session_id"),
                 deviceId = json.optString("device_id").takeIf { it.isNotBlank() },
                 user = FeAccountUser(
                     id = user.getLong("id"),
                     username = user.getString("username"),
-                    memberLevel = user.optInt("member_level", 0),
+                    memberLevel = level,
+                    tier = tier,
                     avatarUrl = user.optString("avatar_url").takeIf { it.isNotBlank() },
                 ),
                 integrityCheckEnabled = json.optBoolean("integrity_check_enabled", true),
@@ -78,6 +85,7 @@ class FeSecureSessionStore(context: Context) {
             .put("id", session.user.id)
             .put("username", session.user.username)
             .put("member_level", session.user.memberLevel)
+            .put("tier", session.user.tier)
         session.user.avatarUrl?.let { user.put("avatar_url", it) }
         val json = JSONObject()
             .put("session_id", session.sessionId)

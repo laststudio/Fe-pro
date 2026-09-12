@@ -44,6 +44,11 @@ internal object ResolverAuthorizer {
     }
 
     private suspend fun ensureCloudAuthorized(context: Context): String? = withContext(Dispatchers.IO) {
+        val manager = FeAccountManager.get(context)
+        val (available, unavailableReason) = manager.isFeatureAvailable("cloud_mode")
+        if (!available) {
+            return@withContext unavailableReason ?: "云端模式当前版本不可用"
+        }
         configureCloud(context)?.let { return@withContext it }
         try {
             val result = JSONObject(CloudNative.cloudAuthorizeFeature())
@@ -52,9 +57,15 @@ internal object ResolverAuthorizer {
             ) {
                 null
             } else {
-                result.optJSONObject("error")?.optString("message")
-                    ?.takeIf { it.isNotBlank() }
-                    ?: "云端模式当前不可用"
+                val errObj = result.optJSONObject("error")
+                val reasonCode = errObj?.optString("reason") ?: result.optString("reason")
+                val msg = errObj?.optString("message")?.takeIf { it.isNotBlank() }
+                    ?: result.optString("message").takeIf { it.isNotBlank() }
+                if (reasonCode == "membership_required" && (msg == null || msg.contains("停用") || msg.contains("不可用"))) {
+                    "该功能需要开通会员"
+                } else {
+                    msg ?: "云端模式当前不可用"
+                }
             }
         } catch (e: Exception) {
             "无法连接云端授权服务，请检查网络后重试"
@@ -65,6 +76,11 @@ internal object ResolverAuthorizer {
      * @return null 表示授权通过; 否则返回阻断原因
      */
     suspend fun ensureAuthorized(context: Context): String? = withContext(Dispatchers.IO) {
+        val manager = FeAccountManager.get(context)
+        val (available, unavailableReason) = manager.isFeatureAvailable(FEATURE_KEY)
+        if (!available) {
+            return@withContext unavailableReason ?: "答案解析功能当前版本不可用"
+        }
         configureResolver(context)?.let { return@withContext it }
         try {
             val json = ResolverNative.authorizeFeature()
@@ -72,10 +88,15 @@ internal object ResolverAuthorizer {
             if (obj.optBoolean("allowed", false)) {
                 null
             } else {
-                obj.optJSONObject("error")?.optString("message")
-                    ?.takeIf { it.isNotBlank() }
+                val errObj = obj.optJSONObject("error")
+                val reasonCode = errObj?.optString("reason") ?: obj.optString("reason")
+                val msg = errObj?.optString("message")?.takeIf { it.isNotBlank() }
                     ?: obj.optString("message").takeIf { it.isNotBlank() }
-                    ?: "该功能当前不可用"
+                if (reasonCode == "membership_required" && (msg == null || msg.contains("停用") || msg.contains("不可用"))) {
+                    "该功能需要开通会员"
+                } else {
+                    msg ?: "该功能当前不可用"
+                }
             }
         } catch (e: Exception) {
             "无法连接授权服务，请检查网络后重试"

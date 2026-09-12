@@ -391,6 +391,11 @@ fun ReadScreen(
     }
 
     fun copyPaperText(paper: ETS100AnswerReader.Paper) {
+        val (available, reason) = FeAccountManager.get(context).isFeatureAvailable(FeAccountFeatures.ANSWER_SHARE)
+        if (!available) {
+            android.widget.Toast.makeText(context, reason ?: "答案分享功能当前不可用", android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
         val text = formatPaperAsText(paper)
         val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
         clipboard.setPrimaryClip(android.content.ClipData.newPlainText(paper.title, text))
@@ -3938,6 +3943,11 @@ private fun CloudReadConfirmDialog(
 private const val FE_SHARE_SIGNATURE = "Fe守护你的答案喵~ 官网:lastudio.cc"
 
 internal fun exportPaperAsImage(context: android.content.Context, paper: ETS100AnswerReader.Paper) {
+    val (available, reason) = FeAccountManager.get(context).isFeatureAvailable(FeAccountFeatures.ANSWER_SHARE)
+    if (!available) {
+        android.widget.Toast.makeText(context, reason ?: "答案分享功能当前不可用", android.widget.Toast.LENGTH_SHORT).show()
+        return
+    }
     try {
         val width = 1080
         val pad = 60

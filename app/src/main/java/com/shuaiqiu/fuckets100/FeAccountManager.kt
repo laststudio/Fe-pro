@@ -44,12 +44,50 @@ class FeAccountManager private constructor(context: Context) {
     )
     val gateState: StateFlow<FeAccountGateState> = _gateState.asStateFlow()
 
+    private val _features = MutableStateFlow<Map<String, FeFeatureConfig>>(emptyMap())
+    val features: StateFlow<Map<String, FeFeatureConfig>> = _features.asStateFlow()
+
     @Volatile
     internal var latestSoftwarePolicy: FeAccountApi.SoftwarePolicy? = null
         private set
 
     fun isIntegrityCheckEnabled(): Boolean =
         verifiedSession?.integrityCheckEnabled ?: true
+
+    /**
+     * 检查某个功能在当前版本和平台配置下是否可用。
+     * @return Pair(是否可用, 不可用原因/错误提示)
+     */
+    fun isFeatureAvailable(featureKey: String): Pair<Boolean, String?> {
+        // 1. 检查 RemoteConfig 中的版本功能字典 (release.features)
+        if (!RemoteConfigManager.isFeatureEnabled(featureKey, defaultValue = true)) {
+            return false to "当前版本已停用此功能"
+        }
+        // 2. 检查 SoftwarePolicy 返回的版本功能字典
+        latestSoftwarePolicy?.features?.get(featureKey)?.let { enabled ->
+            if (!enabled) return false to "当前版本已停用此功能"
+        }
+        // 3. 检查 SoftwareFeatureRule (包含 min_version_code, max_version_code, blocked_versions, 会员要求)
+        val config = _features.value[featureKey]
+        if (config != null) {
+            if (config.status != "enabled") {
+                return false to "该功能已停用"
+            }
+            if (!config.availableForVersion) {
+                return false to (config.reason ?: "当前版本不支持此功能，请更新软件")
+            }
+            if (config.requiresMembership) {
+                val user = verifiedSession?.user
+                if (user == null) {
+                    return false to "该功能需要登录并开通${config.requiredTierDisplayName}"
+                }
+                if (user.memberLevel < config.minMemberLevel) {
+                    return false to "该功能需要开通${config.requiredTierDisplayName}"
+                }
+            }
+        }
+        return true to null
+    }
 
     suspend fun checkGate() = validateOnline(showChecking = true)
 
@@ -60,6 +98,10 @@ class FeAccountManager private constructor(context: Context) {
         try {
             val policy = api.softwarePolicy()
             latestSoftwarePolicy = policy
+            runCatching { api.fetchPublicFeatures() }
+                .onSuccess { list ->
+                    _features.value = list.associateBy { it.featureKey }
+                }
             when (val decision = evaluateFeSoftwarePolicy(
                 currentVersionCode = BuildConfig.VERSION_CODE,
                 killSwitch = policy.killSwitch,

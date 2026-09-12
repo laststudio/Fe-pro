@@ -13,6 +13,7 @@ object SettingsManager {
     private const val PREFS_NAME = "fe_settings"
     private const val KEY_ACTIVATION_MODE = "activation_mode"
     private const val KEY_LEGAL_ACCEPTED = "legal_accepted_v2"
+    private const val KEY_ONBOARDING_COMPLETED = "onboarding_completed_v1"
     private const val KEY_AOSP_PREDICTIVE_BACK = "aosp_predictive_back"
     private const val KEY_PREDICTIVE_BACK_MODE = "predictive_back_mode"
     private const val KEY_PREDICTIVE_BACK_ANIMATION = "predictive_back_animation"
@@ -86,6 +87,16 @@ object SettingsManager {
 
     fun hasAcceptedLegal(): Boolean {
         return prefs.getBoolean(KEY_LEGAL_ACCEPTED, false)
+    }
+
+    fun saveOnboardingCompleted(completed: Boolean) {
+        prefs.edit {
+            putBoolean(KEY_ONBOARDING_COMPLETED, completed)
+        }
+    }
+
+    fun hasCompletedOnboarding(): Boolean {
+        return prefs.getBoolean(KEY_ONBOARDING_COMPLETED, false)
     }
 
     fun saveLocalVerificationCode(code: String) {
