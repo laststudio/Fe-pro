@@ -215,6 +215,12 @@ object ETS100AuthManager {
         Log.d(TAG, "Token 已更新，新 token 长度: ${newToken.length}")
     }
 
+    fun saveParentAccountId(context: Context, parentAccountId: String) {
+        val prefs = getPrefs(context)
+        prefs.edit().putString(Keys.PARENT_ACCOUNT_ID, parentAccountId).apply()
+        Log.d(TAG, "更新父账户ID: $parentAccountId")
+    }
+
     /**
      * 获取父账户 ID
      */

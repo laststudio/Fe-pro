@@ -15,6 +15,7 @@ import android.text.StaticLayout
 import android.text.TextPaint
 import android.util.Log
 import android.widget.Toast
+import org.json.JSONObject
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
@@ -564,6 +565,7 @@ fun ReadScreen(
         val isChangyanLogin = ETS100AuthManager.isChangyanWebLogin(context)
         val savedToken: String
         var parentId: String
+        var candidateAccounts: List<JSONObject> = emptyList()
         if (isChangyanLogin) {
             savedToken = ETS100AuthManager.getToken(context).orEmpty()
             parentId = ETS100AuthManager.getParentAccountId(context).orEmpty()
@@ -599,6 +601,7 @@ fun ReadScreen(
                 )
                 savedToken = cloudSession.token
                 parentId = cloudSession.parentAccountId
+                candidateAccounts = cloudSession.validAccounts
             } catch (e: Exception) {
                 cloudHomeworkError = e.message ?: "无法读取 LA Studio 绑定账号"
                 CloudHomeworkState.error = cloudHomeworkError
@@ -622,7 +625,38 @@ fun ReadScreen(
             return coroutineScope {
                 requestStatuses.map { requestStatus ->
                     async {
-                        requestStatus to ETS100ApiClient.getHomeworkList(tokenForRequest, parentId, requestStatus)
+                        var res = ETS100ApiClient.getHomeworkList(tokenForRequest, parentId, requestStatus)
+                        val errMsg = res.exceptionOrNull()?.message.orEmpty()
+                        val isClassError = errMsg.contains("80004") || errMsg.contains("有效班级")
+
+                        // 若当前 parent_id 报 80004 (没有找到有效班级)，自动轮询候选账号 (与网页端 homework.py 保持一致)
+                        if (res.isFailure && isClassError && candidateAccounts.isNotEmpty()) {
+                            for (candidate in candidateAccounts) {
+                                val candidatePid = candidate.optString("parent_id")
+                                if (candidatePid.isBlank() || candidatePid == parentId) continue
+                                val fallbackRes = ETS100ApiClient.getHomeworkList(tokenForRequest, candidatePid, requestStatus)
+                                if (fallbackRes.isSuccess) {
+                                    val candidateLabel = candidate.optString("name").ifBlank { candidate.optString("grade") }
+                                    addLog(
+                                        LogLevel.INFO,
+                                        LogCategory.SYSTEM,
+                                        "✓ 当前班级已失效，已自动回退至候选账号 ($candidateLabel, parent_id=$candidatePid) 读取成功"
+                                    )
+                                    parentId = candidatePid
+                                    ETS100AuthManager.saveParentAccountId(context, candidatePid)
+                                    ETS100AuthManager.saveSelectedEcard(
+                                        context,
+                                        candidate.optString("id"),
+                                        candidate.optString("name"),
+                                        candidate.optString("grade"),
+                                        candidate.optString("class_id"),
+                                    )
+                                    res = fallbackRes
+                                    break
+                                }
+                            }
+                        }
+                        requestStatus to res
                     }
                 }.awaitAll().mapNotNull { (requestStatus, result) ->
                     result.onSuccess { response ->
@@ -645,7 +679,13 @@ fun ReadScreen(
                         }
                     }.onFailure { e ->
                         lastError = e
-                        addLog(LogLevel.ERROR, LogCategory.SYSTEM, "✗ status=$requestStatus 获取作业列表失败: ${e.message}")
+                        val isClassError = e.message?.contains("80004") == true || e.message?.contains("有效班级") == true
+                        val displayMsg = if (isClassError && status == CloudHomeworkState.STATUS_CURRENT) {
+                            "当前账号无有效班级或新作业，可切换至上方「历史作业」查看已归档的作业与答案"
+                        } else {
+                            e.message
+                        }
+                        addLog(LogLevel.ERROR, LogCategory.SYSTEM, "✗ status=$requestStatus 获取作业列表失败: $displayMsg")
                     }.getOrNull()
                 }
             }
@@ -668,6 +708,7 @@ fun ReadScreen(
                         cloudSession.parentAccountId,
                     )
                     parentId = cloudSession.parentAccountId
+                    candidateAccounts = cloudSession.validAccounts
                     ETS100AuthManager.saveLoginMethod(
                         context,
                         ETS100AuthManager.LOGIN_METHOD_BACKEND_BOUND,
@@ -688,7 +729,12 @@ fun ReadScreen(
                     addLog(LogLevel.ERROR, LogCategory.SYSTEM, "✗ 后端绑定账号会话刷新失败: ${e.message}")
                 }
                 if (responses.isEmpty()) {
-                    cloudHomeworkError = lastError?.message ?: "后端绑定账号不可用"
+                    val isClassError = lastError?.message?.let { it.contains("80004") || it.contains("有效班级") } == true
+                    cloudHomeworkError = if (isClassError && status == CloudHomeworkState.STATUS_CURRENT) {
+                        "当前账号无有效班级，可切换至「历史作业」查看往期归档答案喵~"
+                    } else {
+                        lastError?.message ?: "后端绑定账号不可用"
+                    }
                     CloudHomeworkState.error = cloudHomeworkError
                     isLoadingCloudHomework = false
                     CloudHomeworkState.isLoading = false
