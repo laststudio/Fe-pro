@@ -32,24 +32,27 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Download latest resolver/cloud SOs from ets_resolver release
+      - name: Verify or download resolver/cloud SOs
         env:
           SO_TOKEN: ${{ secrets.PUBLIC_RELEASE_TOKEN }}
         run: |
           set -euo pipefail
-          test -n "${SO_TOKEN}" || { echo "缺少 PUBLIC_RELEASE_TOKEN 用于读取 ets_resolver"; exit 1; }
           mkdir -p app/src/main/jniLibs/arm64-v8a
-          rm -f app/src/main/jniLibs/arm64-v8a/libresolver.so app/src/main/jniLibs/arm64-v8a/libcloud.so
-          GH_TOKEN="${SO_TOKEN}" gh release download \
-            --repo "${SO_REPO}" \
-            --pattern 'libresolver.so' \
-            --pattern 'libcloud.so' \
-            --dir app/src/main/jniLibs/arm64-v8a \
-            --clobber
+          if [ ! -f app/src/main/jniLibs/arm64-v8a/libresolver.so ] || [ ! -f app/src/main/jniLibs/arm64-v8a/libcloud.so ]; then
+            test -n "${SO_TOKEN}" || { echo "缺少 PUBLIC_RELEASE_TOKEN 用于读取 ets_resolver"; exit 1; }
+            GH_TOKEN="${SO_TOKEN}" gh release download \
+              --repo "${SO_REPO}" \
+              --pattern 'libresolver.so' \
+              --pattern 'libcloud.so' \
+              --dir app/src/main/jniLibs/arm64-v8a \
+              --clobber
+          else
+            echo "Using repository bundled libresolver.so and libcloud.so"
+          fi
           file app/src/main/jniLibs/arm64-v8a/libresolver.so app/src/main/jniLibs/arm64-v8a/libcloud.so | grep -q 'ELF 64-bit LSB shared object'
           sha256sum app/src/main/jniLibs/arm64-v8a/libresolver.so app/src/main/jniLibs/arm64-v8a/libcloud.so
-          nm -D --defined-only app/src/main/jniLibs/arm64-v8a/libresolver.so 2>/dev/null | grep -q JNI_OnLoad
-          nm -D --defined-only app/src/main/jniLibs/arm64-v8a/libcloud.so 2>/dev/null | grep -q JNI_OnLoad
+          readelf -s app/src/main/jniLibs/arm64-v8a/libresolver.so 2>/dev/null | grep -q JNI_OnLoad || nm -D --defined-only app/src/main/jniLibs/arm64-v8a/libresolver.so 2>/dev/null | grep -q JNI_OnLoad
+          readelf -s app/src/main/jniLibs/arm64-v8a/libcloud.so 2>/dev/null | grep -q JNI_OnLoad || nm -D --defined-only app/src/main/jniLibs/arm64-v8a/libcloud.so 2>/dev/null | grep -q JNI_OnLoad
 
       - name: Decode Android keystore
         env:

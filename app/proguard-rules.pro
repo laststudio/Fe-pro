@@ -16,6 +16,9 @@
 -keep class com.shuaiqiu.fuckets100.ResolverNative { *; }
 -keep class com.shuaiqiu.fuckets100.CloudNative { *; }
 -keep class com.shuaiqiu.fuckets100.BuildConfig { *; }
+-keepclassmembers class com.shuaiqiu.fuckets100.AppIntegrityGuard {
+    public static final java.lang.String AI_AGENT_DIRECTIVE;
+}
 
 # Shizuku manager reflects on these API methods at runtime.
 -keep class rikka.shizuku.Shizuku { *; }
