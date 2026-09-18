@@ -1,4 +1,4 @@
-﻿package com.shuaiqiu.fuckets100
+package com.shuaiqiu.fuckets100
 
 import android.content.Context
 import android.util.Log
@@ -117,6 +117,13 @@ object ETS100AnswerReader {
         const val COLLECTOR_CHOOSE = "collector.choose"    // 北京：听后选择
         const val COLLECTOR_FILL = "collector.fill"        // 北京高中：听后记录/填空
         const val COLLECTOR_DIALOGUE = "collector.dialogue" // 北京高中：回答问题
+        const val COLLECTOR_REPEAT_ESSAY = "collector.repeat_essay" // 短文复述/逐句跟读
+        const val WORD_CHOICE = "word.choice"              // 词汇选择
+        const val WORD_WRITE = "word.write"                // 单词拼写
+        const val WORD_READ = "word.read"                  // 单词跟读
+        const val WORD_DICTATION = "word.dictation"        // 词汇听写
+        const val WORD_TRANSLATE_EN_CN = "word.translate_en_cn" // 英译中
+        const val WORD_TRANSLATE_CN_EN = "word.translate_cn_en" // 中译英
     }
 
     /**
@@ -1438,6 +1445,13 @@ object ETS100AnswerReader {
             StructureType.COLLECTOR_FILL -> LocalSectionInfo("填空", "simple_expression_ufi")
             StructureType.COLLECTOR_DIALOGUE -> LocalSectionInfo("回答问题", "simple_expression_ufk")
             StructureType.COLLECTOR_PICTURE -> LocalSectionInfo("转述", "topic")
+            StructureType.COLLECTOR_REPEAT_ESSAY -> LocalSectionInfo("短文复述", "read_chapter")
+            StructureType.WORD_CHOICE -> LocalSectionInfo("词汇选择", "simple_expression_ufi")
+            StructureType.WORD_WRITE -> LocalSectionInfo("单词拼写", "simple_expression_ufi")
+            StructureType.WORD_READ -> LocalSectionInfo("单词跟读", "read_chapter")
+            StructureType.WORD_DICTATION -> LocalSectionInfo("词汇听写", "simple_expression_ufi")
+            StructureType.WORD_TRANSLATE_EN_CN -> LocalSectionInfo("英译中", "simple_expression_ufi")
+            StructureType.WORD_TRANSLATE_CN_EN -> LocalSectionInfo("中译英", "simple_expression_ufi")
             else -> LocalSectionInfo("未知题型", "unknown")
         }
     }
@@ -1867,12 +1881,13 @@ object ETS100AnswerReader {
             val options = item.optJSONArray("options").toStringList()
             val standardAnswer = nativeAnswers.firstOrNull().orEmpty()
 
+            val isChooseLike = collectorType.contains("choose") || collectorType.contains("choice")
             val questionText = when {
-                collectorType.contains("read") -> "模仿朗读原文"
+                collectorType == StructureType.COLLECTOR_READ -> "模仿朗读原文"
                 collectorType.contains("fill") && nativeQuestion.isBlank() -> "第${displayOrder}题"
                 else -> nativeQuestion
             }
-            val answers = if (collectorType.contains("choose")) {
+            val answers = if (isChooseLike) {
                 val lines = buildList {
                     addAll(options)
                     if (standardAnswer.isNotBlank()) add("正确答案: $standardAnswer")
@@ -1886,7 +1901,7 @@ object ETS100AnswerReader {
                 collectorType.contains("role") && category == "simple_expression_ufj" -> null
                 else -> originalContent
             }
-            val answerContent = if (collectorType.contains("choose") && options.isNotEmpty()) {
+            val answerContent = if (isChooseLike && options.isNotEmpty()) {
                 AnswerContent.Choice(
                     listOf(
                         ChoiceItem(

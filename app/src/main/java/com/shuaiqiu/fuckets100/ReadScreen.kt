@@ -3137,6 +3137,13 @@ private fun ETS100AnswerReader.Section.displayCategoryLabel(): String = when (ca
     ETS100AnswerReader.StructureType.COLLECTOR_CHOOSE -> typeName.ifBlank { "听后选择" }
     ETS100AnswerReader.StructureType.COLLECTOR_FILL -> typeName.ifBlank { "听后记录" }
     ETS100AnswerReader.StructureType.COLLECTOR_DIALOGUE -> typeName.ifBlank { "回答问题" }
+    ETS100AnswerReader.StructureType.COLLECTOR_REPEAT_ESSAY -> typeName.ifBlank { "短文复述" }
+    ETS100AnswerReader.StructureType.WORD_CHOICE -> typeName.ifBlank { "词汇选择" }
+    ETS100AnswerReader.StructureType.WORD_WRITE -> typeName.ifBlank { "单词拼写" }
+    ETS100AnswerReader.StructureType.WORD_READ -> typeName.ifBlank { "单词跟读" }
+    ETS100AnswerReader.StructureType.WORD_DICTATION -> typeName.ifBlank { "词汇听写" }
+    ETS100AnswerReader.StructureType.WORD_TRANSLATE_EN_CN -> typeName.ifBlank { "英译中" }
+    ETS100AnswerReader.StructureType.WORD_TRANSLATE_CN_EN -> typeName.ifBlank { "中译英" }
     else -> typeName.ifBlank { category.ifBlank { "其他" } }
 }
 
