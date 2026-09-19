@@ -37,9 +37,6 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Verify or download resolver/cloud SOs
         env:
           SO_TOKEN: ${{ secrets.PUBLIC_RELEASE_TOKEN }}
