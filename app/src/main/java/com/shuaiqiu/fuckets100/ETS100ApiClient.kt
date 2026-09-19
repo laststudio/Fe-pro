@@ -44,6 +44,8 @@ object ETS100ApiClient {
         const val HOMEWORK_LIST = "/g/homework/list"
         const val HOMEWORK_PK_INFO = "/g/homework/pk-info"
         const val HOMEWORK_STRUCT = "/g/homework/struct"
+        const val HOMEWORK_SCORE_DETAIL = "/g/homework/score-detail"
+        const val WORD_STRUCT = "/g/word/struct"
         const val SEND_USER_EXIST = "/code/send-user-exist"
         const val REBIND_CODE = "/user/rebind-code"  // 设备绑定端点
     }
@@ -700,7 +702,7 @@ object ETS100ApiClient {
                 val msg = json.optString("msg", "")
                 throw Exception("pk-info 失败: $msg ($code)")
             }
-            json.optJSONObject("body") ?: org.json.JSONObject()
+            extractBody(json)
         }
     }
 
@@ -748,7 +750,86 @@ object ETS100ApiClient {
                 val msg = json.optString("msg", "")
                 throw Exception("homework/struct 失败: $msg ($code)")
             }
-            json.optJSONObject("body") ?: org.json.JSONObject()
+            extractBody(json)
+        }
+    }
+
+    /**
+     * 获取已完成作业得分与单词详情 (逆向历史作业)
+     * POST /g/homework/score-detail
+     */
+    suspend fun getScoreDetail(
+        token: String,
+        homeworkId: String,
+        resourceId: String = "",
+        parentAccountId: String = ""
+    ): Result<org.json.JSONObject> {
+        Log.d(TAG, "getScoreDetail: homeworkId=$homeworkId, resourceId=$resourceId, parentAccountId=$parentAccountId")
+        val hwIdVal: Any = homeworkId.toIntOrNull() ?: homeworkId
+        val params = mutableMapOf<String, Any>(
+            "sn" to RequestConfig.DEFAULT_SN,
+            "token" to token,
+            "homework_id" to hwIdVal,
+            "version" to RequestConfig.DEFAULT_VERSION,
+            "system" to RequestConfig.DEFAULT_SYSTEM,
+            "global_client_version" to RequestConfig.DEFAULT_GLOBAL_CLIENT_VERSION,
+            "sign_response" to 1
+        )
+        if (resourceId.isNotBlank()) {
+            params["resource_id"] = resourceId
+        }
+        if (parentAccountId.isNotBlank()) {
+            params["parent_account_id"] = parentAccountId
+        }
+
+        val bodyData = mapOf(
+            "r" to "g/homework/score-detail",
+            "params" to params
+        )
+
+        return postRequest(Endpoints.HOMEWORK_SCORE_DETAIL, bodyData).mapCatching { responseBody ->
+            val json = responseBody.parseJson()
+            val code = json.optInt("code", -999)
+            if (code != -999 && code != 0) {
+                val msg = json.optString("msg", "")
+                throw Exception("score-detail 失败: $msg ($code)")
+            }
+            extractBody(json)
+        }
+    }
+
+    /**
+     * 批量获取单词与题目定义结构
+     * POST /g/word/struct
+     */
+    suspend fun getWordStruct(
+        token: String,
+        wordIds: List<Int>
+    ): Result<org.json.JSONObject> {
+        Log.d(TAG, "getWordStruct: count=${wordIds.size}")
+        val params = mutableMapOf<String, Any>(
+            "sn" to RequestConfig.DEFAULT_SN,
+            "token" to token,
+            "word_ids" to wordIds,
+            "version" to RequestConfig.DEFAULT_VERSION,
+            "system" to RequestConfig.DEFAULT_SYSTEM,
+            "global_client_version" to RequestConfig.DEFAULT_GLOBAL_CLIENT_VERSION,
+            "sign_response" to 1
+        )
+
+        val bodyData = mapOf(
+            "r" to "g/word/struct",
+            "params" to params
+        )
+
+        return postRequest(Endpoints.WORD_STRUCT, bodyData).mapCatching { responseBody ->
+            val json = responseBody.parseJson()
+            val code = json.optInt("code", -999)
+            if (code != -999 && code != 0) {
+                val msg = json.optString("msg", "")
+                throw Exception("word/struct 失败: $msg ($code)")
+            }
+            extractBody(json)
         }
     }
 
@@ -829,6 +910,38 @@ object ETS100ApiClient {
         } else {
             org.json.JSONObject(this)
         }
+    }
+    
+    private fun extractBody(json: org.json.JSONObject): org.json.JSONObject {
+        val bodyObj = json.optJSONObject("body")
+        if (bodyObj != null) return bodyObj
+        val bodyStr = json.optString("body", "")
+        if (bodyStr.isNotBlank()) {
+            try {
+                val decodedBytes = android.util.Base64.decode(bodyStr, android.util.Base64.DEFAULT)
+                val decodedStr = String(decodedBytes, Charsets.UTF_8).trim()
+                if (decodedStr.startsWith("{")) {
+                    return org.json.JSONObject(decodedStr)
+                } else if (decodedStr.startsWith("[")) {
+                    val arr = org.json.JSONArray(decodedStr)
+                    val wrapper = org.json.JSONObject()
+                    wrapper.put("data", arr)
+                    return wrapper
+                }
+            } catch (_: Exception) {}
+            try {
+                val trimmed = bodyStr.trim()
+                if (trimmed.startsWith("{")) {
+                    return org.json.JSONObject(trimmed)
+                } else if (trimmed.startsWith("[")) {
+                    val arr = org.json.JSONArray(trimmed)
+                    val wrapper = org.json.JSONObject()
+                    wrapper.put("data", arr)
+                    return wrapper
+                }
+            } catch (_: Exception) {}
+        }
+        return org.json.JSONObject()
     }
     
     /**

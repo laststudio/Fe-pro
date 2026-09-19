@@ -972,21 +972,95 @@ fun ReadScreen(
                 val parentId = ETS100AuthManager.getParentAccountId(context).orEmpty()
 
                 var pkJson: org.json.JSONObject? = null
+                fun hasQuestions(json: org.json.JSONObject?): Boolean {
+                    if (json == null || json.length() == 0) return false
+                    return (json.optJSONArray("word_question")?.length() ?: 0) > 0
+                        || (json.optJSONArray("word_questions")?.length() ?: 0) > 0
+                        || (json.optJSONArray("questions")?.length() ?: 0) > 0
+                        || (json.optJSONArray("data")?.length() ?: 0) > 0
+                        || (json.optJSONArray("words")?.length() ?: 0) > 0
+                        || (json.optJSONArray("word")?.length() ?: 0) > 0
+                }
+
                 if (token.isNotBlank()) {
+                    // 路径 1: pk-info
                     val pkResult = ETS100ApiClient.getPkInfo(token, homeworkInfo.id, parentId)
-                    if (pkResult.isSuccess && (pkResult.getOrNull()?.length() ?: 0) > 0) {
-                        pkJson = pkResult.getOrNull()
+                    val rawPk = pkResult.getOrNull()
+                    if (hasQuestions(rawPk)) {
+                        pkJson = rawPk
                         addLog(LogLevel.INFO, LogCategory.SYSTEM, "✅ 成功获取 pk-info 响应")
                     } else {
-                        val errMsg = pkResult.exceptionOrNull()?.message ?: "空数据"
+                        val errMsg = pkResult.exceptionOrNull()?.message ?: "无题目"
                         addLog(LogLevel.WARN, LogCategory.SYSTEM, "⚠️ pk-info 未返回题目 ($errMsg)，尝试 homework/struct...")
+                        
+                        // 路径 2: homework/struct (带 resourceId)
                         val structResult = ETS100ApiClient.getHomeworkStruct(token, homeworkInfo.id, homeworkInfo.resourceId, parentId)
-                        if (structResult.isSuccess && (structResult.getOrNull()?.length() ?: 0) > 0) {
-                            pkJson = structResult.getOrNull()
-                            addLog(LogLevel.INFO, LogCategory.SYSTEM, "✅ 成功获取 homework/struct 响应")
-                        } else {
-                            val structErrMsg = structResult.exceptionOrNull()?.message ?: "空数据"
-                            addLog(LogLevel.WARN, LogCategory.SYSTEM, "⚠️ homework/struct 也未返回题目: $structErrMsg")
+                        val rawStruct = structResult.getOrNull()
+                        if (hasQuestions(rawStruct)) {
+                            pkJson = rawStruct
+                            addLog(LogLevel.INFO, LogCategory.SYSTEM, "✅ 成功从 homework/struct 获取题目数据")
+                        } else if (homeworkInfo.resourceId.isNotBlank()) {
+                            // 路径 3: homework/struct (不带 resourceId)
+                            addLog(LogLevel.WARN, LogCategory.SYSTEM, "⚠️ homework/struct(带resourceId) 未返回题目，尝试不带 resourceId...")
+                            val structNoRes = ETS100ApiClient.getHomeworkStruct(token, homeworkInfo.id, "", parentId)
+                            val rawStruct2 = structNoRes.getOrNull()
+                            if (hasQuestions(rawStruct2)) {
+                                pkJson = rawStruct2
+                                addLog(LogLevel.INFO, LogCategory.SYSTEM, "✅ 成功从 homework/struct(无resourceId) 获取题目数据")
+                            }
+                        }
+
+                        // 路径 4: score-detail (已完成历史作业回退)
+                        if (pkJson == null) {
+                            addLog(LogLevel.WARN, LogCategory.SYSTEM, "⚠️ struct 未返回题目，尝试 score-detail 历史作业解析...")
+                            val detailResult = ETS100ApiClient.getScoreDetail(token, homeworkInfo.id, homeworkInfo.resourceId, parentId)
+                            val detailBody = detailResult.getOrNull()
+                            val detailsArr = detailBody?.optJSONArray("details")
+                            if (detailsArr != null && detailsArr.length() > 0) {
+                                val wordIdSet = mutableSetOf<Int>()
+                                val questionIdSet = mutableSetOf<Int>()
+                                for (i in 0 until detailsArr.length()) {
+                                    val d = detailsArr.optJSONObject(i) ?: continue
+                                    val wArr = d.optJSONArray("word") ?: continue
+                                    for (j in 0 until wArr.length()) {
+                                        val entry = wArr.optJSONObject(j) ?: continue
+                                        val wid = entry.optInt("word_id", 0)
+                                        val qid = entry.optInt("question_id", 0)
+                                        if (wid > 0) wordIdSet.add(wid)
+                                        if (qid > 0) questionIdSet.add(qid)
+                                    }
+                                }
+                                if (wordIdSet.isNotEmpty()) {
+                                    addLog(LogLevel.INFO, LogCategory.SYSTEM, "🔍 score-detail 发现 ${wordIdSet.size} 个单词，调用 word/struct...")
+                                    val wordStructRes = ETS100ApiClient.getWordStruct(token, wordIdSet.toList())
+                                    val wordStructBody = wordStructRes.getOrNull()
+                                    val dataArr = wordStructBody?.optJSONArray("data")
+                                    if (dataArr != null && dataArr.length() > 0) {
+                                        val filteredArr = org.json.JSONArray()
+                                        for (k in 0 until dataArr.length()) {
+                                            val item = dataArr.optJSONObject(k) ?: continue
+                                            val qList = item.optJSONArray("question") ?: continue
+                                            val matchingQs = org.json.JSONArray()
+                                            for (m in 0 until qList.length()) {
+                                                val q = qList.optJSONObject(m) ?: continue
+                                                val qid = q.optInt("id", 0)
+                                                if (questionIdSet.isEmpty() || questionIdSet.contains(qid)) {
+                                                    matchingQs.put(q)
+                                                }
+                                            }
+                                            if (matchingQs.length() > 0) {
+                                                val itemCopy = org.json.JSONObject(item.toString())
+                                                itemCopy.put("question", matchingQs)
+                                                filteredArr.put(itemCopy)
+                                            }
+                                        }
+                                        if (filteredArr.length() > 0) {
+                                            pkJson = org.json.JSONObject().put("data", filteredArr)
+                                            addLog(LogLevel.INFO, LogCategory.SYSTEM, "✅ 成功从 score-detail + word/struct 恢复 ${filteredArr.length()} 个单词题目")
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -994,6 +1068,7 @@ fun ReadScreen(
                 if (pkJson != null && pkJson.length() > 0) {
                     try {
                         val groupName = if (homeworkInfo.setType == 6 || homeworkInfo.pk == 1) "词汇PK" else "在线作业"
+                        pkJson.put("structure_type", "word_pk")
                         File(cacheDir, "content.json").writeText(pkJson.toString())
                         val (questions, originalContent) = ETS100AnswerReader.parseContentJson(
                             json = pkJson,
