@@ -218,6 +218,7 @@ internal class FeAccountApi(private val context: Context) {
             readTimeout = TIMEOUT_MS
             setRequestProperty("Accept", "application/json")
             setRequestProperty("User-Agent", "Fe/${BuildConfig.VERSION_NAME} Android")
+            setRequestProperty("X-App-Version-Code", BuildConfig.VERSION_CODE.toString())
             if (authorization != null) setRequestProperty("Authorization", authorization)
             if (body != null) {
                 doOutput = true
