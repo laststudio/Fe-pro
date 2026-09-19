@@ -9,6 +9,11 @@ object CloudHomeworkState {
     const val STATUS_HISTORY = "2"
     const val STATUS_EXPIRED = "3"
 
+    const val CATEGORY_CURRENT = "current"
+    const val CATEGORY_HISTORY = "history"
+    const val CATEGORY_VOCAB_PK = "vocab_pk"
+
+    var selectedCategory: String = CATEGORY_CURRENT
     var selectedStatus: String = STATUS_CURRENT
     var homeworkListsByStatus: Map<String, List<ETS100ApiClient.HomeworkInfo>> = emptyMap()
     var homeworkList: List<ETS100ApiClient.HomeworkInfo>
@@ -40,6 +45,7 @@ object CloudHomeworkState {
 
     fun clear() {
         selectedStatus = STATUS_CURRENT
+        selectedCategory = CATEGORY_CURRENT
         homeworkListsByStatus = emptyMap()
         downloadedPapers = emptyMap()
         downloadedHomeworkNames = emptySet()

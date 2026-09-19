@@ -33,6 +33,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Assignment
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.automirrored.filled.MenuBook
@@ -42,6 +43,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
@@ -165,6 +167,8 @@ private fun ETS100AnswerReader.Paper.isLocalAnswerLoading(): Boolean {
  */
 private fun createCloudHomeworkPlaceholder(homework: ETS100ApiClient.HomeworkInfo): ETS100AnswerReader.Paper {
     val identity = cloudHomeworkIdentity(homework)
+    val isPk = homework.pk == 1 || homework.setType == 6
+    val defaultTitle = if (isPk) "词汇PK" else "云端作业"
     val placeholderSections = homework.contents.mapIndexed { index, content ->
         val title = content.groupName.ifBlank { "云端内容 ${index + 1}" }
         ETS100AnswerReader.Section(
@@ -189,8 +193,8 @@ private fun createCloudHomeworkPlaceholder(homework: ETS100ApiClient.HomeworkInf
     }.ifEmpty {
         listOf(
             ETS100AnswerReader.Section(
-                caption = "云端作业",
-                category = "cloud_homework",
+                caption = defaultTitle,
+                category = if (isPk) "word.choice" else "cloud_homework",
                 typeName = "未加载",
                 questions = emptyList(),
                 originalContent = null
@@ -205,7 +209,7 @@ private fun createCloudHomeworkPlaceholder(homework: ETS100ApiClient.HomeworkInf
         fileSize = 0L,
         sections = placeholderSections,
         downloadTime = 0L,
-        regionLabel = "云端",
+        regionLabel = if (isPk) "词汇PK" else "云端",
         paperName = homework.name
     )
 }
@@ -377,6 +381,7 @@ fun ReadScreen(
                     papers.isNotEmpty() && papers.all { it.source is PaperSource.Cloud }
                 }
                 CloudHomeworkState.selectedStatus = snapshot.selectedStatus
+                CloudHomeworkState.selectedCategory = snapshot.selectedCategory
                 CloudHomeworkState.homeworkListsByStatus = snapshot.homeworkListsByStatus
                 CloudHomeworkState.cloudBaseUrl = snapshot.cloudBaseUrl
                 CloudHomeworkState.downloadedPapers = validDownloadedPapers
@@ -455,7 +460,7 @@ fun ReadScreen(
         }
     }
 
-    // ========== 云端模式状态喵~ 宝贝这些状态现在保存在单例中，Tab 切换不丢失喵~
+    var selectedCloudCategory by remember { mutableStateOf(CloudHomeworkState.selectedCategory) }
     var selectedCloudHomeworkStatus by remember { mutableStateOf(CloudHomeworkState.selectedStatus) }
     var homeworkListsByStatus by remember { mutableStateOf(CloudHomeworkState.homeworkListsByStatus) }
     var isLoadingCloudHomework by remember { mutableStateOf(CloudHomeworkState.isLoading) }
@@ -468,15 +473,46 @@ fun ReadScreen(
     var cloudDownloadProgress by remember { mutableStateOf(CloudHomeworkState.cloudDownloadProgress) }
     var failedCloudHomeworks by remember { mutableStateOf(CloudHomeworkState.failedCloudHomeworks) }
 
-    // 宝贝新增：云端作业占位符列表喵~ 现在显示所有作业，包括已下载的喵~
+    // 宝贝新增：云端作业占位符列表喵~ 支持当前、历史及词汇PK三类视图
     val homeworkList by remember {
         derivedStateOf {
-            homeworkListsByStatus[selectedCloudHomeworkStatus].orEmpty()
+            when (selectedCloudCategory) {
+                CloudHomeworkState.CATEGORY_CURRENT ->
+                    homeworkListsByStatus[CloudHomeworkState.STATUS_CURRENT].orEmpty()
+                CloudHomeworkState.CATEGORY_HISTORY ->
+                    homeworkListsByStatus[CloudHomeworkState.STATUS_HISTORY].orEmpty()
+                CloudHomeworkState.CATEGORY_VOCAB_PK -> {
+                    val allLoaded = (homeworkListsByStatus[CloudHomeworkState.STATUS_CURRENT].orEmpty() +
+                        homeworkListsByStatus[CloudHomeworkState.STATUS_HISTORY].orEmpty())
+                        .distinctBy { it.id.ifBlank { it.name } }
+                    allLoaded.filter { it.pk == 1 || it.setType == 6 }
+                }
+                else -> homeworkListsByStatus[CloudHomeworkState.STATUS_CURRENT].orEmpty()
+            }
         }
     }
     val selectedCloudHomeworkLabel by remember {
         derivedStateOf {
-            cloudHomeworkStatusLabel(selectedCloudHomeworkStatus)
+            when (selectedCloudCategory) {
+                CloudHomeworkState.CATEGORY_CURRENT -> "当前作业"
+                CloudHomeworkState.CATEGORY_HISTORY -> "历史作业"
+                CloudHomeworkState.CATEGORY_VOCAB_PK -> "词汇PK"
+                else -> "当前作业"
+            }
+        }
+    }
+    val isCurrentCategoryLoaded by remember {
+        derivedStateOf {
+            when (selectedCloudCategory) {
+                CloudHomeworkState.CATEGORY_CURRENT ->
+                    homeworkListsByStatus.containsKey(CloudHomeworkState.STATUS_CURRENT)
+                CloudHomeworkState.CATEGORY_HISTORY ->
+                    homeworkListsByStatus.containsKey(CloudHomeworkState.STATUS_HISTORY)
+                CloudHomeworkState.CATEGORY_VOCAB_PK ->
+                    homeworkListsByStatus.containsKey(CloudHomeworkState.STATUS_CURRENT) ||
+                    homeworkListsByStatus.containsKey(CloudHomeworkState.STATUS_HISTORY)
+                else -> false
+            }
         }
     }
     val cloudHomeworkPlaceholders by remember {
@@ -525,7 +561,8 @@ fun ReadScreen(
                 cloudBaseUrl = cloudBaseUrl,
                 downloadedPapers = downloadedPapers,
                 downloadedHomeworkNames = downloadedHomeworkNames,
-                failedCloudHomeworks = failedCloudHomeworks
+                failedCloudHomeworks = failedCloudHomeworks,
+                selectedCategory = selectedCloudCategory
             )
         )
     }
@@ -790,15 +827,36 @@ fun ReadScreen(
         CloudHomeworkState.isLoading = false
     }
 
-    fun selectCloudHomeworkStatus(status: String) {
-        if (status == selectedCloudHomeworkStatus) return
+    fun selectCloudCategory(category: String) {
+        if (category == selectedCloudCategory) return
 
-        selectedCloudHomeworkStatus = status
-        CloudHomeworkState.selectedStatus = status
+        selectedCloudCategory = category
+        CloudHomeworkState.selectedCategory = category
+
+        val targetStatus = when (category) {
+            CloudHomeworkState.CATEGORY_HISTORY -> CloudHomeworkState.STATUS_HISTORY
+            else -> CloudHomeworkState.STATUS_CURRENT
+        }
+        selectedCloudHomeworkStatus = targetStatus
+        CloudHomeworkState.selectedStatus = targetStatus
         selectedPaper = null
         showPaperDetail = false
         cloudHomeworkError = CloudHomeworkState.error
         saveCloudReadState()
+
+        if (!homeworkListsByStatus.containsKey(targetStatus) && accountOnline) {
+            scope.launch {
+                loadCloudHomeworkList(targetStatus)
+            }
+        }
+    }
+
+    fun selectCloudHomeworkStatus(status: String) {
+        val category = when (status) {
+            CloudHomeworkState.STATUS_HISTORY -> CloudHomeworkState.CATEGORY_HISTORY
+            else -> CloudHomeworkState.CATEGORY_CURRENT
+        }
+        selectCloudCategory(category)
     }
 
     /**
@@ -825,6 +883,7 @@ fun ReadScreen(
                 failedCloudHomeworks = emptySet()
                 papers = emptyList()
                 homeworkListsByStatus = emptyMap()
+                selectedCloudCategory = CloudHomeworkState.CATEGORY_CURRENT
                 selectedCloudHomeworkStatus = CloudHomeworkState.STATUS_CURRENT
                 CloudHomeworkState.clear()
                 ReadPageStateStore.clearCloud(context)
@@ -906,7 +965,67 @@ fun ReadScreen(
             val allSections = mutableListOf<ETS100AnswerReader.Section>()
             var questionIndex = 0
 
-            for ((contentIndex, content) in homeworkInfo.contents.withIndex()) {
+            val isPkOrVocab = homeworkInfo.contents.isEmpty() || homeworkInfo.pk == 1 || homeworkInfo.setType == 6
+            if (isPkOrVocab) {
+                addLog(LogLevel.INFO, LogCategory.SYSTEM, "🌐 检测到 PK/词汇在线作业，正在从云端获取题目数据...")
+                val token = ETS100AuthManager.getToken(context).orEmpty()
+                val parentId = ETS100AuthManager.getParentAccountId(context).orEmpty()
+
+                var pkJson: org.json.JSONObject? = null
+                if (token.isNotBlank()) {
+                    val pkResult = ETS100ApiClient.getPkInfo(token, homeworkInfo.id, parentId)
+                    if (pkResult.isSuccess && (pkResult.getOrNull()?.length() ?: 0) > 0) {
+                        pkJson = pkResult.getOrNull()
+                        addLog(LogLevel.INFO, LogCategory.SYSTEM, "✅ 成功获取 pk-info 响应")
+                    } else {
+                        val errMsg = pkResult.exceptionOrNull()?.message ?: "空数据"
+                        addLog(LogLevel.WARN, LogCategory.SYSTEM, "⚠️ pk-info 未返回题目 ($errMsg)，尝试 homework/struct...")
+                        val structResult = ETS100ApiClient.getHomeworkStruct(token, homeworkInfo.id, homeworkInfo.resourceId, parentId)
+                        if (structResult.isSuccess && (structResult.getOrNull()?.length() ?: 0) > 0) {
+                            pkJson = structResult.getOrNull()
+                            addLog(LogLevel.INFO, LogCategory.SYSTEM, "✅ 成功获取 homework/struct 响应")
+                        } else {
+                            val structErrMsg = structResult.exceptionOrNull()?.message ?: "空数据"
+                            addLog(LogLevel.WARN, LogCategory.SYSTEM, "⚠️ homework/struct 也未返回题目: $structErrMsg")
+                        }
+                    }
+                }
+
+                if (pkJson != null && pkJson.length() > 0) {
+                    try {
+                        val groupName = if (homeworkInfo.setType == 6 || homeworkInfo.pk == 1) "词汇PK" else "在线作业"
+                        File(cacheDir, "content.json").writeText(pkJson.toString())
+                        val (questions, originalContent) = ETS100AnswerReader.parseContentJson(
+                            json = pkJson,
+                            startIndex = questionIndex,
+                            category = "",
+                            typeName = groupName,
+                            sectionCaption = groupName,
+                            infoJson = "",
+                            content2Json = "",
+                        )
+
+                        if (questions.isNotEmpty()) {
+                            allSections.add(ETS100AnswerReader.Section(
+                                caption = groupName,
+                                category = pkJson.optString("structure_type", "word.choice"),
+                                typeName = groupName,
+                                questions = questions,
+                                originalContent = originalContent
+                            ))
+                            questionIndex += questions.size
+                            addLog(LogLevel.SUCCESS, LogCategory.QUESTION, "✅ 成功解析 PK/词汇题目 ${questions.size} 道")
+                        } else {
+                            addLog(LogLevel.WARN, LogCategory.QUESTION, "⚠️ PK/词汇作业未解析出题目")
+                        }
+                    } catch (e: Exception) {
+                        addLog(LogLevel.ERROR, LogCategory.FILE, "✗ 解析 PK/词汇作业失败: ${e.message}")
+                    }
+                }
+            }
+
+            if (allSections.isEmpty()) {
+                for ((contentIndex, content) in homeworkInfo.contents.withIndex()) {
                 // 1. 构造完整 URL
                 val zipUrl = if (content.url.startsWith("http")) {
                     content.url.replaceFirst("http://", "https://")
@@ -1098,6 +1217,7 @@ fun ReadScreen(
                     }
                 }
             }
+            }
 
             if (allSections.isEmpty()) {
                 throw Exception("未能解析到任何题目")
@@ -1110,12 +1230,16 @@ fun ReadScreen(
 
             addLog(LogLevel.SUCCESS, LogCategory.SYSTEM, "📝 共解析到 ${normalizedSections.size} 个题型，${questionIndex} 道题")
 
+            val isPk = homeworkInfo.pk == 1 || homeworkInfo.setType == 6
             val paper = ETS100AnswerReader.Paper(
                 paperId = cacheKey.hashCode().toLong(),
                 title = homeworkInfo.name,
                 dataFileName = cacheKey,
                 fileSize = 0L,
                 sections = normalizedSections,
+                downloadTime = System.currentTimeMillis(),
+                regionLabel = if (isPk) "词汇PK" else "云端",
+                paperName = homeworkInfo.name,
                 source = PaperSource.Cloud(
                     status = status,
                     homeworkIdentity = cloudHomeworkIdentity(homeworkInfo),
@@ -1665,46 +1789,60 @@ fun ReadScreen(
                                         selectedStatus = selectedCloudHomeworkStatus,
                                     )
                                     Spacer(modifier = Modifier.height(8.dp))
-                                    CloudHomeworkStatusToggle(
-                                        selectedStatus = selectedCloudHomeworkStatus,
-                                        onStatusChange = { selectCloudHomeworkStatus(it) }
+                                    CloudHomeworkCategorySelector(
+                                        selectedCategory = selectedCloudCategory,
+                                        homeworkCount = homeworkList.size,
+                                        onCategorySelect = { selectCloudCategory(it) }
                                     )
                                 }
-                                if (homeworkListsByStatus.containsKey(selectedCloudHomeworkStatus) && homeworkList.isEmpty()) {
+                                if (isCurrentCategoryLoaded && homeworkList.isEmpty()) {
                                     item {
-                                        EmptyCloudHomeworkCard(label = selectedCloudHomeworkLabel, hasLoaded = true)
+                                        EmptyCloudHomeworkCard(
+                                            label = selectedCloudHomeworkLabel,
+                                            hasLoaded = true,
+                                            isVocabPk = selectedCloudCategory == CloudHomeworkState.CATEGORY_VOCAB_PK
+                                        )
                                     }
-                                } else if (!homeworkListsByStatus.containsKey(selectedCloudHomeworkStatus)) {
+                                } else if (!isCurrentCategoryLoaded) {
                                     item {
-                                        EmptyCloudHomeworkCard(label = selectedCloudHomeworkLabel, hasLoaded = false)
+                                        EmptyCloudHomeworkCard(
+                                            label = selectedCloudHomeworkLabel,
+                                            hasLoaded = false,
+                                            isVocabPk = selectedCloudCategory == CloudHomeworkState.CATEGORY_VOCAB_PK
+                                        )
                                     }
                                 }
                                 itemsIndexed(
                                     items = homeworkList,
                                     key = { index, homeworkInfo ->
-                                        "${cloudHomeworkCacheKey(selectedCloudHomeworkStatus, homeworkInfo)}:$index"
+                                        "${selectedCloudCategory}:${cloudHomeworkIdentity(homeworkInfo)}:$index"
                                     },
                                 ) { paperIndex, homeworkInfo ->
-                                    val homeworkKey = cloudHomeworkCacheKey(selectedCloudHomeworkStatus, homeworkInfo)
-                                    val isDownloaded = downloadedHomeworkNames.contains(homeworkKey)
-                                    val isDownloading = cloudDownloadingHomeworks.contains(homeworkKey)
-                                    val isFailed = failedCloudHomeworks.contains(homeworkKey)
-                                    val downloadProgress = cloudDownloadProgress[homeworkKey]
+                                    val currentKey = cloudHomeworkCacheKey(CloudHomeworkState.STATUS_CURRENT, homeworkInfo)
+                                    val historyKey = cloudHomeworkCacheKey(CloudHomeworkState.STATUS_HISTORY, homeworkInfo)
+                                    val homeworkKey = if (downloadedHomeworkNames.contains(historyKey)) historyKey else currentKey
+
+                                    val isDownloaded = downloadedHomeworkNames.contains(currentKey) || downloadedHomeworkNames.contains(historyKey)
+                                    val isDownloading = cloudDownloadingHomeworks.contains(currentKey) || cloudDownloadingHomeworks.contains(historyKey)
+                                    val isFailed = failedCloudHomeworks.contains(currentKey) || failedCloudHomeworks.contains(historyKey)
+                                    val downloadProgress = cloudDownloadProgress[currentKey] ?: cloudDownloadProgress[historyKey]
                                     val paper = createCloudHomeworkPlaceholder(homeworkInfo)
-                                    val downloadedPaper = downloadedPapers[homeworkKey]?.firstOrNull()
+                                    val downloadedPaper = downloadedPapers[currentKey]?.firstOrNull() ?: downloadedPapers[historyKey]?.firstOrNull()
                                     PaperListItem(
                                         paper = paper,
                                         paperIndex = paperIndex,
                                         onClick = {
                                             if (isDownloaded) {
                                                 // 宝贝已下载，点击查看详情喵~
-                                                downloadedPapers[homeworkKey]?.firstOrNull()?.let { downloadedPaper ->
-                                                    openPaperDetail(downloadedPaper)
-                                                }
+                                                downloadedPaper?.let { openPaperDetail(it) }
                                             } else if (!isDownloading) {
                                                 // 宝贝未下载，开始下载喵~
                                                 AppCoroutineScope.scope.launch {
-                                                    downloadAndParseHomework(homeworkInfo, selectedCloudHomeworkStatus)
+                                                    val parseStatus = if (selectedCloudCategory == CloudHomeworkState.CATEGORY_HISTORY)
+                                                        CloudHomeworkState.STATUS_HISTORY
+                                                    else
+                                                        CloudHomeworkState.STATUS_CURRENT
+                                                    downloadAndParseHomework(homeworkInfo, parseStatus)
                                                 }
                                             }
                                         },
@@ -2404,7 +2542,7 @@ private fun LocalAnswerParsingCard(
 }
 
 @Composable
-private fun EmptyCloudHomeworkCard(label: String, hasLoaded: Boolean) {
+private fun EmptyCloudHomeworkCard(label: String, hasLoaded: Boolean, isVocabPk: Boolean = false) {
     TonalCard(
         modifier = Modifier.fillMaxWidth(),
         containerColor = MaterialTheme.colorScheme.surfaceBright
@@ -2416,7 +2554,9 @@ private fun EmptyCloudHomeworkCard(label: String, hasLoaded: Boolean) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                if (hasLoaded) Icons.Default.FolderOff else Icons.Default.CloudDownload,
+                if (hasLoaded) {
+                    if (isVocabPk) Icons.Default.SportsEsports else Icons.Default.FolderOff
+                } else Icons.Default.CloudDownload,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(28.dp)
@@ -2429,7 +2569,9 @@ private fun EmptyCloudHomeworkCard(label: String, hasLoaded: Boolean) {
                 )
                 Spacer(Modifier.height(3.dp))
                 Text(
-                    text = if (hasLoaded) "该分类暂时没有可用作业" else "点击右下角“读取作业”获取列表",
+                    text = if (hasLoaded) {
+                        if (isVocabPk) "未在当前已同步作业中检测到词汇PK题目" else "该分类暂时没有可用作业"
+                    } else "点击右下角“读取作业”获取列表",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -2439,46 +2581,201 @@ private fun EmptyCloudHomeworkCard(label: String, hasLoaded: Boolean) {
 }
 
 @Composable
-private fun CloudHomeworkStatusToggle(
-    selectedStatus: String,
-    onStatusChange: (String) -> Unit
+private fun CloudHomeworkCategorySelector(
+    selectedCategory: String,
+    homeworkCount: Int,
+    onCategorySelect: (String) -> Unit,
 ) {
-    val isHistory = selectedStatus == CloudHomeworkState.STATUS_HISTORY
+    var menuExpanded by remember { mutableStateOf(false) }
+    val chevronRotation by animateFloatAsState(
+        targetValue = if (menuExpanded) 180f else 0f,
+        label = "chevronRotation"
+    )
 
-    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-        SegmentedButton(
-            selected = !isHistory,
-            onClick = { onStatusChange(CloudHomeworkState.STATUS_CURRENT) },
-            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
-            colors = cloudHomeworkSegmentedButtonColors(),
-            icon = {}
+    val categoryTitle = when (selectedCategory) {
+        CloudHomeworkState.CATEGORY_CURRENT -> "当前作业"
+        CloudHomeworkState.CATEGORY_HISTORY -> "历史作业"
+        CloudHomeworkState.CATEGORY_VOCAB_PK -> "词汇PK"
+        else -> "当前作业"
+    }
+
+    val categorySubtitle = when (selectedCategory) {
+        CloudHomeworkState.CATEGORY_CURRENT -> "正在进行的日常作业任务"
+        CloudHomeworkState.CATEGORY_HISTORY -> "往期完成与逾期归档记录"
+        CloudHomeworkState.CATEGORY_VOCAB_PK -> "在线词汇竞赛与专项目标"
+        else -> "作业分类"
+    }
+
+    val categoryIcon = when (selectedCategory) {
+        CloudHomeworkState.CATEGORY_CURRENT -> Icons.AutoMirrored.Filled.Assignment
+        CloudHomeworkState.CATEGORY_HISTORY -> Icons.Default.History
+        CloudHomeworkState.CATEGORY_VOCAB_PK -> Icons.Default.SportsEsports
+        else -> Icons.Default.Folder
+    }
+
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { menuExpanded = true },
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+            tonalElevation = 2.dp
         ) {
-            Text("当前作业")
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Leading Icon Container
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = when (selectedCategory) {
+                        CloudHomeworkState.CATEGORY_VOCAB_PK -> MaterialTheme.colorScheme.tertiaryContainer
+                        CloudHomeworkState.CATEGORY_HISTORY -> MaterialTheme.colorScheme.secondaryContainer
+                        else -> MaterialTheme.colorScheme.primaryContainer
+                    },
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = categoryIcon,
+                            contentDescription = null,
+                            tint = when (selectedCategory) {
+                                CloudHomeworkState.CATEGORY_VOCAB_PK -> MaterialTheme.colorScheme.onTertiaryContainer
+                                CloudHomeworkState.CATEGORY_HISTORY -> MaterialTheme.colorScheme.onSecondaryContainer
+                                else -> MaterialTheme.colorScheme.onPrimaryContainer
+                            },
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(14.dp))
+
+                // Center Title & Subtitle & Count
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = categoryTitle,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                        ) {
+                            Text(
+                                text = "$homeworkCount",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = categorySubtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                // Trailing Chevron
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowDown,
+                    contentDescription = "选择题型分类",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .size(24.dp)
+                        .rotate(chevronRotation)
+                )
+            }
         }
-        SegmentedButton(
-            selected = isHistory,
-            onClick = { onStatusChange(CloudHomeworkState.STATUS_HISTORY) },
-            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
-            colors = cloudHomeworkSegmentedButtonColors(),
-            icon = {}
+
+        DropdownMenu(
+            expanded = menuExpanded,
+            onDismissRequest = { menuExpanded = false },
         ) {
-            Text("历史作业")
+            DropdownMenuItem(
+                text = {
+                    Column {
+                        Text("当前作业", fontWeight = FontWeight.SemiBold)
+                        Text("正在进行的日常作业任务", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                },
+                leadingIcon = {
+                    Icon(Icons.AutoMirrored.Filled.Assignment, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                },
+                trailingIcon = if (selectedCategory == CloudHomeworkState.CATEGORY_CURRENT) {
+                    { Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
+                } else null,
+                onClick = {
+                    menuExpanded = false
+                    onCategorySelect(CloudHomeworkState.CATEGORY_CURRENT)
+                }
+            )
+
+            DropdownMenuItem(
+                text = {
+                    Column {
+                        Text("历史作业", fontWeight = FontWeight.SemiBold)
+                        Text("往期完成与逾期归档记录", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                },
+                leadingIcon = {
+                    Icon(Icons.Default.History, contentDescription = null, tint = MaterialTheme.colorScheme.secondary)
+                },
+                trailingIcon = if (selectedCategory == CloudHomeworkState.CATEGORY_HISTORY) {
+                    { Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
+                } else null,
+                onClick = {
+                    menuExpanded = false
+                    onCategorySelect(CloudHomeworkState.CATEGORY_HISTORY)
+                }
+            )
+
+            DropdownMenuItem(
+                text = {
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("词汇PK", fontWeight = FontWeight.SemiBold)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = MaterialTheme.colorScheme.tertiaryContainer
+                            ) {
+                                Text(
+                                    "HOT",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
+                            }
+                        }
+                        Text("在线词汇竞赛与专项目标", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                },
+                leadingIcon = {
+                    Icon(Icons.Default.SportsEsports, contentDescription = null, tint = MaterialTheme.colorScheme.tertiary)
+                },
+                trailingIcon = if (selectedCategory == CloudHomeworkState.CATEGORY_VOCAB_PK) {
+                    { Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
+                } else null,
+                onClick = {
+                    menuExpanded = false
+                    onCategorySelect(CloudHomeworkState.CATEGORY_VOCAB_PK)
+                }
+            )
         }
     }
-}
-
-@Composable
-private fun cloudHomeworkSegmentedButtonColors(): SegmentedButtonColors {
-    return SegmentedButtonDefaults.colors(
-        activeContainerColor = MaterialTheme.colorScheme.primaryContainer,
-        activeContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-        inactiveContainerColor = MaterialTheme.colorScheme.surface,
-        inactiveContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-        disabledActiveContainerColor = MaterialTheme.colorScheme.primaryContainer,
-        disabledActiveContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-        disabledInactiveContainerColor = MaterialTheme.colorScheme.surface,
-        disabledInactiveContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.58f)
-    )
 }
 
 @Composable
@@ -3701,11 +3998,13 @@ private fun PaperListItem(
                             val regionContainerColor = when (paper.regionLabel) {
                                 "初中" -> MaterialTheme.colorScheme.secondaryContainer
                                 "高中" -> MaterialTheme.colorScheme.secondaryContainer
+                                "词汇PK", "PK/词汇" -> MaterialTheme.colorScheme.tertiaryContainer
                                 else -> MaterialTheme.colorScheme.surfaceContainer
                             }
                             val regionContentColor = when (paper.regionLabel) {
                                 "初中" -> MaterialTheme.colorScheme.onSecondaryContainer
                                 "高中" -> MaterialTheme.colorScheme.onSecondaryContainer
+                                "词汇PK", "PK/词汇" -> MaterialTheme.colorScheme.onTertiaryContainer
                                 else -> MaterialTheme.colorScheme.onSurfaceVariant
                             }
                             Surface(

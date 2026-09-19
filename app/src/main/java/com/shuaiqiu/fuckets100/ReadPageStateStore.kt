@@ -24,7 +24,8 @@ object ReadPageStateStore {
         val cloudBaseUrl: String,
         val downloadedPapers: Map<String, List<ETS100AnswerReader.Paper>>,
         val downloadedHomeworkNames: Set<String>,
-        val failedCloudHomeworks: Set<String>
+        val failedCloudHomeworks: Set<String>,
+        val selectedCategory: String = CloudHomeworkState.CATEGORY_CURRENT
     )
 
     fun saveLocal(context: Context, snapshot: LocalSnapshot) {
@@ -69,6 +70,7 @@ object ReadPageStateStore {
 
     private fun CloudSnapshot.toJson(): JSONObject = JSONObject()
         .put("selectedStatus", selectedStatus)
+        .put("selectedCategory", selectedCategory)
         .put("homeworkListsByStatus", homeworkListsByStatus.toHomeworkMapJson())
         .put("cloudBaseUrl", cloudBaseUrl)
         .put("downloadedPapers", downloadedPapers.toPaperMapJson())
@@ -95,7 +97,8 @@ object ReadPageStateStore {
         cloudBaseUrl = json.optString("cloudBaseUrl", ETS100ApiClient.Config.CDN_BASE_URL),
         downloadedPapers = parsePaperMap(json.optJSONObject("downloadedPapers")),
         downloadedHomeworkNames = parseStringSet(json.optJSONArray("downloadedHomeworkNames")),
-        failedCloudHomeworks = parseStringSet(json.optJSONArray("failedCloudHomeworks"))
+        failedCloudHomeworks = parseStringSet(json.optJSONArray("failedCloudHomeworks")),
+        selectedCategory = json.optString("selectedCategory", CloudHomeworkState.CATEGORY_CURRENT)
     )
 
     private fun List<ETS100FileReader.FileItem>.toFileJsonArray(): JSONArray {
@@ -382,6 +385,9 @@ object ReadPageStateStore {
                 JSONObject()
                     .put("id", homework.id)
                     .put("name", homework.name)
+                    .put("setType", homework.setType)
+                    .put("pk", homework.pk)
+                    .put("resourceId", homework.resourceId)
                     .put("contents", homework.contents.toHomeworkContentJsonArray())
             )
         }
@@ -418,7 +424,10 @@ object ReadPageStateStore {
                 ETS100ApiClient.HomeworkInfo(
                     id = json.optString("id"),
                     name = json.optString("name"),
-                    contents = parseHomeworkContents(json.optJSONArray("contents"))
+                    contents = parseHomeworkContents(json.optJSONArray("contents")),
+                    setType = json.optInt("setType", 0),
+                    pk = json.optInt("pk", 0),
+                    resourceId = json.optString("resourceId", "")
                 )
             }
         }

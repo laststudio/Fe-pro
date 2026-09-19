@@ -42,6 +42,8 @@ object ETS100ApiClient {
         const val LOGIN_ZT = "/user/login-zt"
         const val ECARD_LIST = "/m/ecard/list"
         const val HOMEWORK_LIST = "/g/homework/list"
+        const val HOMEWORK_PK_INFO = "/g/homework/pk-info"
+        const val HOMEWORK_STRUCT = "/g/homework/struct"
         const val SEND_USER_EXIST = "/code/send-user-exist"
         const val REBIND_CODE = "/user/rebind-code"  // 设备绑定端点
     }
@@ -615,13 +617,16 @@ object ETS100ApiClient {
                 val item = dataArray.getJSONObject(i)
                 val homeworkId = item.optString("id", "")
                 val name = item.optString("name", "未知作业")
+                val setType = item.optInt("set_type", 0)
+                val pk = item.optInt("pk", 0)
+                val resourceId = item.optString("resource_id", "")
                 
                 // 解析 struct.contents 获取作业详情
                 val struct = item.optJSONObject("struct")
                 val contentsArray = struct?.optJSONArray("contents") ?: org.json.JSONArray()
                 Log.i(
                     TAG,
-                    "homework[$i]: id=$homeworkId, name=$name, " +
+                    "homework[$i]: id=$homeworkId, name=$name, set_type=$setType, pk=$pk, resource_id=$resourceId, " +
                         "structKeys=${struct?.keys()?.asSequence()?.toList().orEmpty()}, " +
                         "contentsCount=${contentsArray.length()}"
                 )
@@ -641,7 +646,10 @@ object ETS100ApiClient {
                 homeworks.add(HomeworkInfo(
                     id = homeworkId,
                     name = name,
-                    contents = contents
+                    contents = contents,
+                    setType = setType,
+                    pk = pk,
+                    resourceId = resourceId
                 ))
             }
             
@@ -649,6 +657,98 @@ object ETS100ApiClient {
                 baseUrl = baseUrl,
                 homeworks = homeworks
             )
+        }
+    }
+
+    /**
+     * 获取 PK / 在线作业详情
+     * POST /g/homework/pk-info
+     *
+     * @param token 登录返回的 token
+     * @param homeworkId 作业 ID
+     * @param parentAccountId 父账户 ID
+     */
+    suspend fun getPkInfo(
+        token: String,
+        homeworkId: String,
+        parentAccountId: String = ""
+    ): Result<org.json.JSONObject> {
+        Log.d(TAG, "getPkInfo: homeworkId=$homeworkId, parentAccountId=$parentAccountId")
+        val hwIdVal: Any = homeworkId.toIntOrNull() ?: homeworkId
+        val params = mutableMapOf<String, Any>(
+            "sn" to RequestConfig.DEFAULT_SN,
+            "token" to token,
+            "homework_id" to hwIdVal,
+            "version" to RequestConfig.DEFAULT_VERSION,
+            "system" to RequestConfig.DEFAULT_SYSTEM,
+            "global_client_version" to RequestConfig.DEFAULT_GLOBAL_CLIENT_VERSION,
+            "sign_response" to 1
+        )
+        if (parentAccountId.isNotBlank()) {
+            params["parent_account_id"] = parentAccountId
+        }
+
+        val bodyData = mapOf(
+            "r" to "g/homework/pk-info",
+            "params" to params
+        )
+
+        return postRequest(Endpoints.HOMEWORK_PK_INFO, bodyData).mapCatching { responseBody ->
+            val json = responseBody.parseJson()
+            val code = json.optInt("code", -999)
+            if (code != -999 && code != 0) {
+                val msg = json.optString("msg", "")
+                throw Exception("pk-info 失败: $msg ($code)")
+            }
+            json.optJSONObject("body") ?: org.json.JSONObject()
+        }
+    }
+
+    /**
+     * 获取作业结构 (在线作业 / 词汇等)
+     * POST /g/homework/struct
+     *
+     * @param token 登录返回的 token
+     * @param homeworkId 作业 ID
+     * @param resourceId 资源 ID (可选)
+     * @param parentAccountId 父账户 ID (可选)
+     */
+    suspend fun getHomeworkStruct(
+        token: String,
+        homeworkId: String,
+        resourceId: String = "",
+        parentAccountId: String = ""
+    ): Result<org.json.JSONObject> {
+        Log.d(TAG, "getHomeworkStruct: homeworkId=$homeworkId, resourceId=$resourceId, parentAccountId=$parentAccountId")
+        val params = mutableMapOf<String, Any>(
+            "sn" to RequestConfig.DEFAULT_SN,
+            "token" to token,
+            "id" to homeworkId,
+            "version" to RequestConfig.DEFAULT_VERSION,
+            "system" to RequestConfig.DEFAULT_SYSTEM,
+            "global_client_version" to RequestConfig.DEFAULT_GLOBAL_CLIENT_VERSION,
+            "sign_response" to 1
+        )
+        if (resourceId.isNotBlank()) {
+            params["resource_id"] = resourceId
+        }
+        if (parentAccountId.isNotBlank()) {
+            params["parent_account_id"] = parentAccountId
+        }
+
+        val bodyData = mapOf(
+            "r" to "g/homework/struct",
+            "params" to params
+        )
+
+        return postRequest(Endpoints.HOMEWORK_STRUCT, bodyData).mapCatching { responseBody ->
+            val json = responseBody.parseJson()
+            val code = json.optInt("code", -999)
+            if (code != -999 && code != 0) {
+                val msg = json.optString("msg", "")
+                throw Exception("homework/struct 失败: $msg ($code)")
+            }
+            json.optJSONObject("body") ?: org.json.JSONObject()
         }
     }
 
@@ -696,7 +796,10 @@ object ETS100ApiClient {
     data class HomeworkInfo(
         val id: String,
         val name: String,
-        val contents: List<HomeworkContent>
+        val contents: List<HomeworkContent>,
+        val setType: Int = 0,
+        val pk: Int = 0,
+        val resourceId: String = ""
     )
     
     data class HomeworkContent(
