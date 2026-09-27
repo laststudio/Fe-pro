@@ -1,6 +1,11 @@
 package com.shuaiqiu.fuckets100
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.os.Build
 import android.os.SystemClock
+import android.system.Os
+import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -10,6 +15,9 @@ import androidx.compose.material.icons.outlined.Block
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -24,9 +32,12 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.shuaiqiu.fuckets100.component.material.ExpressiveScaffold
+import com.shuaiqiu.fuckets100.component.material.ExpressiveSegmentedListItem
+import com.shuaiqiu.fuckets100.component.material.SegmentedColumn
 import com.shuaiqiu.fuckets100.component.material.TonalCard
 import com.shuaiqiu.fuckets100.component.material.expressiveTopAppBarColors
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -88,6 +99,7 @@ fun HomeScreen(
     onNavigateToActivation: () -> Unit,
     onNavigateToRemoteContent: (UpdateStatus?) -> Unit,
     onNavigateToDonate: () -> Unit,
+    onNavigateToLegal: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val appContext = remember(context) { context.applicationContext }
@@ -102,6 +114,26 @@ fun HomeScreen(
         mutableStateOf(FeApplication.remoteStatus)
     }
     
+    // 下拉刷新状态
+    var isRefreshing by remember { mutableStateOf(false) }
+    val pullRefreshState = rememberPullToRefreshState()
+
+    val onRefresh: () -> Unit = {
+        scope.launch {
+            isRefreshing = true
+            try {
+                val status = loadHomeRuntimeStatus(appContext, force = true)
+                HomeRuntimeStatusStore.update(status, currentModeForRefresh)
+                runtimeStatus = status
+                FeApplication.syncRemoteStatus()
+                LegalAgreementRepository.refresh(appContext)
+                delay(350)
+            } finally {
+                isRefreshing = false
+            }
+        }
+    }
+
     // 生命周期监听 - 从系统设置返回时自动刷新权限状态
     var hasPaused by remember { mutableStateOf(false) }
     DisposableEffect(lifecycleOwner) {
@@ -143,7 +175,6 @@ fun HomeScreen(
         runtimeStatus.hasAppListPerm
     
     // 判断是否真正激活 - 根据不同模式判断激活条件
-    // Direct Read 模式会检测零宽字符漏洞绕过限制，而其他模式需要相应的权限和配置
     val isTrulyActivated = when {
         mode == ActivationMode.SHIZUKU -> shizukuState.isRunning && shizukuState.permissionGranted && hasAllBasicPermissions
         mode == ActivationMode.ROOT -> hasAllBasicPermissions && runtimeStatus.hasRootAvailable
@@ -178,38 +209,70 @@ fun HomeScreen(
             WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
         ),
     ) { paddingValues ->
-        Column(
-            Modifier
-                .padding(paddingValues)
-                .nestedScroll(scrollBehavior.nestedScrollConnection)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(13.dp)
+        PullToRefreshBox(
+            state = pullRefreshState,
+            isRefreshing = isRefreshing,
+            onRefresh = onRefresh,
+            modifier = Modifier.fillMaxSize(),
+            indicator = {
+                PullToRefreshDefaults.LoadingIndicator(
+                    modifier = Modifier
+                        .padding(top = paddingValues.calculateTopPadding())
+                        .align(Alignment.TopCenter),
+                    state = pullRefreshState,
+                    isRefreshing = isRefreshing,
+                )
+            },
         ) {
-            StatusCard(
-                mode = mode, 
-                shizukuState = shizukuState, 
-                accountState = accountState,
-                isTrulyActivated = isTrulyActivated, 
-                cloudLoggedIn = runtimeStatus.cloudLoggedIn,
-                hasFilesPerm = runtimeStatus.hasFilesPerm,
-                hasOverlayPerm = runtimeStatus.hasOverlayPerm,
-                hasAppListPerm = runtimeStatus.hasAppListPerm,
-                hasAllBasicPermissions = hasAllBasicPermissions,
-                hasRootAvailable = runtimeStatus.hasRootAvailable,
-                onNavigateToActivation = onNavigateToActivation
-            )
-            RuntimeInfoCard(
-                mode = mode,
-                shizukuState = shizukuState,
-                runtimeStatus = runtimeStatus,
-            )
-            HomeRemoteContent(
-                status = remoteStatus,
-                onNavigateToRemoteContent = onNavigateToRemoteContent,
-                onNavigateToDonate = onNavigateToDonate,
-            )
-            Spacer(Modifier.height(16.dp))
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .nestedScroll(scrollBehavior.nestedScrollConnection)
+                    .verticalScroll(rememberScrollState())
+                    .padding(
+                        top = paddingValues.calculateTopPadding() + 4.dp,
+                        start = 16.dp,
+                        end = 16.dp,
+                        bottom = paddingValues.calculateBottomPadding() + 24.dp
+                    ),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                StatusCard(
+                    mode = mode, 
+                    shizukuState = shizukuState, 
+                    accountState = accountState,
+                    isTrulyActivated = isTrulyActivated, 
+                    cloudLoggedIn = runtimeStatus.cloudLoggedIn,
+                    hasFilesPerm = runtimeStatus.hasFilesPerm,
+                    hasOverlayPerm = runtimeStatus.hasOverlayPerm,
+                    hasAppListPerm = runtimeStatus.hasAppListPerm,
+                    hasAllBasicPermissions = hasAllBasicPermissions,
+                    hasRootAvailable = runtimeStatus.hasRootAvailable,
+                    onNavigateToActivation = onNavigateToActivation
+                )
+
+                // 版本信息（设备、内核、Android、管理器版本）
+                HomeVersionInfoSection(context = context)
+
+                // 状态信息（模式、基础权限、服务运行状态）
+                HomeStatusInfoSection(
+                    mode = mode,
+                    shizukuState = shizukuState,
+                    runtimeStatus = runtimeStatus,
+                    hasAllBasicPermissions = hasAllBasicPermissions,
+                    onNavigateToActivation = onNavigateToActivation,
+                )
+
+                // 支持开发
+                HomeSupportSection(onNavigateToDonate = onNavigateToDonate)
+
+                // 了解更多（公告、用户协议）
+                HomeLearnMoreSection(
+                    status = remoteStatus,
+                    onNavigateToRemoteContent = onNavigateToRemoteContent,
+                    onNavigateToLegal = onNavigateToLegal,
+                )
+            }
         }
     }
 }
@@ -394,104 +457,355 @@ fun StatusCard(
     }
 }
 
-@Composable
-private fun HomeRemoteContent(
-    status: UpdateStatus?,
-    onNavigateToRemoteContent: (UpdateStatus?) -> Unit,
-    onNavigateToDonate: () -> Unit,
-) {
-    val announcementMessage = status?.announcementMessage.orEmpty()
-    val announcementTitle = status?.announcementTitle?.takeIf { it.isNotBlank() } ?: "公告"
-    val donateEnabled = status?.donateEnabled ?: true
+private data class CoreStatusDisplay(
+    val title: String,
+    val summary: String,
+    val tag: String,
+    val isOk: Boolean,
+)
 
-    Column(verticalArrangement = Arrangement.spacedBy(13.dp)) {
-        HomeLinkCard(
-            title = announcementTitle,
-            summary = announcementMessage.ifBlank { if (status == null) "正在同步远程内容" else "暂无公告" },
-            onClick = { onNavigateToRemoteContent(status) },
-        )
-        if (donateEnabled) {
-            HomeLinkCard(
-                title = "捐赠支持",
-                summary = "支持 Fe 的后续维护与功能更新",
-                onClick = onNavigateToDonate
+private object DeviceInfoHelper {
+    fun getDeviceModel(): String {
+        return runCatching {
+            val systemProperties = Class.forName("android.os.SystemProperties")
+            val getMethod = systemProperties.getMethod("get", String::class.java, String::class.java)
+            val marketNameKeys = listOf(
+                "ro.product.marketname",
+                "ro.vendor.oplus.market.name",
+                "ro.vivo.market.name",
+                "ro.config.marketing_name"
             )
+            for (key in marketNameKeys) {
+                val marketName = runCatching { getMethod.invoke(null, key, "") as String }.getOrDefault("")
+                if (marketName.isNotBlank()) {
+                    return@runCatching marketName
+                }
+            }
+            getFallbackDeviceInfo()
+        }.getOrElse { getFallbackDeviceInfo() }
+    }
+
+    private fun getFallbackDeviceInfo(): String {
+        val manufacturer = Build.MANUFACTURER?.replaceFirstChar { it.uppercase() } ?: "未知"
+        val model = Build.MODEL ?: ""
+        return if (model.startsWith(manufacturer, ignoreCase = true)) {
+            model
+        } else {
+            "$manufacturer $model".trim()
         }
+    }
+
+    fun getKernelRelease(): String {
+        return runCatching { Os.uname().release }.getOrNull()
+            ?: System.getProperty("os.version")
+            ?: "未知"
+    }
+
+    fun getAndroidVersion(): String {
+        return "${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})"
+    }
+
+    fun getAppVersion(): String {
+        return "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
+    }
+}
+
+private fun copyToClipboard(context: android.content.Context, label: String, text: String) {
+    runCatching {
+        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val clip = ClipData.newPlainText(label, text)
+        clipboard.setPrimaryClip(clip)
+        Toast.makeText(context, "$label 已复制到剪贴板", Toast.LENGTH_SHORT).show()
     }
 }
 
 @Composable
-private fun HomeLinkCard(
-    title: String,
-    summary: String,
-    onClick: () -> Unit,
-) {
-    val haptic = LocalHapticFeedback.current
-    TonalCard(
-        modifier = Modifier.fillMaxWidth(),
-        onClick = {
-            haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
-            onClick()
-        },
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.titleSmall)
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    summary,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
+private fun HomeVersionInfoSection(context: android.content.Context) {
+    val deviceModel = remember { DeviceInfoHelper.getDeviceModel() }
+    val kernelRelease = remember { DeviceInfoHelper.getKernelRelease() }
+    val androidVersion = remember { DeviceInfoHelper.getAndroidVersion() }
+    val appVersion = remember { DeviceInfoHelper.getAppVersion() }
+
+    SegmentedColumn(
+        title = "版本信息",
+        items = listOf(
+            {
+                ExpressiveSegmentedListItem(
+                    index = 0,
+                    count = 4,
+                    onClick = { copyToClipboard(context, "设备型号", deviceModel) },
+                    headlineContent = { Text("设备") },
+                    supportingContent = {
+                        Text(
+                            deviceModel,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                )
+            },
+            {
+                ExpressiveSegmentedListItem(
+                    index = 1,
+                    count = 4,
+                    onClick = { copyToClipboard(context, "内核版本", kernelRelease) },
+                    headlineContent = { Text("内核版本") },
+                    supportingContent = {
+                        Text(
+                            kernelRelease,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                )
+            },
+            {
+                ExpressiveSegmentedListItem(
+                    index = 2,
+                    count = 4,
+                    onClick = { copyToClipboard(context, "Android 版本", androidVersion) },
+                    headlineContent = { Text("Android 版本") },
+                    supportingContent = {
+                        Text(
+                            androidVersion,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                )
+            },
+            {
+                ExpressiveSegmentedListItem(
+                    index = 3,
+                    count = 4,
+                    onClick = { copyToClipboard(context, "管理器版本", appVersion) },
+                    headlineContent = { Text("管理器版本") },
+                    supportingContent = {
+                        Text(
+                            appVersion,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 )
             }
-            Spacer(Modifier.width(12.dp))
-            Icon(Icons.Default.ChevronRight, contentDescription = null)
-        }
-    }
+        )
+    )
 }
 
 @Composable
-private fun RuntimeInfoCard(
+private fun HomeStatusInfoSection(
     mode: ActivationMode,
     shizukuState: ShizukuState,
     runtimeStatus: HomeRuntimeStatus,
+    hasAllBasicPermissions: Boolean,
+    onNavigateToActivation: () -> Unit,
 ) {
-    TonalCard {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            InfoItem("应用版本", "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
-            InfoItem("当前授权模式", mode.shortLabel)
-            if (mode == ActivationMode.SHIZUKU) {
-                val runtime = when {
-                    !shizukuState.isRunning -> "未运行"
-                    !shizukuState.permissionGranted -> "等待授权"
-                    else -> "${shizukuState.getRuntimeTypeName()} · UID ${shizukuState.uid}"
+    val grantedCount = listOf(runtimeStatus.hasFilesPerm, runtimeStatus.hasOverlayPerm, runtimeStatus.hasAppListPerm).count { it }
+
+    val coreStatus = when (mode) {
+        ActivationMode.SHIZUKU -> {
+            val isOk = shizukuState.isRunning && shizukuState.permissionGranted
+            val summary = if (shizukuState.isRunning) {
+                val uidStr = when (shizukuState.uid) {
+                    0 -> "Root (0)"
+                    2000 -> "ADB (2000)"
+                    else -> shizukuState.uid.toString()
                 }
-                InfoItem("Shizuku", runtime)
-            }
-            InfoItem(
-                "基础权限",
-                listOf(runtimeStatus.hasFilesPerm, runtimeStatus.hasOverlayPerm, runtimeStatus.hasAppListPerm)
-                    .count { it }
-                    .let { "$it / 3 已授权" },
-            )
+                "${shizukuState.getRuntimeTypeName()} v${shizukuState.version} • UID: $uidStr"
+            } else "底层服务未连接"
+            CoreStatusDisplay("Shizuku 服务状态", summary, if (isOk) "运行中" else "未连接", isOk)
+        }
+        ActivationMode.ROOT -> {
+            val isOk = runtimeStatus.hasRootAvailable
+            val summary = if (isOk) "Root 权限已获取并授权" else "未检测到 Root 权限"
+            CoreStatusDisplay("Root 权限状态", summary, if (isOk) "可用" else "未获取", isOk)
+        }
+        ActivationMode.CLOUD -> {
+            val isOk = runtimeStatus.cloudLoggedIn
+            val summary = if (isOk) "云端作业与试卷解析服务已连接" else "未登录或凭据未配置"
+            CoreStatusDisplay("云端服务状态", summary, if (isOk) "已连接" else "未登录", isOk)
+        }
+        ActivationMode.DIRECT_READ -> {
+            val isOk = runtimeStatus.hasDirectReadAvailable
+            val summary = if (isOk) "零宽字符绕过漏洞正常可用" else "设备或系统环境不适用"
+            CoreStatusDisplay("漏洞直读状态", summary, if (isOk) "可用" else "不可用", isOk)
+        }
+        ActivationMode.DEFAULT -> {
+            CoreStatusDisplay("核心服务行为", "尚未配置工作模式，点击前往配置", "未配置", false)
         }
     }
+
+    SegmentedColumn(
+        title = "状态信息",
+        items = listOf(
+            {
+                ExpressiveSegmentedListItem(
+                    index = 0,
+                    count = 3,
+                    onClick = onNavigateToActivation,
+                    headlineContent = { Text("当前授权模式") },
+                    supportingContent = {
+                        Text(
+                            mode.title,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    },
+                    trailingContent = {
+                        StatusTag(
+                            label = mode.shortLabel,
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        )
+                    }
+                )
+            },
+            {
+                ExpressiveSegmentedListItem(
+                    index = 1,
+                    count = 3,
+                    onClick = onNavigateToActivation,
+                    headlineContent = { Text("系统基础权限") },
+                    supportingContent = {
+                        Text(
+                            "$grantedCount / 3 项已授权",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    },
+                    trailingContent = {
+                        StatusTag(
+                            label = if (hasAllBasicPermissions) "已就绪" else "需授权",
+                            containerColor = if (hasAllBasicPermissions) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                            contentColor = if (hasAllBasicPermissions) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onError,
+                        )
+                    }
+                )
+            },
+            {
+                ExpressiveSegmentedListItem(
+                    index = 2,
+                    count = 3,
+                    onClick = onNavigateToActivation,
+                    headlineContent = { Text(coreStatus.title) },
+                    supportingContent = {
+                        Text(
+                            coreStatus.summary,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    },
+                    trailingContent = {
+                        StatusTag(
+                            label = coreStatus.tag,
+                            containerColor = if (coreStatus.isOk) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                            contentColor = if (coreStatus.isOk) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onError,
+                        )
+                    }
+                )
+            }
+        )
+    )
 }
 
 @Composable
-private fun InfoItem(label: String, value: String) {
-    Column {
-        Text(label, style = MaterialTheme.typography.bodyLarge)
-        Text(value, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
+private fun HomeSupportSection(onNavigateToDonate: () -> Unit) {
+    SegmentedColumn(
+        title = "支持开发",
+        items = listOf(
+            {
+                ExpressiveSegmentedListItem(
+                    index = 0,
+                    count = 1,
+                    onClick = onNavigateToDonate,
+                    headlineContent = { Text("支持开发") },
+                    supportingContent = {
+                        Text(
+                            "Fe 将保持免费与开源，向开发者捐赠以表示支持",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    },
+                    trailingContent = {
+                        Icon(
+                            imageVector = Icons.Default.ChevronRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                )
+            }
+        )
+    )
+}
+
+@Composable
+private fun HomeLearnMoreSection(
+    status: UpdateStatus?,
+    onNavigateToRemoteContent: (UpdateStatus?) -> Unit,
+    onNavigateToLegal: () -> Unit,
+) {
+    val announcementMessage = status?.announcementMessage.orEmpty()
+    val announcementTitle = status?.announcementTitle?.takeIf { it.isNotBlank() } ?: "公告与动态"
+
+    SegmentedColumn(
+        title = "了解更多",
+        items = listOf(
+            {
+                ExpressiveSegmentedListItem(
+                    index = 0,
+                    count = 2,
+                    onClick = { onNavigateToRemoteContent(status) },
+                    headlineContent = { Text(announcementTitle) },
+                    supportingContent = {
+                        Text(
+                            announcementMessage.ifBlank { if (status == null) "正在同步远程内容..." else "暂无最新公告" },
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    },
+                    trailingContent = {
+                        Icon(
+                            imageVector = Icons.Default.ChevronRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                )
+            },
+            {
+                ExpressiveSegmentedListItem(
+                    index = 1,
+                    count = 2,
+                    onClick = onNavigateToLegal,
+                    headlineContent = { Text("用户协议与隐私条款") },
+                    supportingContent = {
+                        Text(
+                            "查看 LA Studio 权威用户服务协议与免责声明",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    },
+                    trailingContent = {
+                        Icon(
+                            imageVector = Icons.Default.ChevronRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                )
+            }
+        )
+    )
 }
 
 @Composable

@@ -390,6 +390,7 @@ fun FeAppMain() {
                                 navigator.push(status.toRemoteContentRoute())
                             },
                             onNavigateToDonate = { navigator.push(FeRoute.Donate) },
+                            onNavigateToLegal = { navigator.push(FeRoute.Legal) },
                         )
 
                         1 -> ReadScreen(

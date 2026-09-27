@@ -67,6 +67,10 @@ class FeApplication : Application() {
         fun refreshRemoteStatusAfterVerification() {
             appInstance?.checkRemoteConfig(ignoreVerification = true)
         }
+
+        fun syncRemoteStatus() {
+            appInstance?.checkRemoteConfig()
+        }
     }
     
     override fun onCreate() {
