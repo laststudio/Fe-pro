@@ -321,9 +321,7 @@ fun StatusCard(
     }
 
     Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(88.dp),
+        modifier = Modifier.fillMaxWidth(),
         onClick = {
             haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
             onNavigateToActivation()
@@ -332,68 +330,66 @@ fun StatusCard(
         color = statusContainerColor,
         contentColor = statusContentColor,
     ) {
-        ListItem(
-            modifier = Modifier.fillMaxHeight(),
-            supportingContent = summary?.let {
-                {
-                    Text(
-                        text = it,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = statusContentColor.copy(alpha = 0.82f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            },
-            leadingContent = {
-                Icon(
-                    imageVector = displayIcon,
-                    contentDescription = null,
-                    tint = statusContentColor,
-                    modifier = Modifier.size(32.dp),
-                )
-            },
-            trailingContent = {
-                if (isConnecting) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp,
-                            color = statusContentColor,
-                        )
-                        Text("连接中", color = statusContentColor, style = MaterialTheme.typography.labelMedium)
-                    }
-                } else {
-                    StatusTag(
-                        label = when {
-                            isOffline -> "离线"
-                            needsLogin -> "未登录"
-                            effectiveActivated -> mode.shortLabel
-                            else -> "未就绪"
-                        },
-                        containerColor = if (effectiveActivated) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-                        contentColor = if (effectiveActivated) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onError,
-                    )
-                }
-            },
-            colors = ListItemDefaults.colors(
-                containerColor = androidx.compose.ui.graphics.Color.Transparent,
-                contentColor = statusContentColor,
-                leadingContentColor = statusContentColor,
-                trailingContentColor = statusContentColor,
-                supportingContentColor = statusContentColor.copy(alpha = 0.82f),
-            ),
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = displayTitle,
-                style = MaterialTheme.typography.titleMediumEmphasized,
-                color = statusContentColor,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+            Icon(
+                imageVector = displayIcon,
+                contentDescription = null,
+                tint = statusContentColor,
+                modifier = Modifier.size(32.dp),
             )
+            Spacer(Modifier.width(16.dp))
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Text(
+                    text = displayTitle,
+                    style = MaterialTheme.typography.titleMediumEmphasized,
+                    color = statusContentColor,
+                    maxLines = 1,
+                    minLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = summary,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = statusContentColor.copy(alpha = 0.82f),
+                    maxLines = 1,
+                    minLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            if (isConnecting) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                        color = statusContentColor,
+                    )
+                    Text("连接中", color = statusContentColor, style = MaterialTheme.typography.labelMedium)
+                }
+            } else {
+                StatusTag(
+                    label = when {
+                        isOffline -> "离线"
+                        needsLogin -> "未登录"
+                        effectiveActivated -> mode.shortLabel
+                        else -> "未就绪"
+                    },
+                    containerColor = if (effectiveActivated) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                    contentColor = if (effectiveActivated) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onError,
+                )
+            }
         }
     }
 }

@@ -178,7 +178,7 @@ fun ActivationSettingsScreen(
                                     Icon(
                                         if (hasFilesPerm) Icons.Default.CheckCircle else Icons.Default.FolderSpecial,
                                         contentDescription = null,
-                                        tint = if (hasFilesPerm) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        tint = if (hasFilesPerm) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
                                     )
                                 },
                             )
@@ -202,7 +202,7 @@ fun ActivationSettingsScreen(
                                     Icon(
                                         if (hasOverlayPerm) Icons.Default.CheckCircle else Icons.Default.WebAsset,
                                         contentDescription = null,
-                                        tint = if (hasOverlayPerm) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        tint = if (hasOverlayPerm) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
                                     )
                                 },
                             )
@@ -226,7 +226,7 @@ fun ActivationSettingsScreen(
                                     Icon(
                                         if (hasAppListPerm) Icons.Default.CheckCircle else Icons.Default.Apps,
                                         contentDescription = null,
-                                        tint = if (hasAppListPerm) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        tint = if (hasAppListPerm) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
                                     )
                                 },
                             )
