@@ -73,12 +73,13 @@ open class ChangyanWebLoginActivity : ComponentActivity() {
             settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
             settings.safeBrowsingEnabled = true
             settings.cacheMode = WebSettings.LOAD_DEFAULT
-            settings.useWideViewPort = false
-            settings.loadWithOverviewMode = false
-            settings.builtInZoomControls = false
+            settings.useWideViewPort = true
+            settings.loadWithOverviewMode = true
+            settings.builtInZoomControls = true
             settings.displayZoomControls = false
-            settings.setSupportZoom(false)
+            settings.setSupportZoom(true)
             settings.textZoom = 100
+            setInitialScale(INITIAL_PAGE_SCALE)
             settings.userAgentString = MOBILE_USER_AGENT
             Log.i(TAG, "WebView 初始化完成")
             addJavascriptInterface(ChangyanBridge(), "etsBridge")
@@ -418,6 +419,7 @@ open class ChangyanWebLoginActivity : ComponentActivity() {
 
     companion object {
         private const val TAG = "ChangyanWebLogin"
+        private const val INITIAL_PAGE_SCALE = 85
         private const val MAX_CAPTURE_BYTES = 64 * 1024
         private const val MOBILE_USER_AGENT =
             "Mozilla/5.0 (Linux; Android 16; PLC110 Build/BP2A.250605.015) " +
