@@ -98,8 +98,10 @@ jobs:
         id: meta
         run: |
           VERSION=$(sed -n 's/.*versionName = "\(.*\)"/\1/p' app/build.gradle.kts | head -1)
+          VCODE=$(sed -n 's/.*versionCode = \([0-9]*\)/\1/p' app/build.gradle.kts | head -1)
           SHA_SHORT=${GITHUB_SHA::11}
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "version_code=${VCODE}" >> "$GITHUB_OUTPUT"
           echo "ci_tag=v${VERSION}-${SHA_SHORT}" >> "$GITHUB_OUTPUT"
           echo "public_tag=v${VERSION}" >> "$GITHUB_OUTPUT"
           echo "apk_name=Fe_${VERSION}.apk" >> "$GITHUB_OUTPUT"
@@ -169,3 +171,30 @@ jobs:
           python scripts/release/upload_lanzou.py \
             --file "release/${{ steps.meta.outputs.apk_name }}" \
             --folder-name "${LANZOU_FOLDER_NAME}"
+
+      - name: 同步远程配置仓库
+        continue-on-error: true
+        shell: bash
+        env:
+          LASTUDIO_PUBLISHER_TOKEN: ${{ secrets.LASTUDIO_PUBLISHER_TOKEN }}
+          CONFIG_GITHUB_TOKEN: ${{ secrets.CONFIG_GITHUB_TOKEN }}
+          CONFIG_GITHUB_REPO: ${{ vars.CONFIG_GITHUB_REPO || 'laststudio/Fe_config' }}
+          CONFIG_GITHUB_BRANCH: ${{ vars.CONFIG_GITHUB_BRANCH || 'main' }}
+          GITEE_USERNAME: ${{ secrets.GITEE_USERNAME }}
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+          GITEE_CONFIG_REPO: ${{ vars.GITEE_CONFIG_REPO || 'qiuqiqiuqid/fe_config' }}
+          GITEE_CONFIG_BRANCH: ${{ vars.GITEE_CONFIG_BRANCH || 'master' }}
+        run: |
+          set -euo pipefail
+          if [ -z "${LASTUDIO_PUBLISHER_TOKEN:-}" ]; then
+            echo "缺少 LASTUDIO_PUBLISHER_TOKEN，跳过远程配置同步。"
+            exit 0
+          fi
+          python scripts/release/update_remote_config.py \
+            --version-code "${{ steps.meta.outputs.version_code }}" \
+            --version-name "${{ steps.meta.outputs.version }}" \
+            --apk-url "https://oplist.lastudio.cc/Fe_release" \
+            --message-file release_notes.md \
+            --local-config-file config/config.json \
+            --source-changelog-file update.md
+
