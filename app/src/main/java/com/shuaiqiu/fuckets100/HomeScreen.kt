@@ -42,20 +42,29 @@ private data class HomeRuntimeStatus(
 private object HomeRuntimeStatusStore {
     private const val CACHE_TTL_MS = 30_000L
 
-    var cached = HomeRuntimeStatus(
-        hasFilesPerm = false,
-        hasOverlayPerm = false,
-        hasAppListPerm = false,
-        hasRootAvailable = false,
-        hasDirectReadAvailable = false,
-        cloudLoggedIn = false
-    )
+    var cached: HomeRuntimeStatus? = null
     var hasLoaded = false
     var lastRefreshTime = 0L
     var lastMode: ActivationMode? = null
 
     fun isFresh(): Boolean {
-        return hasLoaded && SystemClock.elapsedRealtime() - lastRefreshTime < CACHE_TTL_MS
+        return hasLoaded && cached != null && SystemClock.elapsedRealtime() - lastRefreshTime < CACHE_TTL_MS
+    }
+
+    fun getOrInit(context: android.content.Context): HomeRuntimeStatus {
+        cached?.let { return it }
+        val status = HomeRuntimeStatus(
+            hasFilesPerm = PermissionsHelper.hasAllFilesAccess(),
+            hasOverlayPerm = PermissionsHelper.hasOverlayPermission(context),
+            hasAppListPerm = PermissionsHelper.hasAppListPermission(),
+            hasRootAvailable = RootManager.isRootAvailable(),
+            hasDirectReadAvailable = ZWCHelper.isDirectReadAvailable(),
+            cloudLoggedIn = ETS100AuthManager.isLoggedIn(context)
+        )
+        cached = status
+        hasLoaded = true
+        lastRefreshTime = SystemClock.elapsedRealtime()
+        return status
     }
 
     fun update(status: HomeRuntimeStatus, mode: ActivationMode? = lastMode) {
@@ -87,16 +96,19 @@ fun HomeScreen(
     val currentModeForRefresh by rememberUpdatedState(mode)
     
     var runtimeStatus by remember {
-        mutableStateOf(HomeRuntimeStatusStore.cached)
+        mutableStateOf(HomeRuntimeStatusStore.getOrInit(appContext))
     }
     var remoteStatus by remember {
         mutableStateOf(FeApplication.remoteStatus)
     }
     
     // 生命周期监听 - 从系统设置返回时自动刷新权限状态
+    var hasPaused by remember { mutableStateOf(false) }
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
+            if (event == Lifecycle.Event.ON_PAUSE) {
+                hasPaused = true
+            } else if (event == Lifecycle.Event.ON_RESUME && hasPaused) {
                 scope.launch {
                     val status = loadHomeRuntimeStatus(appContext, force = true)
                     HomeRuntimeStatusStore.update(status, currentModeForRefresh)
@@ -207,7 +219,7 @@ private suspend fun loadHomeRuntimeStatus(
     force: Boolean
 ): HomeRuntimeStatus {
     if (!force && HomeRuntimeStatusStore.isFresh()) {
-        return HomeRuntimeStatusStore.cached
+        return HomeRuntimeStatusStore.cached ?: HomeRuntimeStatusStore.getOrInit(context)
     }
 
     return withContext(Dispatchers.IO) {
@@ -277,9 +289,9 @@ fun StatusCard(
     val summary = when {
         isConnecting -> "正在验证账号和软件授权，请稍候"
         needsLogin -> "请先登录 LA Studio 账号后继续使用"
-        isOffline -> "已离线"
+        isOffline -> "LA Studio 已离线，部分功能受限"
         isBlocked -> accountState.message
-        mode == ActivationMode.CLOUD -> null
+        mode == ActivationMode.CLOUD -> if (cloudLoggedIn) "云端作业与试卷解析服务已连接" else "未绑定或未配置云端凭据，点击前往配置"
         !hasAllBasicPermissions -> when {
             !hasFilesPerm -> "需要文件访问权限才能读取题库，请授权"
             !hasOverlayPerm -> "需要悬浮窗权限才能显示答题界面，请授权"
@@ -305,11 +317,13 @@ fun StatusCard(
         }
         mode == ActivationMode.DIRECT_READ -> "Direct Read 模式已就绪"
         mode == ActivationMode.DEFAULT -> "请授权基础权限后选择激活模式"
-        else -> null
+        else -> "点击进入激活设置"
     }
 
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(88.dp),
         onClick = {
             haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
             onNavigateToActivation()
@@ -319,12 +333,15 @@ fun StatusCard(
         contentColor = statusContentColor,
     ) {
         ListItem(
+            modifier = Modifier.fillMaxHeight(),
             supportingContent = summary?.let {
                 {
                     Text(
                         text = it,
                         style = MaterialTheme.typography.bodyMedium,
                         color = statusContentColor.copy(alpha = 0.82f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
             },
@@ -374,6 +391,8 @@ fun StatusCard(
                 text = displayTitle,
                 style = MaterialTheme.typography.titleMediumEmphasized,
                 color = statusContentColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }

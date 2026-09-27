@@ -82,6 +82,12 @@ class FeApplication : Application() {
         // 初始化设置管理器
         SettingsManager.init(this)
         
+        // 初始化法务协议仓库并静默同步
+        LegalAgreementRepository.init(this)
+        applicationScope.launch {
+            LegalAgreementRepository.refresh(this@FeApplication)
+        }
+        
         // 初始化Sui (Magisk 模块)
         isSui = Sui.init(BuildConfig.APPLICATION_ID)
         Log.d(TAG, "Sui initialized: $isSui")

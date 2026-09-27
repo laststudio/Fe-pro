@@ -221,6 +221,7 @@ private fun WelcomeStep(
 
     LaunchedEffect(Unit) {
         entered = true
+        LegalAgreementRepository.refresh(context)
     }
 
     // Logo 弹性缩放与渐显

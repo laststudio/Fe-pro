@@ -4,6 +4,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.widget.Toast
 import androidx.compose.animation.*
+import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -69,10 +70,13 @@ fun ActivationSettingsScreen(
         refreshCloudAuthState()
     }
 
+    var hasPaused by remember { mutableStateOf(false) }
     // 监听生命周期，从系统设置返回时自动刷新基础权限的绿勾勾
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
+            if (event == Lifecycle.Event.ON_PAUSE) {
+                hasPaused = true
+            } else if (event == Lifecycle.Event.ON_RESUME && hasPaused) {
                 hasFilesPerm = PermissionsHelper.hasAllFilesAccess()
                 hasOverlayPerm = PermissionsHelper.hasOverlayPermission(context)
                 hasAppListPerm = PermissionsHelper.hasAppListPermission()
@@ -164,12 +168,17 @@ fun ActivationSettingsScreen(
                                     else Toast.makeText(context, "已经拥有全文件访问权限啦！", Toast.LENGTH_SHORT).show()
                                 },
                                 headlineContent = { Text("全文件访问") },
-                                supportingContent = { Text(if (hasFilesPerm) "已授权" else "读取设备底层目录结构") },
+                                supportingContent = {
+                                    Text(
+                                        if (hasFilesPerm) "已授权" else "读取设备底层目录结构",
+                                        color = if (hasFilesPerm) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                },
                                 leadingContent = {
                                     Icon(
                                         if (hasFilesPerm) Icons.Default.CheckCircle else Icons.Default.FolderSpecial,
                                         contentDescription = null,
-                                        tint = if (hasFilesPerm) successColor else MaterialTheme.colorScheme.primary,
+                                        tint = if (hasFilesPerm) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
                                 },
                             )
@@ -183,12 +192,17 @@ fun ActivationSettingsScreen(
                                     else Toast.makeText(context, "悬浮窗已经开启啦！", Toast.LENGTH_SHORT).show()
                                 },
                                 headlineContent = { Text("悬浮窗权限") },
-                                supportingContent = { Text(if (hasOverlayPerm) "已授权" else "允许在其他应用上层显示组件") },
+                                supportingContent = {
+                                    Text(
+                                        if (hasOverlayPerm) "已授权" else "允许在其他应用上层显示组件",
+                                        color = if (hasOverlayPerm) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                },
                                 leadingContent = {
                                     Icon(
                                         if (hasOverlayPerm) Icons.Default.CheckCircle else Icons.Default.WebAsset,
                                         contentDescription = null,
-                                        tint = if (hasOverlayPerm) successColor else MaterialTheme.colorScheme.primary,
+                                        tint = if (hasOverlayPerm) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
                                 },
                             )
@@ -202,12 +216,17 @@ fun ActivationSettingsScreen(
                                     else Toast.makeText(context, "已经可以读取应用列表啦！", Toast.LENGTH_SHORT).show()
                                 },
                                 headlineContent = { Text("应用列表权限") },
-                                supportingContent = { Text(if (hasAppListPerm) "已授权" else "获取设备已安装的软件包信息") },
+                                supportingContent = {
+                                    Text(
+                                        if (hasAppListPerm) "已授权" else "获取设备已安装的软件包信息",
+                                        color = if (hasAppListPerm) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                },
                                 leadingContent = {
                                     Icon(
                                         if (hasAppListPerm) Icons.Default.CheckCircle else Icons.Default.Apps,
                                         contentDescription = null,
-                                        tint = if (hasAppListPerm) successColor else MaterialTheme.colorScheme.primary,
+                                        tint = if (hasAppListPerm) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
                                 },
                             )
@@ -223,6 +242,9 @@ fun ActivationSettingsScreen(
                     items = activationModes.mapIndexed { index, mode ->
                         {
                             val isSelected = currentMode == mode
+                            val transitionState = remember { MutableTransitionState(isSelected) }.apply {
+                                targetState = isSelected
+                            }
                             ExpressiveSegmentedListItem(
                                 index = index,
                                 count = activationModes.size,
@@ -266,7 +288,7 @@ fun ActivationSettingsScreen(
                                     Column {
                                         Text(mode.desc, style = MaterialTheme.typography.bodySmall)
                                         AnimatedVisibility(
-                                            visible = isSelected,
+                                            visibleState = transitionState,
                                             enter = expandVertically() + fadeIn(),
                                             exit = shrinkVertically() + fadeOut(),
                                         ) {
@@ -450,10 +472,13 @@ fun FeModeStatusCard(
     var isRootAvailable by remember { mutableStateOf(RootManager.isRootAvailable()) }
     var isDirectReadAvailable by remember { mutableStateOf(ZWCHelper.isDirectReadAvailable()) }
     
+    var hasPaused by remember { mutableStateOf(false) }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
+            if (event == Lifecycle.Event.ON_PAUSE) {
+                hasPaused = true
+            } else if (event == Lifecycle.Event.ON_RESUME && hasPaused) {
                 isRootAvailable = RootManager.isRootAvailable()
                 isDirectReadAvailable = ZWCHelper.isDirectReadAvailable()
             }
@@ -473,7 +498,6 @@ fun FeModeStatusCard(
     }
     
     val isActive = statusColor == MaterialTheme.colorScheme.primary
-    val animatedColor by animateColorAsState(statusColor, tween(800))
     val statusContainerColor = if (isActive) {
         MaterialTheme.colorScheme.primaryContainer
     } else {
@@ -538,7 +562,7 @@ fun FeModeStatusCard(
                     Icon(
                         imageVector = if (isActive) Icons.Default.CheckCircle else Icons.Default.Warning,
                         contentDescription = null,
-                        tint = animatedColor,
+                        tint = statusColor,
                         modifier = Modifier.size(28.dp)
                     )
                 }
@@ -548,14 +572,14 @@ fun FeModeStatusCard(
                         Icon(
                             imageVector = currentMode.icon,
                             contentDescription = null,
-                            tint = animatedColor,
+                            tint = statusColor,
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(Modifier.width(6.dp))
                         Text(statusTitle, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     }
                     Spacer(Modifier.height(4.dp))
-                    Text(statusDesc, style = MaterialTheme.typography.bodySmall, color = animatedColor)
+                    Text(statusDesc, style = MaterialTheme.typography.bodySmall, color = statusColor)
 
                     if (statusDetail != null) {
                         Spacer(Modifier.height(4.dp))
@@ -739,7 +763,7 @@ fun FeDirectReadActivationPanel(hasAllBasicPermissions: Boolean) {
 @Composable
 fun FeShizukuStatusCard(shizukuState: ShizukuState, context: android.content.Context) {
     val isRunning = shizukuState.isRunning
-    val animatedColor by animateColorAsState(if (isRunning) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error, tween(800))
+    val statusColor = if (isRunning) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
 
     TonalCard(
         modifier = Modifier.fillMaxWidth(),
@@ -757,7 +781,7 @@ fun FeShizukuStatusCard(shizukuState: ShizukuState, context: android.content.Con
                     Icon(
                         imageVector = if (isRunning) Icons.Default.CheckCircle else Icons.Default.Warning,
                         contentDescription = null,
-                        tint = animatedColor,
+                        tint = statusColor,
                         modifier = Modifier.size(28.dp)
                     )
                 }
@@ -765,7 +789,7 @@ fun FeShizukuStatusCard(shizukuState: ShizukuState, context: android.content.Con
                 Column(modifier = Modifier.weight(1f)) {
                     Text("Shizuku 核心状态", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     Spacer(Modifier.height(4.dp))
-                    Text(shizukuState.getRuntimeTypeName(), style = MaterialTheme.typography.bodySmall, color = animatedColor)
+                    Text(shizukuState.getRuntimeTypeName(), style = MaterialTheme.typography.bodySmall, color = statusColor)
 
                     if (isRunning) {
                         Spacer(Modifier.height(4.dp))
