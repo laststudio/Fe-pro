@@ -4,7 +4,6 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.os.Build
 import android.os.SystemClock
-import android.system.Os
 import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -251,25 +250,20 @@ fun HomeScreen(
                     onNavigateToActivation = onNavigateToActivation
                 )
 
-                // 版本信息（设备、内核、Android、管理器版本）
+                // 版本信息（设备、Android、管理器版本）
                 HomeVersionInfoSection(context = context)
 
-                // 状态信息（模式、基础权限、服务运行状态）
-                HomeStatusInfoSection(
-                    mode = mode,
-                    shizukuState = shizukuState,
-                    runtimeStatus = runtimeStatus,
-                    hasAllBasicPermissions = hasAllBasicPermissions,
-                    onNavigateToActivation = onNavigateToActivation,
+                // 公告
+                HomeAnnouncementSection(
+                    status = remoteStatus,
+                    onNavigateToRemoteContent = onNavigateToRemoteContent,
                 )
 
                 // 支持开发
                 HomeSupportSection(onNavigateToDonate = onNavigateToDonate)
 
-                // 了解更多（公告、用户协议）
+                // 了解更多（用户协议）
                 HomeLearnMoreSection(
-                    status = remoteStatus,
-                    onNavigateToRemoteContent = onNavigateToRemoteContent,
                     onNavigateToLegal = onNavigateToLegal,
                 )
             }
@@ -495,12 +489,6 @@ private object DeviceInfoHelper {
         }
     }
 
-    fun getKernelRelease(): String {
-        return runCatching { Os.uname().release }.getOrNull()
-            ?: System.getProperty("os.version")
-            ?: "未知"
-    }
-
     fun getAndroidVersion(): String {
         return "${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})"
     }
@@ -522,7 +510,6 @@ private fun copyToClipboard(context: android.content.Context, label: String, tex
 @Composable
 private fun HomeVersionInfoSection(context: android.content.Context) {
     val deviceModel = remember { DeviceInfoHelper.getDeviceModel() }
-    val kernelRelease = remember { DeviceInfoHelper.getKernelRelease() }
     val androidVersion = remember { DeviceInfoHelper.getAndroidVersion() }
     val appVersion = remember { DeviceInfoHelper.getAppVersion() }
 
@@ -532,7 +519,7 @@ private fun HomeVersionInfoSection(context: android.content.Context) {
             {
                 ExpressiveSegmentedListItem(
                     index = 0,
-                    count = 4,
+                    count = 3,
                     onClick = { copyToClipboard(context, "设备型号", deviceModel) },
                     headlineContent = { Text("设备") },
                     supportingContent = {
@@ -548,23 +535,7 @@ private fun HomeVersionInfoSection(context: android.content.Context) {
             {
                 ExpressiveSegmentedListItem(
                     index = 1,
-                    count = 4,
-                    onClick = { copyToClipboard(context, "内核版本", kernelRelease) },
-                    headlineContent = { Text("内核版本") },
-                    supportingContent = {
-                        Text(
-                            kernelRelease,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                )
-            },
-            {
-                ExpressiveSegmentedListItem(
-                    index = 2,
-                    count = 4,
+                    count = 3,
                     onClick = { copyToClipboard(context, "Android 版本", androidVersion) },
                     headlineContent = { Text("Android 版本") },
                     supportingContent = {
@@ -579,8 +550,8 @@ private fun HomeVersionInfoSection(context: android.content.Context) {
             },
             {
                 ExpressiveSegmentedListItem(
-                    index = 3,
-                    count = 4,
+                    index = 2,
+                    count = 3,
                     onClick = { copyToClipboard(context, "管理器版本", appVersion) },
                     headlineContent = { Text("管理器版本") },
                     supportingContent = {
@@ -598,170 +569,20 @@ private fun HomeVersionInfoSection(context: android.content.Context) {
 }
 
 @Composable
-private fun HomeStatusInfoSection(
-    mode: ActivationMode,
-    shizukuState: ShizukuState,
-    runtimeStatus: HomeRuntimeStatus,
-    hasAllBasicPermissions: Boolean,
-    onNavigateToActivation: () -> Unit,
-) {
-    val grantedCount = listOf(runtimeStatus.hasFilesPerm, runtimeStatus.hasOverlayPerm, runtimeStatus.hasAppListPerm).count { it }
-
-    val coreStatus = when (mode) {
-        ActivationMode.SHIZUKU -> {
-            val isOk = shizukuState.isRunning && shizukuState.permissionGranted
-            val summary = if (shizukuState.isRunning) {
-                val uidStr = when (shizukuState.uid) {
-                    0 -> "Root (0)"
-                    2000 -> "ADB (2000)"
-                    else -> shizukuState.uid.toString()
-                }
-                "${shizukuState.getRuntimeTypeName()} v${shizukuState.version} • UID: $uidStr"
-            } else "底层服务未连接"
-            CoreStatusDisplay("Shizuku 服务状态", summary, if (isOk) "运行中" else "未连接", isOk)
-        }
-        ActivationMode.ROOT -> {
-            val isOk = runtimeStatus.hasRootAvailable
-            val summary = if (isOk) "Root 权限已获取并授权" else "未检测到 Root 权限"
-            CoreStatusDisplay("Root 权限状态", summary, if (isOk) "可用" else "未获取", isOk)
-        }
-        ActivationMode.CLOUD -> {
-            val isOk = runtimeStatus.cloudLoggedIn
-            val summary = if (isOk) "云端作业与试卷解析服务已连接" else "未登录或凭据未配置"
-            CoreStatusDisplay("云端服务状态", summary, if (isOk) "已连接" else "未登录", isOk)
-        }
-        ActivationMode.DIRECT_READ -> {
-            val isOk = runtimeStatus.hasDirectReadAvailable
-            val summary = if (isOk) "零宽字符绕过漏洞正常可用" else "设备或系统环境不适用"
-            CoreStatusDisplay("漏洞直读状态", summary, if (isOk) "可用" else "不可用", isOk)
-        }
-        ActivationMode.DEFAULT -> {
-            CoreStatusDisplay("核心服务行为", "尚未配置工作模式，点击前往配置", "未配置", false)
-        }
-    }
-
-    SegmentedColumn(
-        title = "状态信息",
-        items = listOf(
-            {
-                ExpressiveSegmentedListItem(
-                    index = 0,
-                    count = 3,
-                    onClick = onNavigateToActivation,
-                    headlineContent = { Text("当前授权模式") },
-                    supportingContent = {
-                        Text(
-                            mode.title,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    },
-                    trailingContent = {
-                        StatusTag(
-                            label = mode.shortLabel,
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        )
-                    }
-                )
-            },
-            {
-                ExpressiveSegmentedListItem(
-                    index = 1,
-                    count = 3,
-                    onClick = onNavigateToActivation,
-                    headlineContent = { Text("系统基础权限") },
-                    supportingContent = {
-                        Text(
-                            "$grantedCount / 3 项已授权",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    },
-                    trailingContent = {
-                        StatusTag(
-                            label = if (hasAllBasicPermissions) "已就绪" else "需授权",
-                            containerColor = if (hasAllBasicPermissions) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-                            contentColor = if (hasAllBasicPermissions) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onError,
-                        )
-                    }
-                )
-            },
-            {
-                ExpressiveSegmentedListItem(
-                    index = 2,
-                    count = 3,
-                    onClick = onNavigateToActivation,
-                    headlineContent = { Text(coreStatus.title) },
-                    supportingContent = {
-                        Text(
-                            coreStatus.summary,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    },
-                    trailingContent = {
-                        StatusTag(
-                            label = coreStatus.tag,
-                            containerColor = if (coreStatus.isOk) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-                            contentColor = if (coreStatus.isOk) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onError,
-                        )
-                    }
-                )
-            }
-        )
-    )
-}
-
-@Composable
-private fun HomeSupportSection(onNavigateToDonate: () -> Unit) {
-    SegmentedColumn(
-        title = "支持开发",
-        items = listOf(
-            {
-                ExpressiveSegmentedListItem(
-                    index = 0,
-                    count = 1,
-                    onClick = onNavigateToDonate,
-                    headlineContent = { Text("支持开发") },
-                    supportingContent = {
-                        Text(
-                            "Fe 将保持免费与开源，向开发者捐赠以表示支持",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    },
-                    trailingContent = {
-                        Icon(
-                            imageVector = Icons.Default.ChevronRight,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                )
-            }
-        )
-    )
-}
-
-@Composable
-private fun HomeLearnMoreSection(
+private fun HomeAnnouncementSection(
     status: UpdateStatus?,
     onNavigateToRemoteContent: (UpdateStatus?) -> Unit,
-    onNavigateToLegal: () -> Unit,
 ) {
     val announcementMessage = status?.announcementMessage.orEmpty()
     val announcementTitle = status?.announcementTitle?.takeIf { it.isNotBlank() } ?: "公告与动态"
 
     SegmentedColumn(
-        title = "了解更多",
+        title = "公告",
         items = listOf(
             {
                 ExpressiveSegmentedListItem(
                     index = 0,
-                    count = 2,
+                    count = 1,
                     onClick = { onNavigateToRemoteContent(status) },
                     headlineContent = { Text(announcementTitle) },
                     supportingContent = {
@@ -780,11 +601,52 @@ private fun HomeLearnMoreSection(
                         )
                     }
                 )
-            },
+            }
+        )
+    )
+}
+
+@Composable
+private fun HomeSupportSection(onNavigateToDonate: () -> Unit) {
+    SegmentedColumn(
+        title = "支持开发",
+        items = listOf(
             {
                 ExpressiveSegmentedListItem(
-                    index = 1,
-                    count = 2,
+                    index = 0,
+                    count = 1,
+                    onClick = onNavigateToDonate,
+                    headlineContent = { Text("捐赠") },
+                    supportingContent = {
+                        Text(
+                            "向开发者捐赠以表示支持",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    },
+                    trailingContent = {
+                        Icon(
+                            imageVector = Icons.Default.ChevronRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                )
+            }
+        )
+    )
+}
+
+@Composable
+private fun HomeLearnMoreSection(
+    onNavigateToLegal: () -> Unit,
+) {
+    SegmentedColumn(
+        title = "了解更多",
+        items = listOf(
+            {
+                ExpressiveSegmentedListItem(
+                    index = 0,
+                    count = 1,
                     onClick = onNavigateToLegal,
                     headlineContent = { Text("用户协议与隐私条款") },
                     supportingContent = {

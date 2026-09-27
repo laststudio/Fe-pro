@@ -39,6 +39,9 @@ import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -1661,6 +1664,40 @@ fun ReadScreen(
     
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
+    var isRefreshing by remember { mutableStateOf(false) }
+    val pullRefreshState = rememberPullToRefreshState()
+
+    val onRefresh: () -> Unit = {
+        if (!accountOnline) {
+            Toast.makeText(context, "已离线", Toast.LENGTH_SHORT).show()
+        } else if (currentMode == ActivationMode.CLOUD) {
+            if (homeworkListsByStatus.isNotEmpty()) {
+                scope.launch {
+                    isRefreshing = true
+                    try {
+                        loadCloudHomeworkList()
+                    } finally {
+                        isRefreshing = false
+                    }
+                }
+            } else {
+                showCloudReadConfirmDialog = true
+            }
+        } else {
+            scope.launch {
+                isRefreshing = true
+                try {
+                    ETS100AnswerReader.clearResourceScanCache(currentMode)
+                    ReadPageStateStore.clearLocal(context)
+                    reloadTrigger++
+                    delay(400)
+                } finally {
+                    isRefreshing = false
+                }
+            }
+        }
+    }
+
     ExpressiveScaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
@@ -1745,12 +1782,27 @@ fun ReadScreen(
             )
         }
     ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .background(MaterialTheme.colorScheme.surfaceContainer)
+        PullToRefreshBox(
+            state = pullRefreshState,
+            isRefreshing = isRefreshing,
+            onRefresh = onRefresh,
+            modifier = Modifier.fillMaxSize(),
+            indicator = {
+                PullToRefreshDefaults.LoadingIndicator(
+                    modifier = Modifier
+                        .padding(top = paddingValues.calculateTopPadding())
+                        .align(Alignment.TopCenter),
+                    state = pullRefreshState,
+                    isRefreshing = isRefreshing,
+                )
+            },
         ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .background(MaterialTheme.colorScheme.surfaceContainer)
+            ) {
             when {
                 // 1. 加载中（本地模式 isLoading 或 云端模式 isLoadingCloudHomework）喵~
                 isLoading || (currentMode == ActivationMode.CLOUD && isLoadingCloudHomework) -> {
@@ -1794,7 +1846,9 @@ fun ReadScreen(
                 // 2. 错误状态（本地 errorMessage 或 云端 cloudHomeworkError）喵~
                 errorMessage != null || cloudHomeworkError != null -> {
                     Box(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState()),
                         contentAlignment = Alignment.Center
                     ) {
                         Column(
@@ -1940,7 +1994,9 @@ fun ReadScreen(
                 // 4. 空列表（本地和云端统一处理）喵~
                 papers.isEmpty() && homeworkList.isEmpty() -> {
                     Box(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState()),
                         contentAlignment = Alignment.Center
                     ) {
                         Column(
@@ -2114,6 +2170,7 @@ fun ReadScreen(
             }
         }
     }
+}
 
     SourceExportDialogHost(
         paper = sourceExportPaper,
