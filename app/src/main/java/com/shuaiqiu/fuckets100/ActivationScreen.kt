@@ -766,7 +766,7 @@ fun FeDirectReadActivationPanel(hasAllBasicPermissions: Boolean) {
                             } else {
                                 MaterialTheme.colorScheme.surfaceContainerLow
                             },
-                            RoundedCornerShape(8.dp)
+                            MaterialTheme.shapes.small
                         )
                         .padding(8.dp),
                     verticalAlignment = Alignment.CenterVertically

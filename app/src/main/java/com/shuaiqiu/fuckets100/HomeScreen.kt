@@ -377,15 +377,17 @@ fun StatusCard(
         else -> "点击进入激活设置"
     }
 
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
+    Card(
         onClick = {
             haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
             onNavigateToActivation()
         },
+        modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
-        color = statusContainerColor,
-        contentColor = statusContentColor,
+        colors = CardDefaults.cardColors(
+            containerColor = statusContainerColor,
+            contentColor = statusContentColor,
+        ),
     ) {
         Row(
             modifier = Modifier

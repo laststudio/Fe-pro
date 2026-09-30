@@ -176,10 +176,12 @@ private fun FeLoginScreen(manager: FeAccountManager) {
                 )
                 Spacer(Modifier.height(32.dp))
 
-                Surface(
+                Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = MaterialTheme.shapes.extraLarge,
-                    color = MaterialTheme.colorScheme.surfaceContainer,
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                    ),
                 ) {
                     Column(modifier = Modifier.padding(24.dp)) {
                         OutlinedTextField(

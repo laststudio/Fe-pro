@@ -2428,7 +2428,7 @@ private fun LocalDirectoryExportDialogHost(
     if (isPreparing || isExporting) {
         Dialog(onDismissRequest = {}) {
             Surface(
-                shape = RoundedCornerShape(28.dp),
+                shape = MaterialTheme.shapes.extraLarge,
                 color = MaterialTheme.colorScheme.surfaceContainerHigh
             ) {
                 Row(
@@ -2580,7 +2580,7 @@ private fun CloudDirectoryExportDialogHost(
 
     if (isPreparing || isExporting) {
         Dialog(onDismissRequest = {}) {
-            Surface(shape = RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+            Surface(shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
                 Row(
                     modifier = Modifier.padding(horizontal = 24.dp, vertical = 20.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -2830,7 +2830,7 @@ private fun CloudHomeworkCategorySelector(
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable { menuExpanded = true },
-            shape = RoundedCornerShape(16.dp),
+            shape = MaterialTheme.shapes.large,
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
             tonalElevation = 2.dp
@@ -2843,7 +2843,7 @@ private fun CloudHomeworkCategorySelector(
             ) {
                 // Leading Icon Container
                 Surface(
-                    shape = RoundedCornerShape(12.dp),
+                    shape = MaterialTheme.shapes.medium,
                     color = when (selectedCategory) {
                         CloudHomeworkState.CATEGORY_VOCAB_PK -> MaterialTheme.colorScheme.tertiaryContainer
                         CloudHomeworkState.CATEGORY_HISTORY -> MaterialTheme.colorScheme.secondaryContainer
@@ -2878,7 +2878,7 @@ private fun CloudHomeworkCategorySelector(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Surface(
-                            shape = RoundedCornerShape(8.dp),
+                            shape = MaterialTheme.shapes.small,
                             color = MaterialTheme.colorScheme.surfaceVariant,
                         ) {
                             Text(
@@ -3340,7 +3340,7 @@ private fun QuestionBlock(
                         Spacer(modifier = Modifier.width(8.dp))
                         Surface(
                             color = categoryStyle.container.copy(alpha = 0.76f),
-                            shape = RoundedCornerShape(10.dp)
+                            shape = MaterialTheme.shapes.small
                         ) {
                             Text(
                                 sectionTitle,
@@ -3367,7 +3367,7 @@ private fun QuestionBlock(
             // 题目内容
             Surface(
                 color = MaterialTheme.colorScheme.surfaceContainerLow,
-                shape = RoundedCornerShape(8.dp)
+                shape = MaterialTheme.shapes.small
             ) {
                 Text(
                     text = question.question,
@@ -3564,7 +3564,7 @@ fun PaperDetailScreen(
                             Spacer(modifier = Modifier.width(8.dp))
                             Surface(
                                 color = categoryStyle.container.copy(alpha = 0.76f),
-                                shape = RoundedCornerShape(10.dp)
+                                shape = MaterialTheme.shapes.small
                             ) {
                                 Text(
                                     text = "${section.displayCategoryLabel()} · ${section.questions.size} 题",
@@ -3813,7 +3813,7 @@ private fun SourceExportDialogHost(
     if (isExportingSource) {
         Dialog(onDismissRequest = {}) {
             Surface(
-                shape = RoundedCornerShape(28.dp),
+                shape = MaterialTheme.shapes.extraLarge,
                 color = MaterialTheme.colorScheme.surfaceContainerHigh
             ) {
                 Row(
@@ -3876,7 +3876,7 @@ private fun MergedQuestionBlock(
                             Spacer(modifier = Modifier.width(8.dp))
                             Surface(
                                 color = categoryStyle.container.copy(alpha = 0.76f),
-                                shape = RoundedCornerShape(10.dp)
+                                shape = MaterialTheme.shapes.small
                             ) {
                                 Text(
                                     sectionTitle,
@@ -3985,7 +3985,7 @@ private fun QuestionItemSimple(
         ) {
             Box(
                 modifier = Modifier
-                    .background(categoryStyle.container.copy(alpha = 0.76f), RoundedCornerShape(10.dp))
+                    .background(categoryStyle.container.copy(alpha = 0.76f), MaterialTheme.shapes.small)
                     .padding(horizontal = 8.dp, vertical = 4.dp)
             ) {
                 Text(
@@ -4169,7 +4169,7 @@ private fun PaperListItem(
                                 isFailed -> MaterialTheme.colorScheme.errorContainer
                                 else -> MaterialTheme.colorScheme.primaryContainer
                             },
-                            RoundedCornerShape(12.dp)
+                            MaterialTheme.shapes.medium
                         ),
                     contentAlignment = Alignment.Center
                 ) {
@@ -4221,7 +4221,7 @@ private fun PaperListItem(
                             }
                             Surface(
                                 color = regionContainerColor,
-                                shape = RoundedCornerShape(10.dp)
+                                shape = MaterialTheme.shapes.small
                             ) {
                                 Text(
                                     text = paper.regionLabel,
@@ -4247,7 +4247,7 @@ private fun PaperListItem(
                             Surface(
                                 modifier = Modifier.widthIn(min = 48.dp),
                                 color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f),
-                                shape = RoundedCornerShape(10.dp)
+                                shape = MaterialTheme.shapes.small
                             ) {
                                 Text(
                                     text = "已下载",
