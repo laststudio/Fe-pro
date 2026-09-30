@@ -534,29 +534,35 @@ fun SettingsListItem(
     sub: String,
     hideChevron: Boolean = false,
     iconTint: Color = MaterialTheme.colorScheme.primary,
-    onClick: () -> Unit = {}
+    onClick: () -> Unit = {},
 ) {
-    Row(
+    ListItem(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = iconTint,
-            modifier = Modifier.size(24.dp)
-        )
-        Column(modifier = Modifier.weight(1f).padding(start = 16.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
-            if (sub.isNotEmpty()) {
-                Text(sub, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        leadingContent = {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = iconTint,
+            )
+        },
+        supportingContent = sub.takeIf { it.isNotEmpty() }?.let {
+            { Text(it) }
+        },
+        trailingContent = if (!hideChevron) {
+            {
+                Icon(
+                    Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.outlineVariant,
+                )
             }
-        }
-        if (!hideChevron) {
-            Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.outlineVariant)
-        }
+        } else {
+            null
+        },
+    ) {
+        Text(title)
     }
 }
