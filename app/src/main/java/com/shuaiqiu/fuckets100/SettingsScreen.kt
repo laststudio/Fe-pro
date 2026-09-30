@@ -73,10 +73,13 @@ fun SettingsScreen(
         ) {
             Spacer(Modifier.height(16.dp))
 
-            Surface(
-                modifier = Modifier.fillMaxWidth().clickable(onClick = onNavigateAccount),
+            Card(
+                onClick = onNavigateAccount,
+                modifier = Modifier.fillMaxWidth(),
                 shape = MaterialTheme.shapes.extraLarge,
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                ),
             ) {
                 Row(
                     Modifier.fillMaxWidth().padding(20.dp),

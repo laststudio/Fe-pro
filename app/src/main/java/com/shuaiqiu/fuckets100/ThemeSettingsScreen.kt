@@ -409,7 +409,7 @@ private fun ThemePreviewCard() {
                 .fillMaxWidth(0.4f)
                 .aspectRatio(ratio),
             color = scheme.surfaceContainer,
-            shape = RoundedCornerShape(20.dp),
+            shape = MaterialTheme.shapes.extraLarge,
             border = BorderStroke(1.dp, scheme.outlineVariant),
         ) {
             Column {
@@ -433,13 +433,13 @@ private fun ThemePreviewCard() {
                         TonalCard(
                             containerColor = scheme.secondaryContainer,
                             modifier = Modifier.fillMaxWidth().height(40.dp),
-                            shape = RoundedCornerShape(8.dp),
+                            shape = MaterialTheme.shapes.small,
                         ) {}
                         if (showInfoCard) {
                             TonalCard(
                                 containerColor = scheme.surfaceBright,
                                 modifier = Modifier.fillMaxWidth().weight(1f),
-                                shape = RoundedCornerShape(8.dp),
+                                shape = MaterialTheme.shapes.small,
                             ) {}
                         }
                     }
@@ -485,7 +485,7 @@ private fun ColorButton(
             onClick()
         },
         enabled = enabled,
-        shape = RoundedCornerShape(20.dp),
+        shape = MaterialTheme.shapes.extraLarge,
         color = scheme.surfaceContainer,
         modifier = Modifier
             .size(72.dp)
