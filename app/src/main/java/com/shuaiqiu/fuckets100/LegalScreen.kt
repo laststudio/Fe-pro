@@ -157,7 +157,7 @@ fun LegalContent(
                     ) {
                         Surface(
                             color = MaterialTheme.colorScheme.primaryContainer,
-                            shape = RoundedCornerShape(8.dp)
+                            shape = MaterialTheme.shapes.small
                         ) {
                             Text(
                                 text = "版本: ${agreement.version}",
@@ -168,7 +168,7 @@ fun LegalContent(
                         }
                         Surface(
                             color = MaterialTheme.colorScheme.secondaryContainer,
-                            shape = RoundedCornerShape(8.dp)
+                            shape = MaterialTheme.shapes.small
                         ) {
                             Text(
                                 text = "生效: ${agreement.effectiveDate}",
@@ -239,7 +239,7 @@ private fun LegalSectionCard(section: LegalAgreementSection) {
                 if (!section.badge.isNullOrBlank()) {
                     Surface(
                         color = if (isWarning) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.secondaryContainer,
-                        shape = RoundedCornerShape(6.dp)
+                        shape = MaterialTheme.shapes.extraSmall
                     ) {
                         Text(
                             text = section.badge,

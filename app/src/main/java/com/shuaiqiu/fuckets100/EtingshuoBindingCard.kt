@@ -126,7 +126,7 @@ internal fun EtingshuoBindingCard(
             } else {
                 Surface(
                     color = MaterialTheme.colorScheme.secondaryContainer,
-                    shape = RoundedCornerShape(14.dp),
+                    shape = MaterialTheme.shapes.medium,
                 ) {
                     Row(
                         modifier = Modifier.padding(12.dp),
@@ -160,7 +160,7 @@ internal fun EtingshuoBindingCard(
                     leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                     singleLine = true,
-                    shape = RoundedCornerShape(14.dp),
+                    shape = MaterialTheme.shapes.medium,
                 )
                 OutlinedTextField(
                     value = password,
@@ -172,7 +172,7 @@ internal fun EtingshuoBindingCard(
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                     singleLine = true,
-                    shape = RoundedCornerShape(14.dp),
+                    shape = MaterialTheme.shapes.medium,
                 )
                 if (checkError != null) {
                     Text(checkError!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
@@ -206,7 +206,7 @@ internal fun EtingshuoBindingCard(
                     },
                     enabled = !isBinding,
                     modifier = Modifier.fillMaxWidth().height(48.dp),
-                    shape = RoundedCornerShape(14.dp),
+                    shape = MaterialTheme.shapes.medium,
                 ) {
                     if (isBinding) {
                         CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)

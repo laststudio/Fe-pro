@@ -299,7 +299,7 @@ private fun WelcomeStep(
                         scaleY = logoScale
                         alpha = logoAlpha
                     }
-                    .clip(RoundedCornerShape(32.dp))
+                    .clip(MaterialTheme.shapes.extraLarge)
                     .background(MaterialTheme.colorScheme.primaryContainer),
                 contentAlignment = Alignment.Center,
             ) {
@@ -309,7 +309,7 @@ private fun WelcomeStep(
                     contentScale = ContentScale.Fit,
                     modifier = Modifier
                         .size(68.dp)
-                        .clip(RoundedCornerShape(18.dp)),
+                        .clip(MaterialTheme.shapes.large),
                 )
             }
 
@@ -358,7 +358,7 @@ private fun WelcomeStep(
                     .graphicsLayer {
                         translationX = shakeOffset.value
                     }
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(MaterialTheme.shapes.medium)
                     .clickable { legalAccepted = !legalAccepted }
                     .padding(vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -404,7 +404,7 @@ private fun WelcomeStep(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp),
-                shape = RoundedCornerShape(16.dp),
+                shape = MaterialTheme.shapes.large,
             ) {
                 Text("开启旅程", style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.width(8.dp))
@@ -461,7 +461,7 @@ private fun WelcomeStep(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(48.dp),
-                    shape = RoundedCornerShape(14.dp),
+                    shape = MaterialTheme.shapes.medium,
                 ) {
                     Text("我已阅读并知悉")
                 }
@@ -608,7 +608,7 @@ private fun AccountStep(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(48.dp),
-                        shape = RoundedCornerShape(14.dp),
+                        shape = MaterialTheme.shapes.medium,
                     ) {
                         Text("继续下一步")
                     }
@@ -618,7 +618,7 @@ private fun AccountStep(
             // 未登录：极简卡片表单
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(24.dp),
+                shape = MaterialTheme.shapes.extraLarge,
                 color = MaterialTheme.colorScheme.surfaceContainer,
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
@@ -630,7 +630,7 @@ private fun AccountStep(
                         label = { Text("用户名") },
                         leadingIcon = { Icon(Icons.Default.Person, null) },
                         singleLine = true,
-                        shape = RoundedCornerShape(14.dp),
+                        shape = MaterialTheme.shapes.medium,
                     )
                     Spacer(Modifier.height(12.dp))
                     OutlinedTextField(
@@ -643,7 +643,7 @@ private fun AccountStep(
                         visualTransformation = PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                         singleLine = true,
-                        shape = RoundedCornerShape(14.dp),
+                        shape = MaterialTheme.shapes.medium,
                     )
 
                     if (error != null) {
@@ -663,7 +663,7 @@ private fun AccountStep(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(50.dp),
-                        shape = RoundedCornerShape(14.dp),
+                        shape = MaterialTheme.shapes.medium,
                     ) {
                         if (loading) {
                             CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.5.dp)
@@ -770,7 +770,7 @@ private fun CloudBindingStep(
         Button(
             onClick = onFinish,
             modifier = Modifier.fillMaxWidth().height(52.dp),
-            shape = RoundedCornerShape(16.dp),
+            shape = MaterialTheme.shapes.large,
         ) {
             Text("完成设置，进入 Fe", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.width(8.dp))
@@ -917,7 +917,7 @@ private fun ModeAndPermissionStep(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
+                            .clip(MaterialTheme.shapes.medium)
                             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
                             .padding(4.dp),
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -927,7 +927,7 @@ private fun ModeAndPermissionStep(
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .clip(RoundedCornerShape(10.dp))
+                                .clip(MaterialTheme.shapes.small)
                                 .background(
                                     if (isShizuku) MaterialTheme.colorScheme.primary
                                     else Color.Transparent
@@ -949,7 +949,7 @@ private fun ModeAndPermissionStep(
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .clip(RoundedCornerShape(10.dp))
+                                .clip(MaterialTheme.shapes.small)
                                 .background(
                                     if (isRoot) MaterialTheme.colorScheme.primary
                                     else Color.Transparent
@@ -1144,7 +1144,7 @@ private fun ModeAndPermissionStep(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(52.dp),
-            shape = RoundedCornerShape(16.dp),
+            shape = MaterialTheme.shapes.large,
         ) {
             Text("完成配置", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.width(8.dp))
@@ -1241,7 +1241,7 @@ private fun ModeSelectionCard(
     Surface(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
+        shape = MaterialTheme.shapes.large,
         color = if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
         else MaterialTheme.colorScheme.surfaceContainer,
         border = BorderStroke(
@@ -1345,7 +1345,7 @@ private fun PermissionStatusCard(
                 FilledTonalButton(
                     onClick = onAction,
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = MaterialTheme.shapes.medium,
                 ) {
                     Text(actionLabel, style = MaterialTheme.typography.labelMedium)
                 }
@@ -1409,7 +1409,7 @@ private fun FinishStep(
         // 清单卡片
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp),
+            shape = MaterialTheme.shapes.large,
             color = MaterialTheme.colorScheme.surfaceContainer,
         ) {
             Column(
@@ -1440,7 +1440,7 @@ private fun FinishStep(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(52.dp),
-            shape = RoundedCornerShape(16.dp),
+            shape = MaterialTheme.shapes.large,
         ) {
             Text("进入主界面", style = MaterialTheme.typography.titleMedium)
         }

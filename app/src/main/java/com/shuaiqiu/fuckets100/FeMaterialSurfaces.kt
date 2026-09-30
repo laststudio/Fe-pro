@@ -28,7 +28,7 @@ import androidx.compose.ui.unit.dp
 fun FeFilledCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
-    shape: Shape = RoundedCornerShape(24.dp),
+    shape: Shape = MaterialTheme.shapes.extraLarge,
     containerColor: Color = MaterialTheme.colorScheme.surfaceContainer,
     borderColor: Color = Color.Transparent,
     content: @Composable () -> Unit
@@ -137,7 +137,7 @@ fun FeInfoSurface(
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
+        shape = MaterialTheme.shapes.medium,
         color = containerColor,
         border = borderColor.takeUnless { it == Color.Transparent }?.let { BorderStroke(1.dp, it) },
         tonalElevation = 0.dp,

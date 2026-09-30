@@ -159,7 +159,7 @@ private fun FeLoginScreen(manager: FeAccountManager) {
                         contentScale = ContentScale.Fit,
                         modifier = Modifier
                             .size(56.dp)
-                            .clip(RoundedCornerShape(14.dp)),
+                            .clip(MaterialTheme.shapes.medium),
                     )
                 }
                 Spacer(Modifier.height(20.dp))
