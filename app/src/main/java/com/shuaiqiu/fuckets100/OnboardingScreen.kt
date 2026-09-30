@@ -621,10 +621,12 @@ private fun AccountStep(
             }
         } else {
             // 未登录：极简卡片表单
-            Surface(
+            Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = MaterialTheme.shapes.extraLarge,
-                color = MaterialTheme.colorScheme.surfaceContainer,
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                ),
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
                     OutlinedTextField(
@@ -1341,11 +1343,11 @@ private fun ModeSelectionCard(
         label = "mode_icon_container_color",
     )
 
-    Surface(
+    OutlinedCard(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
-        color = containerColor,
+        colors = CardDefaults.outlinedCardColors(containerColor = containerColor),
         border = BorderStroke(borderWidth, borderColor),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -1513,10 +1515,12 @@ private fun FinishStep(
         Spacer(Modifier.height(28.dp))
 
         // 清单卡片
-        Surface(
+        Card(
             modifier = Modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.large,
-            color = MaterialTheme.colorScheme.surfaceContainer,
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            ),
         ) {
             Column(
                 modifier = Modifier.padding(20.dp),
