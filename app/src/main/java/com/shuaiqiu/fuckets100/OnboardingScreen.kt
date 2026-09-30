@@ -480,6 +480,7 @@ private fun AccountStep(
     accountManager: FeAccountManager,
     onNext: () -> Unit,
 ) {
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val gateState by accountManager.gateState.collectAsState()
     val session = gateState.cachedSessionOrNull
@@ -692,7 +693,17 @@ private fun AccountStep(
     }
 
     if (showRegister) {
-        InAppRegisterScreen(onBack = { showRegister = false })
+        InAppRegisterScreen(
+            onBack = { showRegister = false },
+            onRegistered = {
+                showRegister = false
+                Toast.makeText(
+                    context,
+                    "注册成功，请使用刚注册的 LA Studio 账号登录",
+                    Toast.LENGTH_LONG,
+                ).show()
+            },
+        )
     }
 
     if (captchaVisible) {

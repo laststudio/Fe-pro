@@ -59,6 +59,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.concurrent.atomic.AtomicBoolean
 
 @Composable
 fun FeAccountGate(
@@ -92,6 +93,7 @@ fun FeAccountGate(
 
 @Composable
 private fun FeLoginScreen(manager: FeAccountManager) {
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var username by rememberSaveable { mutableStateOf("") }
     // Password is deliberately not saveable and never leaves this in-memory field except for login.
@@ -101,6 +103,11 @@ private fun FeLoginScreen(manager: FeAccountManager) {
     var captchaVisible by remember { mutableStateOf(false) }
     var pendingCaptchaToken by remember { mutableStateOf<String?>(null) }
     var showRegister by remember { mutableStateOf(false) }
+
+    fun handleRegistrationFinished() {
+        showRegister = false
+        Toast.makeText(context, "注册成功，请使用刚注册的 LA Studio 账号登录", Toast.LENGTH_LONG).show()
+    }
 
     fun submit(capToken: String? = pendingCaptchaToken) {
         if (username.isBlank() || password.isBlank()) {
@@ -234,7 +241,10 @@ private fun FeLoginScreen(manager: FeAccountManager) {
     }
 
     if (showRegister) {
-        InAppRegisterScreen(onBack = { showRegister = false })
+        InAppRegisterScreen(
+            onBack = { showRegister = false },
+            onRegistered = ::handleRegistrationFinished,
+        )
     }
 
     if (captchaVisible) {
@@ -257,7 +267,10 @@ private const val ACCOUNT_CENTER_URL = "https://lastudio.cc/account"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun InAppRegisterScreen(onBack: () -> Unit) {
+internal fun InAppRegisterScreen(
+    onBack: () -> Unit,
+    onRegistered: () -> Unit = onBack,
+) {
     Scaffold(
         topBar = {
             TopAppBar(
@@ -292,12 +305,13 @@ internal fun InAppRegisterScreen(onBack: () -> Unit) {
                     )
                     Spacer(Modifier.width(10.dp))
                     Text(
-                        "这是 LA Studio 账号注册页，不是 e听说账号注册页。注册成功后点击右上角「返回登录」，再输入刚注册的账号密码。",
+                        "这是 LA Studio 账号注册页，不是 e听说账号注册页。注册成功后会自动返回登录页，再输入刚注册的账号密码。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
+            val completionHandled = remember { AtomicBoolean(false) }
             AndroidView(
                 modifier = Modifier.fillMaxSize(),
                 factory = { context ->
@@ -310,7 +324,34 @@ internal fun InAppRegisterScreen(onBack: () -> Unit) {
                             override fun shouldOverrideUrlLoading(
                                 view: WebView,
                                 request: WebResourceRequest,
-                            ): Boolean = !isTrustedAuthHost(request.url)
+                            ): Boolean {
+                                val uri = request.url
+                                if (request.isForMainFrame && isRegistrationCompletionUrl(uri)) {
+                                    // 注册页注册成功后会自动登录并跳转到官网。拦截这个回跳，
+                                    // 不再让用户停留在官网首页手动寻找「返回登录」。
+                                    view.stopLoading()
+                                    if (completionHandled.compareAndSet(false, true)) {
+                                        onRegistered()
+                                    }
+                                    return true
+                                }
+                                return !isTrustedAuthHost(uri)
+                            }
+
+                            override fun onPageStarted(
+                                view: WebView,
+                                url: String,
+                                favicon: android.graphics.Bitmap?,
+                            ) {
+                                super.onPageStarted(view, url, favicon)
+                                val uri = Uri.parse(url)
+                                if (isRegistrationCompletionUrl(uri)) {
+                                    view.stopLoading()
+                                    if (completionHandled.compareAndSet(false, true)) {
+                                        onRegistered()
+                                    }
+                                }
+                            }
                         }
                         loadUrl(REGISTER_URL)
                     }
@@ -327,6 +368,16 @@ internal fun InAppRegisterScreen(onBack: () -> Unit) {
 
 private fun isTrustedAuthHost(uri: Uri): Boolean =
     uri.scheme == "https" && uri.host in setOf("auth.lastudio.cc", "lastudio.cc")
+
+/**
+ * auth.lastudio.cc 注册成功后会自动登录，并将无 transaction 的注册流程带回官网首页。
+ * 这是注册完成信号，不是普通的官网链接；必须只匹配主框架且限制到明确的官网入口，
+ * 避免用户在 WebView 中点击其他官网链接时误关闭注册页。
+ */
+private fun isRegistrationCompletionUrl(uri: Uri): Boolean =
+    uri.scheme == "https" &&
+        uri.host == "lastudio.cc" &&
+        (uri.path.isNullOrBlank() || uri.path == "/")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
