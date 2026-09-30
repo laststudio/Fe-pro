@@ -2,7 +2,6 @@ package com.shuaiqiu.fuckets100
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -11,6 +10,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -32,15 +33,25 @@ fun FeFilledCard(
     borderColor: Color = Color.Transparent,
     content: @Composable () -> Unit
 ) {
-    Surface(
-        modifier = modifier.then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
-        shape = shape,
-        color = containerColor,
-        border = borderColor.takeUnless { it == Color.Transparent }?.let { BorderStroke(1.dp, it) },
-        tonalElevation = 0.dp,
-        shadowElevation = 0.dp
-    ) {
-        content()
+    val colors = CardDefaults.cardColors(containerColor = containerColor)
+    val border = borderColor.takeUnless { it == Color.Transparent }?.let { BorderStroke(1.dp, it) }
+    if (onClick != null) {
+        Card(
+            onClick = onClick,
+            modifier = modifier,
+            shape = shape,
+            colors = colors,
+            border = border,
+            content = { content() },
+        )
+    } else {
+        Card(
+            modifier = modifier,
+            shape = shape,
+            colors = colors,
+            border = border,
+            content = { content() },
+        )
     }
 }
 
@@ -57,20 +68,30 @@ fun FeStatusCard(
         MaterialTheme.colorScheme.errorContainer
     }
     val contentColor = if (active) {
-        Color.White
+        MaterialTheme.colorScheme.onPrimary
     } else {
         MaterialTheme.colorScheme.onErrorContainer
     }
 
-    Surface(
-        modifier = modifier.then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
-        shape = RoundedCornerShape(24.dp),
-        color = containerColor,
+    val colors = CardDefaults.cardColors(
+        containerColor = containerColor,
         contentColor = contentColor,
-        tonalElevation = 0.dp,
-        shadowElevation = 0.dp
-    ) {
-        content()
+    )
+    if (onClick != null) {
+        Card(
+            onClick = onClick,
+            modifier = modifier,
+            shape = MaterialTheme.shapes.large,
+            colors = colors,
+            content = { content() },
+        )
+    } else {
+        Card(
+            modifier = modifier,
+            shape = MaterialTheme.shapes.large,
+            colors = colors,
+            content = { content() },
+        )
     }
 }
 

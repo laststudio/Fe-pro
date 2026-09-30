@@ -24,6 +24,7 @@ import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
@@ -49,6 +50,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.shuaiqiu.fuckets100.component.material.TonalCard
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -169,7 +171,7 @@ private fun FeLoginScreen(manager: FeAccountManager) {
 
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(28.dp),
+                    shape = MaterialTheme.shapes.extraLarge,
                     color = MaterialTheme.colorScheme.surfaceContainer,
                 ) {
                     Column(modifier = Modifier.padding(24.dp)) {
@@ -181,7 +183,7 @@ private fun FeLoginScreen(manager: FeAccountManager) {
                             label = { Text("用户名") },
                             leadingIcon = { Icon(Icons.Default.Person, null) },
                             singleLine = true,
-                            shape = RoundedCornerShape(16.dp),
+                            shape = MaterialTheme.shapes.medium,
                         )
                         Spacer(Modifier.height(12.dp))
                         OutlinedTextField(
@@ -194,7 +196,7 @@ private fun FeLoginScreen(manager: FeAccountManager) {
                             visualTransformation = PasswordVisualTransformation(),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                             singleLine = true,
-                            shape = RoundedCornerShape(16.dp),
+                            shape = MaterialTheme.shapes.medium,
                         )
                         if (error != null) {
                             Spacer(Modifier.height(12.dp))
@@ -211,7 +213,7 @@ private fun FeLoginScreen(manager: FeAccountManager) {
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(52.dp),
-                            shape = RoundedCornerShape(16.dp),
+                            shape = MaterialTheme.shapes.medium,
                         ) {
                             if (loading) {
                                 CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.5.dp)
@@ -262,36 +264,64 @@ internal fun InAppRegisterScreen(onBack: () -> Unit) {
                 title = { Text("注册 LA Studio 账号") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回登录")
                     }
+                },
+                actions = {
+                    TextButton(onClick = onBack) { Text("返回登录") }
                 },
             )
         },
         containerColor = MaterialTheme.colorScheme.surface,
     ) { padding ->
-        AndroidView(
+        Column(
             modifier = Modifier.fillMaxSize().padding(padding),
-            factory = { context ->
-                WebView(context).apply {
-                    settings.javaScriptEnabled = true
-                    settings.domStorageEnabled = true
-                    settings.allowFileAccess = false
-                    settings.allowContentAccess = false
-                    webViewClient = object : WebViewClient() {
-                        override fun shouldOverrideUrlLoading(
-                            view: WebView,
-                            request: WebResourceRequest,
-                        ): Boolean = !isTrustedAuthHost(request.url)
-                    }
-                    loadUrl(REGISTER_URL)
+        ) {
+            TonalCard(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+            ) {
+                Row(
+                    modifier = Modifier.padding(14.dp),
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    Icon(
+                        Icons.Default.Info,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp),
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        "这是 LA Studio 账号注册页，不是 e听说账号注册页。注册成功后点击右上角「返回登录」，再输入刚注册的账号密码。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
-            },
-            update = { webView -> webView.loadUrl(REGISTER_URL) },
-            onRelease = { webView ->
-                webView.stopLoading()
-                webView.destroy()
-            },
-        )
+            }
+            AndroidView(
+                modifier = Modifier.fillMaxSize(),
+                factory = { context ->
+                    WebView(context).apply {
+                        settings.javaScriptEnabled = true
+                        settings.domStorageEnabled = true
+                        settings.allowFileAccess = false
+                        settings.allowContentAccess = false
+                        webViewClient = object : WebViewClient() {
+                            override fun shouldOverrideUrlLoading(
+                                view: WebView,
+                                request: WebResourceRequest,
+                            ): Boolean = !isTrustedAuthHost(request.url)
+                        }
+                        loadUrl(REGISTER_URL)
+                    }
+                },
+                // 不要在每次 Compose 重组时重新加载注册页，否则用户填写到一半会被清空。
+                onRelease = { webView ->
+                    webView.stopLoading()
+                    webView.destroy()
+                },
+            )
+        }
     }
 }
 

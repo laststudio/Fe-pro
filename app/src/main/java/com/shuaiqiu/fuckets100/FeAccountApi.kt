@@ -115,7 +115,31 @@ internal class FeAccountApi(private val context: Context) {
             "SoftwareAccess $accessToken",
             JSONObject().put("preferred_account_id", preferredAccountId).toString(),
         )
-        val json = JSONObject(response.body)
+        return parseCloudSession(JSONObject(response.body))
+    }
+
+    suspend fun bindChangyanAccount(
+        accessToken: String,
+        login: String,
+        userId: String,
+        sucUserToken: String,
+        preferredAccountId: String,
+    ): CloudSession {
+        val response = request(
+            "POST",
+            "/client-auth/platform-account/changyan",
+            "SoftwareAccess $accessToken",
+            JSONObject()
+                .put("login", login)
+                .put("user_id", userId)
+                .put("suc_user_token", sucUserToken)
+                .put("preferred_account_id", preferredAccountId)
+                .toString(),
+        )
+        return parseCloudSession(JSONObject(response.body))
+    }
+
+    private fun parseCloudSession(json: JSONObject): CloudSession {
         val accounts = json.optJSONArray("valid_accounts")
         return CloudSession(
             accountDisplay = json.optString("account_display"),

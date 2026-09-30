@@ -5,6 +5,8 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
@@ -131,15 +133,27 @@ fun OnboardingScreen(
                         currentStep = 3
                     },
                 )
-                3 -> FinishStep(
-                    selectedMode = selectedMode,
-                    onFinish = {
-                        SettingsManager.saveActivationMode(selectedMode)
-                        SettingsManager.saveLegalAccepted(true)
-                        SettingsManager.saveOnboardingCompleted(true)
-                        onFinished()
-                    },
-                )
+                3 -> if (selectedMode == ActivationMode.CLOUD) {
+                    CloudBindingStep(
+                        accountManager = accountManager,
+                        onFinish = {
+                            SettingsManager.saveActivationMode(selectedMode)
+                            SettingsManager.saveLegalAccepted(true)
+                            SettingsManager.saveOnboardingCompleted(true)
+                            onFinished()
+                        },
+                    )
+                } else {
+                    FinishStep(
+                        selectedMode = selectedMode,
+                        onFinish = {
+                            SettingsManager.saveActivationMode(selectedMode)
+                            SettingsManager.saveLegalAccepted(true)
+                            SettingsManager.saveOnboardingCompleted(true)
+                            onFinished()
+                        },
+                    )
+                }
             }
         }
     }
@@ -152,7 +166,7 @@ private fun OnboardingStepIndicator(
     totalSteps: Int,
     onBack: () -> Unit,
 ) {
-    val stepTitles = listOf("欢迎", "账号", "模式与权限", "就绪")
+    val stepTitles = listOf("欢迎", "Fe 账号", "模式与权限", "绑定 e听说")
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -544,7 +558,24 @@ private fun AccountStep(
             textAlign = TextAlign.Center,
         )
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(14.dp))
+        TonalCard(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    "先登录 Fe 账号",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "这是 LA Studio 账号，用来保存设置和使用云端服务。注册完成后回到这里登录；下一步会单独引导你绑定 e听说账号。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
+        Spacer(Modifier.height(20.dp))
 
         // 如果已经持有有效登录会话 (如老用户或刚才登录成功)
         if (session != null) {
@@ -676,6 +707,78 @@ private fun AccountStep(
                 submit(token)
             },
         )
+    }
+}
+
+// ============================================================================
+// 云端模式：明确完成 e听说账号绑定
+// ============================================================================
+
+@Composable
+private fun CloudBindingStep(
+    accountManager: FeAccountManager,
+    onFinish: () -> Unit,
+) {
+    val context = LocalContext.current
+    val changyanLoginLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) onFinish()
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .imePadding()
+            .padding(horizontal = 24.dp, vertical = 12.dp),
+    ) {
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = "绑定 e听说账号",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = "云端模式还需要一个 e听说（ETS100）学生账号来读取作业。它和刚才的 LA Studio 账号不是同一个账号。",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(18.dp))
+
+        EtingshuoBindingCard(
+            manager = accountManager,
+            modifier = Modifier.fillMaxWidth(),
+            onChangyanLogin = {
+                changyanLoginLauncher.launch(ChangyanWebLoginActivity.createIntent(context))
+            },
+        )
+
+        Spacer(Modifier.height(20.dp))
+        Button(
+            onClick = onFinish,
+            modifier = Modifier.fillMaxWidth().height(52.dp),
+            shape = RoundedCornerShape(16.dp),
+        ) {
+            Text("完成设置，进入 Fe", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.width(8.dp))
+            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(18.dp))
+        }
+        TextButton(
+            onClick = onFinish,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("暂不绑定，先进入应用")
+        }
+        Text(
+            "之后仍可在「设置 > 云端模式」或「个人中心」补充绑定。未绑定时云端作业读取无法使用。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(16.dp))
     }
 }
 

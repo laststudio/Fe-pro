@@ -229,6 +229,23 @@ class FeAccountManager private constructor(context: Context) {
             api.cloudSession(requireAccessTokenLocked(), preferredAccountId)
         }
 
+    internal suspend fun bindChangyanAccount(
+        login: String,
+        userId: String,
+        sucUserToken: String,
+        preferredAccountId: String,
+    ): FeAccountApi.CloudSession = serializedSessionOperation {
+        val session = api.bindChangyanAccount(
+            accessToken = requireAccessTokenLocked(),
+            login = login,
+            userId = userId,
+            sucUserToken = sucUserToken,
+            preferredAccountId = preferredAccountId,
+        )
+        clearProfileCacheLocked()
+        session
+    }
+
     internal suspend fun accountBindings(force: Boolean = false): FeAccountProfileApi.AccountBindings =
         serializedSessionOperation {
             val cached = cachedBindings
@@ -294,6 +311,7 @@ class FeAccountManager private constructor(context: Context) {
             withContext(NonCancellable) {
                 sessionMutex.withLock {
                     val tokenToRevoke = accessToken
+                    ResolverAuthorizer.invalidateAuthCache()
                     // clear() commits synchronously and may throw; do not navigate or change gate on failure.
                     clearCredentialsLocked()
                     try {

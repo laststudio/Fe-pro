@@ -27,7 +27,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.json.JSONArray
 import org.json.JSONObject
 import java.security.MessageDigest
 import java.security.SecureRandom
@@ -229,46 +228,35 @@ open class ChangyanWebLoginActivity : ComponentActivity() {
     private fun exchangeToken(login: String, userId: String, sucUserToken: String) {
         lifecycleScope.launch {
             try {
-                val deviceCode = FeAccountManager.get(this@ChangyanWebLoginActivity).cloudDeviceCode()
                 val savedEcardId = ETS100AuthManager.getSelectedEcardId(this@ChangyanWebLoginActivity).orEmpty()
-                val result = withContext(Dispatchers.IO) {
-                    ResolverAuthorizer.requireConfigured(this@ChangyanWebLoginActivity)
-                    JSONObject(
-                        CloudNative.cloudLoginChangyan(
-                            login = login,
-                            userId = userId,
-                            captchaResult = sucUserToken,
-                            deviceCode = deviceCode,
-                            preferredAccountId = savedEcardId,
-                        )
+                // 讯飞登录凭据交给 LA Studio 后端完成校验和绑定。
+                // 后端返回的短期会话直接用于本地云端读取，避免 Android 端再单独登录一次 ETS100。
+                val session = withContext(Dispatchers.IO) {
+                    FeAccountManager.get(this@ChangyanWebLoginActivity).bindChangyanAccount(
+                        login = login,
+                        userId = userId,
+                        sucUserToken = sucUserToken,
+                        preferredAccountId = savedEcardId,
                     )
                 }
-                if (!result.optBoolean("ok", false)) {
-                    val message = result.optJSONObject("error")?.optString("message")
-                        ?.takeIf { it.isNotBlank() }
-                        ?: "讯飞登录失败"
-                    throw IllegalStateException(message)
-                }
-                val nativeResult = result.getJSONObject("result")
-                val token = nativeResult.getString("token")
-                val selectedAccount = parseNativeAccount(nativeResult.getJSONObject("selected_account"))
-                val validAccounts = parseNativeAccounts(nativeResult.optJSONArray("valid_accounts"))
+                val selectedAccount = parseNativeAccount(session.selectedAccount)
+                val validAccounts = session.validAccounts.map(::parseNativeAccount)
                 if (validAccounts.isEmpty()) {
                     throw IllegalStateException("当前账号没有可用的班级信息")
                 }
                 val shouldAskUser = validAccounts.size > 1 &&
                     (savedEcardId.isBlank() || selectedAccount.id != savedEcardId)
                 if (shouldAskUser) {
-                    showAccountSelectionDialog(login, token, validAccounts)
+                    showAccountSelectionDialog(login, session.token, validAccounts)
                 } else {
-                    completeLogin(login, token, selectedAccount)
+                    completeLogin(login, session.token, selectedAccount)
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 isHandlingLogin = false
-                Log.e(TAG, "讯飞登录流程失败: ${e.message}")
-                showFailure(e.message ?: "讯飞登录失败")
+                Log.e(TAG, "讯飞登录并绑定流程失败: ${e.message}")
+                showFailure(e.message ?: "讯飞登录并绑定失败")
             }
         }
     }
@@ -300,7 +288,7 @@ open class ChangyanWebLoginActivity : ComponentActivity() {
         withContext(Dispatchers.Main) {
             Toast.makeText(
                 this@ChangyanWebLoginActivity,
-                "讯飞登录成功：${account.name.ifBlank { account.grade }}",
+                "讯飞登录成功，已绑定 LA Studio：${account.name.ifBlank { account.grade }}",
                 Toast.LENGTH_SHORT
             ).show()
             setResult(Activity.RESULT_OK)
@@ -352,13 +340,6 @@ open class ChangyanWebLoginActivity : ComponentActivity() {
             webView.post {
                 if (isTrustedCapturePage(webView.url)) handleCapturedData(data)
             }
-        }
-    }
-
-    private fun parseNativeAccounts(array: JSONArray?): List<ETS100ApiClient.EcardAccount> {
-        if (array == null) return emptyList()
-        return (0 until array.length()).mapNotNull { index ->
-            array.optJSONObject(index)?.let(::parseNativeAccount)
         }
     }
 

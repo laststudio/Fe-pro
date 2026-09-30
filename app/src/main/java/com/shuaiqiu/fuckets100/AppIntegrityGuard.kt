@@ -35,8 +35,12 @@ internal object AppIntegrityGuard {
     private fun sha256LowerHex(bytes: ByteArray): String =
         MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
 
+    @Volatile
+    private var cachedCertSha256: String? = null
+
     @Suppress("DEPRECATION")
     private fun currentSigningCertSha256(context: Context): String {
+        cachedCertSha256?.let { return it }
         val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             context.packageManager.getPackageInfo(
                 context.packageName,
@@ -53,7 +57,7 @@ internal object AppIntegrityGuard {
         } else {
             packageInfo.signatures?.firstOrNull()?.toByteArray()
         } ?: throw IntegrityFailure("无法读取应用签名")
-        return sha256LowerHex(bytes)
+        return sha256LowerHex(bytes).also { cachedCertSha256 = it }
     }
 
     suspend fun ensureResolver(context: Context, enabled: Boolean? = null) {

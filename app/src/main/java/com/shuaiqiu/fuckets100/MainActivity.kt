@@ -477,7 +477,7 @@ fun FeTopAppBar(title: String) {
         title = {
             Text(
                 text = title,
-                fontSize = 36.sp,
+                style = MaterialTheme.typography.headlineMedium,
                 letterSpacing = 0.em,
                 fontWeight = FontWeight.Black,
                 color = MaterialTheme.colorScheme.primary,

@@ -35,6 +35,18 @@ import com.shuaiqiu.fuckets100.component.material.SegmentedColumn
 import com.shuaiqiu.fuckets100.component.material.TonalCard
 import com.shuaiqiu.fuckets100.component.material.TopBarBackButton
 import com.shuaiqiu.fuckets100.component.material.expressiveTopAppBarColors
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+private data class ActivationPageSnapshot(
+    val hasFilesPermission: Boolean,
+    val hasOverlayPermission: Boolean,
+    val hasAppListPermission: Boolean,
+    val cloudLoggedIn: Boolean,
+    val cloudPhone: String?,
+    val etsAppInfo: Pair<Boolean, String>?,
+)
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -50,24 +62,41 @@ fun ActivationSettingsScreen(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    // 基础权限动态状态
-    var hasFilesPerm by remember { mutableStateOf(PermissionsHelper.hasAllFilesAccess()) }
-    var hasOverlayPerm by remember { mutableStateOf(PermissionsHelper.hasOverlayPermission(context)) }
-    var hasAppListPerm by remember { mutableStateOf(PermissionsHelper.hasAppListPermission()) }
-    var cloudLoggedIn by remember { mutableStateOf(ETS100AuthManager.isLoggedIn(context)) }
-    var cloudPhone by remember { mutableStateOf(ETS100AuthManager.getPhone(context)) }
-    var etsAppInfo by remember { mutableStateOf(getEtsAppInfo(context)) }
-
-    // Shizuku 权限请求状态
+    // 基础权限动态状态。
+    // 应用列表权限和 ETS/Root 检测可能触发 PackageManager、文件系统或进程调用，
+    // 不能在页面首次组合时同步执行，否则会阻塞 NavDisplay 的首帧过渡。
+    var hasFilesPerm by remember { mutableStateOf(false) }
+    var hasOverlayPerm by remember { mutableStateOf(false) }
+    var hasAppListPerm by remember { mutableStateOf(false) }
+    var cloudLoggedIn by remember { mutableStateOf(false) }
+    var cloudPhone by remember { mutableStateOf<String?>(null) }
+    var etsAppInfo by remember { mutableStateOf<Pair<Boolean, String>?>(null) }
     var pendingPermissionRequest by remember { mutableStateOf(false) }
+    val refreshScope = rememberCoroutineScope()
 
-    fun refreshCloudAuthState() {
-        cloudLoggedIn = ETS100AuthManager.isLoggedIn(context)
-        cloudPhone = ETS100AuthManager.getPhone(context)
+    suspend fun refreshPageState() {
+        val snapshot = withContext(Dispatchers.IO) {
+            ActivationPageSnapshot(
+                hasFilesPermission = PermissionsHelper.hasAllFilesAccess(),
+                hasOverlayPermission = PermissionsHelper.hasOverlayPermission(context),
+                hasAppListPermission = PermissionsHelper.hasAppListPermission(),
+                cloudLoggedIn = ETS100AuthManager.isLoggedIn(context),
+                cloudPhone = ETS100AuthManager.getPhone(context),
+                etsAppInfo = getEtsAppInfo(context),
+            )
+        }
+        hasFilesPerm = snapshot.hasFilesPermission
+        hasOverlayPerm = snapshot.hasOverlayPermission
+        hasAppListPerm = snapshot.hasAppListPermission
+        cloudLoggedIn = snapshot.cloudLoggedIn
+        cloudPhone = snapshot.cloudPhone
+        etsAppInfo = snapshot.etsAppInfo
     }
 
+    // Load the first state off the main thread so the page can participate in the
+    // navigation transition immediately.
     LaunchedEffect(cloudAuthRevision) {
-        refreshCloudAuthState()
+        refreshPageState()
     }
 
     var hasPaused by remember { mutableStateOf(false) }
@@ -77,11 +106,9 @@ fun ActivationSettingsScreen(
             if (event == Lifecycle.Event.ON_PAUSE) {
                 hasPaused = true
             } else if (event == Lifecycle.Event.ON_RESUME && hasPaused) {
-                hasFilesPerm = PermissionsHelper.hasAllFilesAccess()
-                hasOverlayPerm = PermissionsHelper.hasOverlayPermission(context)
-                hasAppListPerm = PermissionsHelper.hasAppListPermission()
-                etsAppInfo = getEtsAppInfo(context)
-                refreshCloudAuthState()
+                refreshScope.launch {
+                    refreshPageState()
+                }
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -317,7 +344,7 @@ fun ActivationSettingsScreen(
                                                         context = context,
                                                         isLoggedIn = cloudLoggedIn,
                                                         phone = cloudPhone,
-                                                        onCloudAuthChanged = { refreshCloudAuthState() },
+                                                        onCloudAuthChanged = { refreshScope.launch { refreshPageState() } },
                                                         onNavigateToCloudActivation = onNavigateToCloudActivation,
                                                         onNavigateToRead = onNavigateToRead,
                                                     )
@@ -469,9 +496,24 @@ fun FeModeStatusCard(
     cloudPhone: String?,
     context: android.content.Context
 ) {
-    var isRootAvailable by remember { mutableStateOf(RootManager.isRootAvailable()) }
-    var isDirectReadAvailable by remember { mutableStateOf(ZWCHelper.isDirectReadAvailable()) }
-    
+    var isRootAvailable by remember { mutableStateOf(false) }
+    var isDirectReadAvailable by remember { mutableStateOf(false) }
+    val refreshScope = rememberCoroutineScope()
+
+    suspend fun refreshAvailability() {
+        val availability = withContext(Dispatchers.IO) {
+            RootManager.isRootAvailable() to ZWCHelper.isDirectReadAvailable()
+        }
+        isRootAvailable = availability.first
+        isDirectReadAvailable = availability.second
+    }
+
+    // Root and direct-read checks can start processes and touch external storage.
+    // Do not run them while the destination scene is being composed.
+    LaunchedEffect(Unit) {
+        refreshAvailability()
+    }
+
     var hasPaused by remember { mutableStateOf(false) }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -479,8 +521,9 @@ fun FeModeStatusCard(
             if (event == Lifecycle.Event.ON_PAUSE) {
                 hasPaused = true
             } else if (event == Lifecycle.Event.ON_RESUME && hasPaused) {
-                isRootAvailable = RootManager.isRootAvailable()
-                isDirectReadAvailable = ZWCHelper.isDirectReadAvailable()
+                refreshScope.launch {
+                    refreshAvailability()
+                }
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -610,13 +653,27 @@ fun FeDirectReadActivationPanel(hasAllBasicPermissions: Boolean) {
     var isZWCAvailable by remember { mutableStateOf(false) }
     var isDirectReadAvailable by remember { mutableStateOf(false) }
     var isTesting by remember { mutableStateOf(false) }
-    
+    val refreshScope = rememberCoroutineScope()
+
+    suspend fun refreshAvailability() {
+        val availability = withContext(Dispatchers.IO) {
+            ZWCHelper.isVulnerabilityAvailable() to ZWCHelper.isDirectReadAvailable()
+        }
+        isZWCAvailable = availability.first
+        isDirectReadAvailable = availability.second
+    }
+
+    LaunchedEffect(Unit) {
+        refreshAvailability()
+    }
+
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                isZWCAvailable = ZWCHelper.isVulnerabilityAvailable()
-                isDirectReadAvailable = ZWCHelper.isDirectReadAvailable()
+                refreshScope.launch {
+                    refreshAvailability()
+                }
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -659,15 +716,21 @@ fun FeDirectReadActivationPanel(hasAllBasicPermissions: Boolean) {
                 } else {
                     Button(
                         onClick = {
+                            if (isTesting) return@Button
                             isTesting = true
-                            isZWCAvailable = ZWCHelper.isVulnerabilityAvailable()
-                            isDirectReadAvailable = ZWCHelper.isDirectReadAvailable()
-                            isTesting = false
-                            
-                            if (isDirectReadAvailable) {
-                                Toast.makeText(context, "漏洞直读测试通过！", Toast.LENGTH_SHORT).show()
-                            } else {
-                                Toast.makeText(context, "暂不支持漏洞直读，请授权全文件访问或使用其他模式", Toast.LENGTH_LONG).show()
+                            refreshScope.launch {
+                                val availability = withContext(Dispatchers.IO) {
+                                    ZWCHelper.isVulnerabilityAvailable() to ZWCHelper.isDirectReadAvailable()
+                                }
+                                isZWCAvailable = availability.first
+                                isDirectReadAvailable = availability.second
+                                isTesting = false
+
+                                if (availability.second) {
+                                    Toast.makeText(context, "漏洞直读测试通过！", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, "暂不支持漏洞直读，请授权全文件访问或使用其他模式", Toast.LENGTH_LONG).show()
+                                }
                             }
                         },
                         colors = ButtonDefaults.buttonColors(
@@ -882,14 +945,27 @@ fun FeRootActivationPanel(context: android.content.Context) {
     val successColor = MaterialTheme.colorScheme.primary
     val errorColor = MaterialTheme.colorScheme.error
     
-    var isRootAvailable by remember { mutableStateOf(RootManager.isRootAvailable()) }
+    var isRootAvailable by remember { mutableStateOf(false) }
     var isChecking by remember { mutableStateOf(false) }
-    
+    val refreshScope = rememberCoroutineScope()
+
+    suspend fun refreshRootAvailability() {
+        isRootAvailable = withContext(Dispatchers.IO) {
+            RootManager.isRootAvailable()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        refreshRootAvailability()
+    }
+
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                isRootAvailable = RootManager.isRootAvailable()
+                refreshScope.launch {
+                    refreshRootAvailability()
+                }
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -930,15 +1006,21 @@ fun FeRootActivationPanel(context: android.content.Context) {
             } else {
                 Button(
                     onClick = {
+                        if (isChecking) return@Button
                         isChecking = true
-                        RootManager.clearCache()
-                        isRootAvailable = RootManager.isRootAvailable()
-                        isChecking = false
-                        
-                        if (!isRootAvailable) {
-                            Toast.makeText(context, "未检测到 Root 权限...", Toast.LENGTH_SHORT).show()
-                        } else {
-                            Toast.makeText(context, "检测到 Root 权限！", Toast.LENGTH_SHORT).show()
+                        refreshScope.launch {
+                            val available = withContext(Dispatchers.IO) {
+                                RootManager.clearCache()
+                                RootManager.isRootAvailable()
+                            }
+                            isRootAvailable = available
+                            isChecking = false
+
+                            if (!available) {
+                                Toast.makeText(context, "未检测到 Root 权限...", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(context, "检测到 Root 权限！", Toast.LENGTH_SHORT).show()
+                            }
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError),

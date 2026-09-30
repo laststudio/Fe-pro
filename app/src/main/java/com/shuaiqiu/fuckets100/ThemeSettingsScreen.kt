@@ -89,7 +89,6 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import androidx.navigation3.ui.LocalNavAnimatedContentScope
 import com.materialkolor.PaletteStyle
 import com.materialkolor.dynamiccolor.ColorSpec
 import com.materialkolor.rememberDynamicColorScheme
@@ -110,7 +109,6 @@ private enum class ThemeDisplayMode {
     AMOLED,
 }
 
-@SuppressLint("RestrictedApi")
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun ThemeSettingsScreen(
@@ -138,7 +136,6 @@ fun ThemeSettingsScreen(
     var predictiveBackExitDirection by remember {
         mutableStateOf(SettingsManager.getPredictiveBackExitDirection())
     }
-    val navigationTransition = LocalNavAnimatedContentScope.current.transition
     val dynamicColorAvailable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
     val dynamicColorActive = useDynamicColor && dynamicColorAvailable
     val systemDark = isSystemInDarkTheme()
@@ -201,14 +198,7 @@ fun ThemeSettingsScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            ThemePreviewCard(
-                keyColor = keyColor,
-                useDynamicColor = dynamicColorActive,
-                isDark = previewDark,
-                isAmoled = previewAmoled,
-                paletteStyle = paletteStyle,
-                colorSpec = effectiveSpec,
-            )
+            ThemePreviewCard()
 
             Spacer(Modifier.height(8.dp))
 
@@ -366,11 +356,8 @@ fun ThemeSettingsScreen(
                                     .indexOf(predictiveBackAnimation)
                                     .coerceAtLeast(0),
                                 onItemSelected = { index ->
-                                    navigationTransition.setPlaytimeAfterInitialAndTargetStateEstablished(
-                                        navigationTransition.targetState,
-                                        navigationTransition.targetState,
-                                        navigationTransition.playTimeNanos,
-                                    )
+                                    // Only update the animation setting here. Rewriting NavDisplay's
+                                    // internal transition state makes the previous scene jump briefly.
                                     predictiveBackAnimation = PredictiveBackAnimation.entries[index]
                                     SettingsManager.savePredictiveBackAnimation(predictiveBackAnimation)
                                     onPredictiveBackChanged?.invoke(predictiveBackAnimation)
@@ -409,23 +396,12 @@ fun ThemeSettingsScreen(
 
 @SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
-private fun ThemePreviewCard(
-    keyColor: Int,
-    useDynamicColor: Boolean,
-    isDark: Boolean,
-    isAmoled: Boolean,
-    paletteStyle: PaletteStyle,
-    colorSpec: ColorSpec.SpecVersion,
-) {
+private fun ThemePreviewCard() {
     val configuration = LocalConfiguration.current
     val ratio = configuration.screenWidthDp.toFloat() / configuration.screenHeightDp.toFloat()
-    val scheme = previewColorScheme(
-        color = if (useDynamicColor) Color.Unspecified else Color(keyColor),
-        isDark = isDark,
-        isAmoled = isAmoled,
-        paletteStyle = paletteStyle,
-        colorSpec = colorSpec,
-    )
+    // The preview uses the exact scheme already installed by FeThemeWrapper.
+    // Recomputing a full Material color scheme here blocks the first navigation frame.
+    val scheme = MaterialTheme.colorScheme
 
     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
         Surface(

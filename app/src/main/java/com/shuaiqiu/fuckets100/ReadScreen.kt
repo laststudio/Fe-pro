@@ -908,34 +908,82 @@ fun ReadScreen(
         homeworkInfo: ETS100ApiClient.HomeworkInfo,
         status: String = selectedCloudHomeworkStatus
     ) {
+        val targetIdentity = cloudHomeworkIdentity(homeworkInfo)
+        val cacheKey = cloudHomeworkCacheKey(status, homeworkInfo)
+        val currentKey = cloudHomeworkCacheKey(CloudHomeworkState.STATUS_CURRENT, homeworkInfo)
+        val historyKey = cloudHomeworkCacheKey(CloudHomeworkState.STATUS_HISTORY, homeworkInfo)
+
+        // 1. 检查是否已经存在有效解析数据（sections 非空），如果存在直接打开并返回
+        val existingPaper = downloadedPapers[cacheKey]?.firstOrNull { it.sections.isNotEmpty() }
+            ?: downloadedPapers[currentKey]?.firstOrNull { it.sections.isNotEmpty() }
+            ?: downloadedPapers[historyKey]?.firstOrNull { it.sections.isNotEmpty() }
+            ?: downloadedPapers.entries.firstOrNull { (k, list) ->
+                (k.endsWith(":$targetIdentity") ||
+                 list.firstOrNull()?.source.let { it is PaperSource.Cloud && it.homeworkIdentity == targetIdentity }) &&
+                list.firstOrNull()?.sections?.isNotEmpty() == true
+            }?.value?.firstOrNull()
+
+        if (existingPaper != null) {
+            addLog(LogLevel.INFO, LogCategory.SYSTEM, "📁 缓存命中，作业已解析喵: ${homeworkInfo.name}")
+            cloudDownloadingHomeworks = cloudDownloadingHomeworks - cacheKey - currentKey - historyKey
+            CloudHomeworkState.cloudDownloadingHomeworks = cloudDownloadingHomeworks
+            cloudDownloadProgress = cloudDownloadProgress - cacheKey - currentKey - historyKey
+            CloudHomeworkState.cloudDownloadProgress = cloudDownloadProgress
+            if (!downloadedHomeworkNames.contains(cacheKey)) {
+                downloadedHomeworkNames = downloadedHomeworkNames + cacheKey
+                CloudHomeworkState.downloadedHomeworkNames = downloadedHomeworkNames
+            }
+            openPaperDetail(existingPaper)
+            return
+        }
+
         if (!accountOnline) {
+            cloudDownloadingHomeworks = cloudDownloadingHomeworks - cacheKey
+            CloudHomeworkState.cloudDownloadingHomeworks = cloudDownloadingHomeworks
             Toast.makeText(context, "已离线", Toast.LENGTH_SHORT).show()
             return
         }
-        try {
-            ResolverAuthorizer.requireCloudAuthorized(context)
-            ResolverAuthorizer.requireAuthorized(context)
-        } catch (e: ResolverAuthorizationDeniedException) {
-            val message = e.message ?: "答案解析功能当前不可用"
-            addLog(LogLevel.ERROR, LogCategory.SYSTEM, "✗ $message")
-            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
-            return
-        }
-        addLog(LogLevel.INFO, LogCategory.SYSTEM, "📥 开始下载作业: ${homeworkInfo.name}, 共 ${homeworkInfo.contents.size} 个内容")
 
-        val cacheKey = cloudHomeworkCacheKey(status, homeworkInfo)
-        if (downloadedHomeworkNames.contains(cacheKey)) {
-            addLog(LogLevel.INFO, LogCategory.SYSTEM, "📁 缓存命中，作业已下载喵~")
-            Toast.makeText(context, "该作业已下载喵~", Toast.LENGTH_SHORT).show()
-            return
-        }
-
+        // 确保进入下载中状态并显示授权校验进度
         cloudDownloadingHomeworks = cloudDownloadingHomeworks + cacheKey
         failedCloudHomeworks = failedCloudHomeworks - cacheKey
         downloadedPapers = downloadedPapers - cacheKey
         CloudHomeworkState.cloudDownloadingHomeworks = cloudDownloadingHomeworks
         CloudHomeworkState.failedCloudHomeworks = failedCloudHomeworks
         CloudHomeworkState.downloadedPapers = downloadedPapers
+        updateCloudDownloadProgress(
+            cacheKey,
+            CloudHomeworkState.DownloadProgress(currentFileName = "正在校验授权...")
+        )
+
+        try {
+            // 并发执行授权校验以消除串行网络等待
+            coroutineScope {
+                val cloudAuth = async { ResolverAuthorizer.requireCloudAuthorized(context) }
+                val resolverAuth = async { ResolverAuthorizer.requireAuthorized(context) }
+                cloudAuth.await()
+                resolverAuth.await()
+            }
+        } catch (e: ResolverAuthorizationDeniedException) {
+            cloudDownloadingHomeworks = cloudDownloadingHomeworks - cacheKey
+            CloudHomeworkState.cloudDownloadingHomeworks = cloudDownloadingHomeworks
+            cloudDownloadProgress = cloudDownloadProgress - cacheKey
+            CloudHomeworkState.cloudDownloadProgress = cloudDownloadProgress
+            val message = e.message ?: "答案解析功能当前不可用"
+            addLog(LogLevel.ERROR, LogCategory.SYSTEM, "✗ $message")
+            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+            return
+        } catch (e: Exception) {
+            cloudDownloadingHomeworks = cloudDownloadingHomeworks - cacheKey
+            CloudHomeworkState.cloudDownloadingHomeworks = cloudDownloadingHomeworks
+            cloudDownloadProgress = cloudDownloadProgress - cacheKey
+            CloudHomeworkState.cloudDownloadProgress = cloudDownloadProgress
+            val message = e.message ?: "授权校验失败"
+            addLog(LogLevel.ERROR, LogCategory.SYSTEM, "✗ $message")
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+            return
+        }
+        addLog(LogLevel.INFO, LogCategory.SYSTEM, "📥 开始下载作业: ${homeworkInfo.name}, 共 ${homeworkInfo.contents.size} 个内容")
         updateCloudDownloadProgress(
             cacheKey,
             CloudHomeworkState.DownloadProgress(currentFileName = homeworkInfo.name)
@@ -1363,6 +1411,11 @@ fun ReadScreen(
             CloudHomeworkState.failedCloudHomeworks = failedCloudHomeworks
             CloudHomeworkState.downloadedPapers = downloadedPapers
             saveCloudReadState()
+        } finally {
+            if (cloudDownloadingHomeworks.contains(cacheKey)) {
+                cloudDownloadingHomeworks = cloudDownloadingHomeworks - cacheKey
+                CloudHomeworkState.cloudDownloadingHomeworks = cloudDownloadingHomeworks
+            }
         }
     }
 
@@ -1947,30 +2000,57 @@ fun ReadScreen(
                                         "${selectedCloudCategory}:${cloudHomeworkIdentity(homeworkInfo)}:$index"
                                     },
                                 ) { paperIndex, homeworkInfo ->
+                                    val targetIdentity = cloudHomeworkIdentity(homeworkInfo)
                                     val currentKey = cloudHomeworkCacheKey(CloudHomeworkState.STATUS_CURRENT, homeworkInfo)
                                     val historyKey = cloudHomeworkCacheKey(CloudHomeworkState.STATUS_HISTORY, homeworkInfo)
                                     val homeworkKey = if (downloadedHomeworkNames.contains(historyKey)) historyKey else currentKey
 
-                                    val isDownloaded = downloadedHomeworkNames.contains(currentKey) || downloadedHomeworkNames.contains(historyKey)
-                                    val isDownloading = cloudDownloadingHomeworks.contains(currentKey) || cloudDownloadingHomeworks.contains(historyKey)
-                                    val isFailed = failedCloudHomeworks.contains(currentKey) || failedCloudHomeworks.contains(historyKey)
-                                    val downloadProgress = cloudDownloadProgress[currentKey] ?: cloudDownloadProgress[historyKey]
-                                    val paper = createCloudHomeworkPlaceholder(homeworkInfo)
-                                    val downloadedPaper = downloadedPapers[currentKey]?.firstOrNull() ?: downloadedPapers[historyKey]?.firstOrNull()
+                                    val downloadedPaper = downloadedPapers[currentKey]?.firstOrNull { it.sections.isNotEmpty() }
+                                        ?: downloadedPapers[historyKey]?.firstOrNull { it.sections.isNotEmpty() }
+                                        ?: downloadedPapers.entries.firstOrNull { (k, list) ->
+                                            (k.endsWith(":$targetIdentity") ||
+                                             list.firstOrNull()?.source.let { it is PaperSource.Cloud && it.homeworkIdentity == targetIdentity }) &&
+                                            list.firstOrNull()?.sections?.isNotEmpty() == true
+                                        }?.value?.firstOrNull()
+
+                                    val isDownloaded = downloadedPaper != null && downloadedPaper.sections.isNotEmpty()
+                                    val isDownloading = cloudDownloadingHomeworks.contains(currentKey) ||
+                                        cloudDownloadingHomeworks.contains(historyKey) ||
+                                        cloudDownloadingHomeworks.any { it.endsWith(":$targetIdentity") }
+                                    val isFailed = !isDownloaded && (failedCloudHomeworks.contains(currentKey) ||
+                                        failedCloudHomeworks.contains(historyKey) ||
+                                        failedCloudHomeworks.any { it.endsWith(":$targetIdentity") })
+                                    val downloadProgress = cloudDownloadProgress[currentKey]
+                                        ?: cloudDownloadProgress[historyKey]
+                                        ?: cloudDownloadProgress.entries.firstOrNull { it.key.endsWith(":$targetIdentity") }?.value
+                                    val displayPaper = downloadedPaper ?: createCloudHomeworkPlaceholder(homeworkInfo)
+
                                     PaperListItem(
-                                        paper = paper,
+                                        paper = displayPaper,
                                         paperIndex = paperIndex,
                                         onClick = {
-                                            if (isDownloaded) {
+                                            if (downloadedPaper != null) {
                                                 // 宝贝已下载，点击查看详情喵~
-                                                downloadedPaper?.let { openPaperDetail(it) }
+                                                openPaperDetail(downloadedPaper)
                                             } else if (!isDownloading) {
                                                 // 宝贝未下载，开始下载喵~
+                                                val parseStatus = if (selectedCloudCategory == CloudHomeworkState.CATEGORY_HISTORY)
+                                                    CloudHomeworkState.STATUS_HISTORY
+                                                else
+                                                    CloudHomeworkState.STATUS_CURRENT
+                                                val targetCacheKey = cloudHomeworkCacheKey(parseStatus, homeworkInfo)
+
+                                                // 立即更新下载中状态，消除等待卡顿感知（0ms 即时反馈）
+                                                cloudDownloadingHomeworks = cloudDownloadingHomeworks + targetCacheKey
+                                                CloudHomeworkState.cloudDownloadingHomeworks = cloudDownloadingHomeworks
+                                                failedCloudHomeworks = failedCloudHomeworks - targetCacheKey
+                                                CloudHomeworkState.failedCloudHomeworks = failedCloudHomeworks
+                                                updateCloudDownloadProgress(
+                                                    targetCacheKey,
+                                                    CloudHomeworkState.DownloadProgress(currentFileName = "正在准备解析...")
+                                                )
+
                                                 AppCoroutineScope.scope.launch {
-                                                    val parseStatus = if (selectedCloudCategory == CloudHomeworkState.CATEGORY_HISTORY)
-                                                        CloudHomeworkState.STATUS_HISTORY
-                                                    else
-                                                        CloudHomeworkState.STATUS_CURRENT
                                                     downloadAndParseHomework(homeworkInfo, parseStatus)
                                                 }
                                             }

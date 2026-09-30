@@ -68,6 +68,7 @@ fun CloudActivationScreen(
     onLoginSuccess: () -> Unit,
 ) {
     val context = LocalContext.current
+    val accountManager = remember(context) { FeAccountManager.get(context) }
     val scope = rememberCoroutineScope()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     var isLoading by remember { mutableStateOf(false) }
@@ -109,7 +110,7 @@ fun CloudActivationScreen(
             errorMessage = null
             try {
                 val savedEcard = ETS100AuthManager.getSelectedEcardId(context).orEmpty()
-                val session = FeAccountManager.get(context).cloudSession(savedEcard)
+                val session = accountManager.cloudSession(savedEcard)
                 accountDisplay = session.accountDisplay
                 val selected = session.selectedAccount
                 val selectedStillPreferred = savedEcard.isNotBlank() &&
@@ -146,7 +147,7 @@ fun CloudActivationScreen(
         topBar = {
             LargeFlexibleTopAppBar(
                 title = { Text("云端模式") },
-                subtitle = { Text("使用 LA Studio 绑定账号或讯飞登录") },
+                subtitle = { Text("使用已绑定账号，或讯飞登录并绑定") },
                 navigationIcon = { TopBarBackButton(onClick = onBack) },
                 windowInsets = WindowInsets.safeDrawing.only(
                     WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
@@ -167,6 +168,18 @@ fun CloudActivationScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Spacer(Modifier.height(1.dp))
+            EtingshuoBindingCard(
+                manager = accountManager,
+                modifier = Modifier.fillMaxWidth(),
+                onBound = { loadBoundAccount() },
+                onOpenWebFallback = {
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(ACCOUNT_CENTER_URL))
+                    context.startActivity(intent)
+                },
+                onChangyanLogin = {
+                    changyanLoginLauncher.launch(ChangyanWebLoginActivity.createIntent(context))
+                },
+            )
             TonalCard(
                 modifier = Modifier.fillMaxWidth(),
                 containerColor = MaterialTheme.colorScheme.surfaceBright,
@@ -222,33 +235,11 @@ fun CloudActivationScreen(
                         }
                     }
                     Spacer(Modifier.height(8.dp))
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+                    TextButton(
+                        onClick = { loadBoundAccount() },
+                        enabled = !isLoading,
                     ) {
-                        TextButton(
-                            onClick = {
-                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(ACCOUNT_CENTER_URL))
-                                context.startActivity(intent)
-                            },
-                            enabled = !isLoading,
-                        ) {
-                            Icon(
-                                Icons.AutoMirrored.Filled.OpenInNew,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp),
-                            )
-                            Spacer(Modifier.width(4.dp))
-                            Text("前往个人中心绑定")
-                        }
-                        TextButton(
-                            onClick = {
-                                changyanLoginLauncher.launch(ChangyanWebLoginActivity.createIntent(context))
-                            },
-                            enabled = !isLoading,
-                        ) {
-                            Text("讯飞登录")
-                        }
+                        Text("绑定完成？刷新状态")
                     }
                 }
             }
@@ -270,7 +261,7 @@ fun CloudActivationScreen(
                     )
                     Spacer(Modifier.width(12.dp))
                     Text(
-                        "绑定账号和设备码由 LA Studio 后端统一管理。未绑定时请先前往 LA Studio 个人中心完成 ETS100 绑定；讯飞登录可作为独立入口。",
+                        "上方两种方式都能绑定 e听说（ETS100）学生账号：可以输入手机号和密码，也可以使用讯飞登录。LA Studio 账号只负责登录 Fe 和保存绑定关系。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

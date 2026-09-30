@@ -23,6 +23,19 @@ internal object ResolverAuthorizer {
     // 生产后端 Ed25519 公钥 (urlsafe base64 no-pad)。换钥时需同步更新。
     const val PUBLIC_KEY_B64 = "8i06qnGdq6lm6wj8NDm22Nh0_nP6_k38Kg_Lz0xHIiY"
 
+    @Volatile private var lastCloudAuthTime = 0L
+    @Volatile private var lastCloudAuthToken: String? = null
+    @Volatile private var lastResolverAuthTime = 0L
+    @Volatile private var lastResolverAuthToken: String? = null
+    private const val AUTH_CACHE_TTL_MS = 3 * 60 * 1000L // 3 分钟内存缓存，避免频繁点击重复请求网络
+
+    fun invalidateAuthCache() {
+        lastCloudAuthTime = 0L
+        lastCloudAuthToken = null
+        lastResolverAuthTime = 0L
+        lastResolverAuthToken = null
+    }
+
     /**
      * 内部授权门控。
      * @throws ResolverAuthorizationDeniedException 未登录/功能关闭/网络失败等
@@ -47,16 +60,32 @@ internal object ResolverAuthorizer {
         val manager = FeAccountManager.get(context)
         val (available, unavailableReason) = manager.isFeatureAvailable("cloud_mode")
         if (!available) {
+            invalidateAuthCache()
             return@withContext unavailableReason ?: "云端模式当前版本不可用"
         }
-        configureCloud(context)?.let { return@withContext it }
+        val token = runCatching { manager.requireAccessToken() }.getOrNull()
+        if (token.isNullOrBlank()) {
+            invalidateAuthCache()
+            return@withContext "请先登录 LA Studio 账号"
+        }
+        val now = System.currentTimeMillis()
+        if (now - lastCloudAuthTime < AUTH_CACHE_TTL_MS && lastCloudAuthToken == token) {
+            return@withContext null
+        }
+        configureCloud(context)?.let {
+            invalidateAuthCache()
+            return@withContext it
+        }
         try {
             val result = JSONObject(CloudNative.cloudAuthorizeFeature())
             if (result.optBoolean("ok", false) &&
                 result.optJSONObject("result")?.optBoolean("allowed", false) == true
             ) {
+                lastCloudAuthTime = System.currentTimeMillis()
+                lastCloudAuthToken = token
                 null
             } else {
+                invalidateAuthCache()
                 val errObj = result.optJSONObject("error")
                 val reasonCode = errObj?.optString("reason") ?: result.optString("reason")
                 val msg = errObj?.optString("message")?.takeIf { it.isNotBlank() }
@@ -79,15 +108,31 @@ internal object ResolverAuthorizer {
         val manager = FeAccountManager.get(context)
         val (available, unavailableReason) = manager.isFeatureAvailable(FEATURE_KEY)
         if (!available) {
+            invalidateAuthCache()
             return@withContext unavailableReason ?: "答案解析功能当前版本不可用"
         }
-        configureResolver(context)?.let { return@withContext it }
+        val token = runCatching { manager.requireAccessToken() }.getOrNull()
+        if (token.isNullOrBlank()) {
+            invalidateAuthCache()
+            return@withContext "请先登录 LA Studio 账号"
+        }
+        val now = System.currentTimeMillis()
+        if (now - lastResolverAuthTime < AUTH_CACHE_TTL_MS && lastResolverAuthToken == token) {
+            return@withContext null
+        }
+        configureResolver(context)?.let {
+            invalidateAuthCache()
+            return@withContext it
+        }
         try {
             val json = ResolverNative.authorizeFeature()
             val obj = JSONObject(json)
             if (obj.optBoolean("allowed", false)) {
+                lastResolverAuthTime = System.currentTimeMillis()
+                lastResolverAuthToken = token
                 null
             } else {
+                invalidateAuthCache()
                 val errObj = obj.optJSONObject("error")
                 val reasonCode = errObj?.optString("reason") ?: obj.optString("reason")
                 val msg = errObj?.optString("message")?.takeIf { it.isNotBlank() }
