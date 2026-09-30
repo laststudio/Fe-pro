@@ -2873,11 +2873,13 @@ private fun CloudHomeworkCategorySelector(
     }
 
     Box(modifier = Modifier.fillMaxWidth()) {
-        Surface(
+        OutlinedCard(
             onClick = { menuExpanded = true },
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            shape = MaterialTheme.shapes.medium,
+            colors = CardDefaults.outlinedCardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            ),
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         ) {
             Row(
@@ -2917,7 +2919,7 @@ private fun CloudHomeworkCategorySelector(
             onDismissRequest = { menuExpanded = false },
             offset = DpOffset(x = 0.dp, y = 4.dp),
             modifier = Modifier.width(200.dp),
-            shape = RoundedCornerShape(16.dp),
+            shape = MaterialTheme.shapes.large,
             containerColor = MaterialTheme.colorScheme.surfaceContainer,
             tonalElevation = 3.dp,
         ) {
