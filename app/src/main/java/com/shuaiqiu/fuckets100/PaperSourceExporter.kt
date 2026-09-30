@@ -523,7 +523,6 @@ object PaperSourceExporter {
         val input = when (inspection.mode) {
             ActivationMode.ROOT -> RootManager.openInputStreamAsRoot(command)
             ActivationMode.SHIZUKU -> ShizukuManager.openCommandInputStream(command)
-            else -> null
         } ?: return false
 
         return runCatching {

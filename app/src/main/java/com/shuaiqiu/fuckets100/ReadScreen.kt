@@ -4247,9 +4247,9 @@ private fun PaperListItem(
                                     modifier = Modifier.fillMaxWidth()
                                 )
                             } ?: LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                            if (!downloadProgress?.currentFileName.isNullOrBlank()) {
+                            downloadProgress?.currentFileName?.takeIf { it.isNotBlank() }?.let { currentFileName ->
                                 Text(
-                                    text = downloadProgress?.currentFileName.orEmpty(),
+                                    text = currentFileName,
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     maxLines = 1,
