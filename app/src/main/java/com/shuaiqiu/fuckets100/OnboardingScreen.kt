@@ -9,8 +9,12 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -18,6 +22,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
@@ -810,7 +815,6 @@ private fun ModeAndPermissionStep(
 
     // 动态权限状态
     var hasFilesPerm by remember { mutableStateOf(PermissionsHelper.hasAllFilesAccess()) }
-    var hasAppListPerm by remember { mutableStateOf(PermissionsHelper.hasAppListPermission()) }
     var isRootGranted by remember { mutableStateOf(RootManager.isRootAvailable()) }
     var showMissingPermissionDialog by remember { mutableStateOf(false) }
     var pendingMissingList by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -818,7 +822,6 @@ private fun ModeAndPermissionStep(
     // 当用户从系统设置或授权软件返回时，刷新权限状态
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         hasFilesPerm = PermissionsHelper.hasAllFilesAccess()
-        hasAppListPerm = PermissionsHelper.hasAppListPermission()
         RootManager.clearCache()
         isRootGranted = RootManager.isRootAvailable()
     }
@@ -838,9 +841,6 @@ private fun ModeAndPermissionStep(
                 if (!hasFilesPerm) {
                     missing.add("所有文件访问权限")
                 }
-                if (!hasAppListPerm) {
-                    missing.add("应用列表读取权限")
-                }
             }
             ActivationMode.ROOT -> {
                 if (!isRootGranted) {
@@ -849,16 +849,10 @@ private fun ModeAndPermissionStep(
                 if (!hasFilesPerm) {
                     missing.add("所有文件访问权限")
                 }
-                if (!hasAppListPerm) {
-                    missing.add("应用列表读取权限")
-                }
             }
             ActivationMode.DIRECT_READ, ActivationMode.DEFAULT -> {
                 if (!hasFilesPerm) {
                     missing.add("所有文件访问权限")
-                }
-                if (!hasAppListPerm) {
-                    missing.add("应用列表读取权限")
                 }
             }
         }
@@ -883,14 +877,34 @@ private fun ModeAndPermissionStep(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
-        Spacer(Modifier.height(18.dp))
+        Spacer(Modifier.height(14.dp))
+        TonalCard(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier.padding(14.dp),
+                verticalAlignment = Alignment.Top,
+            ) {
+                Icon(
+                    Icons.Default.Info,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp),
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    "不知道怎么选？大多数用户选「云端模式」即可；只有想读取手机本地缓存，或已经在使用 Shizuku / Root 时，才选择本地模式。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
 
-        // 模式 1: 云端模式 (推荐)
+        Spacer(Modifier.height(16.dp))
+
+        // 模式 1: 云端模式
         ModeSelectionCard(
-            title = "云端模式（推荐）",
-            subtitle = "免 Root，在线同步作业与答案",
-            badge = "零特殊权限",
-            badgeColor = MaterialTheme.colorScheme.primary,
+            title = "云端模式",
+            subtitle = "推荐：免 Root，在线读取作业与答案",
+            badge = "适合大多数人",
             icon = Icons.Default.Cloud,
             selected = selectedMode == ActivationMode.CLOUD,
             onClick = { selectedMode = ActivationMode.CLOUD },
@@ -901,9 +915,8 @@ private fun ModeAndPermissionStep(
         // 模式 2: 极客提权模式 (Shizuku 与 Root 可选)
         ModeSelectionCard(
             title = "极客提权模式",
-            subtitle = "本地系统级提权，直接读取答题数据",
-            badge = if (selectedMode == ActivationMode.ROOT) "Root 权限" else "Shizuku 授权",
-            badgeColor = MaterialTheme.colorScheme.tertiary,
+            subtitle = "需要 Shizuku 或 Root，适合高级用户",
+            badge = "本地读取",
             icon = if (selectedMode == ActivationMode.ROOT) Icons.Default.Security else Icons.Default.CheckCircle,
             selected = isGeekMode,
             onClick = {
@@ -975,15 +988,27 @@ private fun ModeAndPermissionStep(
         // 模式 3: 本地漏洞直读模式
         ModeSelectionCard(
             title = "本地直读模式",
-            subtitle = "零宽字符漏洞直读应用本地存储",
-            badge = "无需提权",
-            badgeColor = MaterialTheme.colorScheme.secondary,
+            subtitle = "读取手机已缓存的作业数据，不走云端",
+            badge = "无需 Root",
             icon = Icons.Default.Bolt,
             selected = selectedMode == ActivationMode.DIRECT_READ,
             onClick = { selectedMode = ActivationMode.DIRECT_READ },
         )
 
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(14.dp))
+
+        AnimatedContent(
+            targetState = selectedMode,
+            transitionSpec = {
+                (fadeIn(animationSpec = tween(180)) + slideInVertically { it / 5 }) togetherWith
+                    (fadeOut(animationSpec = tween(120)) + slideOutVertically { -it / 5 })
+            },
+            label = "mode_explanation",
+        ) { mode ->
+            ModeExplanation(mode = mode)
+        }
+
+        Spacer(Modifier.height(18.dp))
 
         // 动态权限卡片 (按选定模式展示，避免多余权限)
         Text(
@@ -1055,15 +1080,6 @@ private fun ModeAndPermissionStep(
                         actionLabel = "去授权",
                         onAction = { PermissionsHelper.requestAllFilesAccess(context) },
                     )
-
-                    // 应用列表读取权限
-                    PermissionStatusCard(
-                        title = "应用列表读取权限",
-                        desc = if (hasAppListPerm) "应用列表读取权限已就绪" else "用于检测与识别 ETS100 客户端安装状态",
-                        isGranted = hasAppListPerm,
-                        actionLabel = "去授权",
-                        onAction = { PermissionsHelper.requestAppListPermission(context) },
-                    )
                 }
             }
 
@@ -1094,36 +1110,18 @@ private fun ModeAndPermissionStep(
                         actionLabel = "去授权",
                         onAction = { PermissionsHelper.requestAllFilesAccess(context) },
                     )
-
-                    // 应用列表读取权限
-                    PermissionStatusCard(
-                        title = "应用列表读取权限",
-                        desc = if (hasAppListPerm) "应用列表读取权限已就绪" else "用于检测与识别 ETS100 客户端安装状态",
-                        isGranted = hasAppListPerm,
-                        actionLabel = "去授权",
-                        onAction = { PermissionsHelper.requestAppListPermission(context) },
-                    )
                 }
             }
 
             ActivationMode.DIRECT_READ, ActivationMode.DEFAULT -> {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    // 本地直读仅需文件权限与应用列表权限
+                    // 本地直读仅需文件访问权限
                     PermissionStatusCard(
                         title = "所有文件访问权限",
                         desc = if (hasFilesPerm) "本地存储访问已就绪" else "用于读取本地试卷缓存",
                         isGranted = hasFilesPerm,
                         actionLabel = "去授权",
                         onAction = { PermissionsHelper.requestAllFilesAccess(context) },
-                    )
-
-                    // 应用列表读取权限
-                    PermissionStatusCard(
-                        title = "应用列表读取权限",
-                        desc = if (hasAppListPerm) "应用列表读取权限已就绪" else "用于检测与识别 ETS100 客户端安装状态",
-                        isGranted = hasAppListPerm,
-                        actionLabel = "去授权",
-                        onAction = { PermissionsHelper.requestAppListPermission(context) },
                     )
                 }
             }
@@ -1226,28 +1224,129 @@ private fun ModeAndPermissionStep(
     }
 }
 
+/**
+ * 用一句话解释当前模式适合谁、需要什么、会怎么工作。
+ * 放在模式卡片和权限卡片之间，让用户先理解选择，再处理授权。
+ */
+@Composable
+private fun ModeExplanation(mode: ActivationMode) {
+    val (title, summary, bullets) = when (mode) {
+        ActivationMode.CLOUD -> Triple(
+            "推荐给大多数用户",
+            "不读取手机本地题库，作业和答案由云端服务处理。",
+            listOf(
+                "需要：LA Studio 账号 + e听说账号",
+                "优点：免 Root、免 Shizuku，配置最少",
+                "适合：想快速开始、只关心作业和答案的用户",
+            ),
+        )
+        ActivationMode.SHIZUKU -> Triple(
+            "本地读取：Shizuku",
+            "直接读取 e听说在手机中缓存的作业数据，不依赖云端绑定。",
+            listOf(
+                "需要：启动并授权 Shizuku，以及所有文件访问权限",
+                "优点：数据留在本机，不需要上传到云端",
+                "适合：已经在使用 Shizuku 的高级用户",
+            ),
+        )
+        ActivationMode.ROOT -> Triple(
+            "本地读取：Root",
+            "使用 Root 权限访问 e听说本地缓存，能力最完整但风险和配置成本更高。",
+            listOf(
+                "需要：Root 授权，以及所有文件访问权限",
+                "优点：本地读取能力最强，不依赖云端绑定",
+                "适合：熟悉 Magisk、KernelSU 或 APatch 的用户",
+            ),
+        )
+        ActivationMode.DIRECT_READ, ActivationMode.DEFAULT -> Triple(
+            "本地读取：无需 Root",
+            "读取手机中已经缓存的作业数据，不使用云端服务。",
+            listOf(
+                "需要：所有文件访问权限",
+                "优点：不需要 Root 或 Shizuku",
+                "适合：不想绑定云端，也不想使用提权工具的用户",
+            ),
+        )
+    }
+
+    TonalCard(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+            Text(
+                title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Spacer(Modifier.height(3.dp))
+            Text(
+                summary,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(8.dp))
+            bullets.forEach { bullet ->
+                Row(
+                    modifier = Modifier.padding(vertical = 2.dp),
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    Icon(
+                        Icons.Default.Check,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(top = 1.dp).size(16.dp),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        bullet,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+            }
+        }
+    }
+}
+
 /** 单选模式卡片 */
 @Composable
 private fun ModeSelectionCard(
     title: String,
     subtitle: String,
-    badge: String,
-    badgeColor: Color,
+    badge: String? = null,
     icon: ImageVector,
     selected: Boolean,
     onClick: () -> Unit,
     extraContent: (@Composable () -> Unit)? = null,
 ) {
+    val containerColor by animateColorAsState(
+        targetValue = if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+        else MaterialTheme.colorScheme.surfaceContainer,
+        animationSpec = tween(220),
+        label = "mode_card_color",
+    )
+    val borderColor by animateColorAsState(
+        targetValue = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
+        animationSpec = tween(220),
+        label = "mode_card_border_color",
+    )
+    val borderWidth by animateDpAsState(
+        targetValue = if (selected) 2.dp else 1.dp,
+        animationSpec = tween(220),
+        label = "mode_card_border_width",
+    )
+    val iconContainerColor by animateColorAsState(
+        targetValue = if (selected) MaterialTheme.colorScheme.primary
+        else MaterialTheme.colorScheme.surfaceContainerHighest,
+        animationSpec = tween(220),
+        label = "mode_icon_container_color",
+    )
+
     Surface(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
-        color = if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-        else MaterialTheme.colorScheme.surfaceContainer,
-        border = BorderStroke(
-            width = if (selected) 2.dp else 1.dp,
-            color = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
-        ),
+        color = containerColor,
+        border = BorderStroke(borderWidth, borderColor),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -1258,10 +1357,7 @@ private fun ModeSelectionCard(
                     modifier = Modifier
                         .size(42.dp)
                         .clip(CircleShape)
-                        .background(
-                            if (selected) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.surfaceContainerHighest
-                        ),
+                        .background(iconContainerColor),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
@@ -1274,19 +1370,23 @@ private fun ModeSelectionCard(
                 }
                 Spacer(Modifier.width(14.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
                         Text(
                             text = title,
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
                         )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = badge,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = badgeColor,
-                            fontWeight = FontWeight.Bold,
-                        )
+                        if (badge != null) {
+                            SuggestionChip(
+                                onClick = onClick,
+                                label = { Text(badge, style = MaterialTheme.typography.labelSmall) },
+                                enabled = !selected,
+                                modifier = Modifier.height(28.dp),
+                            )
+                        }
                     }
                     Spacer(Modifier.height(2.dp))
                     Text(
@@ -1301,7 +1401,13 @@ private fun ModeSelectionCard(
                 )
             }
             if (extraContent != null) {
-                extraContent()
+                AnimatedVisibility(
+                    visible = selected,
+                    enter = fadeIn(tween(180)) + expandVertically(tween(220)),
+                    exit = fadeOut(tween(100)) + shrinkVertically(tween(160)),
+                ) {
+                    extraContent()
+                }
             }
         }
     }

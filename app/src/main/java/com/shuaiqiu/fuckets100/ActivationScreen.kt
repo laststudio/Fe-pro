@@ -2,6 +2,7 @@ package com.shuaiqiu.fuckets100
 
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.SystemClock
 import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.animation.core.MutableTransitionState
@@ -41,12 +42,28 @@ import kotlinx.coroutines.withContext
 
 private data class ActivationPageSnapshot(
     val hasFilesPermission: Boolean,
-    val hasOverlayPermission: Boolean,
-    val hasAppListPermission: Boolean,
     val cloudLoggedIn: Boolean,
     val cloudPhone: String?,
     val etsAppInfo: Pair<Boolean, String>?,
 )
+
+private object ActivationPageStateStore {
+    private const val CACHE_TTL_MS = 15_000L
+
+    var snapshot: ActivationPageSnapshot? = null
+        private set
+    private var updatedAt = 0L
+
+    fun getFresh(): ActivationPageSnapshot? {
+        val current = snapshot ?: return null
+        return current.takeIf { SystemClock.elapsedRealtime() - updatedAt < CACHE_TTL_MS }
+    }
+
+    fun update(value: ActivationPageSnapshot) {
+        snapshot = value
+        updatedAt = SystemClock.elapsedRealtime()
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -62,39 +79,30 @@ fun ActivationSettingsScreen(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    // 基础权限动态状态。
-    // 应用列表权限和 ETS/Root 检测可能触发 PackageManager、文件系统或进程调用，
-    // 不能在页面首次组合时同步执行，否则会阻塞 NavDisplay 的首帧过渡。
-    var hasFilesPerm by remember { mutableStateOf(false) }
-    var hasOverlayPerm by remember { mutableStateOf(false) }
-    var hasAppListPerm by remember { mutableStateOf(false) }
-    var cloudLoggedIn by remember { mutableStateOf(false) }
-    var cloudPhone by remember { mutableStateOf<String?>(null) }
-    var etsAppInfo by remember { mutableStateOf<Pair<Boolean, String>?>(null) }
+    // 使用短时缓存保留上一次稳定状态，避免每次打开授权页先显示“未授权”再跳成已授权。
+    var pageSnapshot by remember { mutableStateOf(ActivationPageStateStore.getFresh()) }
+    val hasFilesPerm = pageSnapshot?.hasFilesPermission == true
+    val cloudLoggedIn = pageSnapshot?.cloudLoggedIn == true
+    val cloudPhone = pageSnapshot?.cloudPhone
+    val etsAppInfo = pageSnapshot?.etsAppInfo
     var pendingPermissionRequest by remember { mutableStateOf(false) }
     val refreshScope = rememberCoroutineScope()
 
-    suspend fun refreshPageState() {
+    suspend fun refreshPageState(force: Boolean = false) {
+        if (!force && pageSnapshot != null && ActivationPageStateStore.getFresh() != null) return
         val snapshot = withContext(Dispatchers.IO) {
             ActivationPageSnapshot(
                 hasFilesPermission = PermissionsHelper.hasAllFilesAccess(),
-                hasOverlayPermission = PermissionsHelper.hasOverlayPermission(context),
-                hasAppListPermission = PermissionsHelper.hasAppListPermission(),
                 cloudLoggedIn = ETS100AuthManager.isLoggedIn(context),
                 cloudPhone = ETS100AuthManager.getPhone(context),
                 etsAppInfo = getEtsAppInfo(context),
             )
         }
-        hasFilesPerm = snapshot.hasFilesPermission
-        hasOverlayPerm = snapshot.hasOverlayPermission
-        hasAppListPerm = snapshot.hasAppListPermission
-        cloudLoggedIn = snapshot.cloudLoggedIn
-        cloudPhone = snapshot.cloudPhone
-        etsAppInfo = snapshot.etsAppInfo
+        ActivationPageStateStore.update(snapshot)
+        pageSnapshot = snapshot
     }
 
-    // Load the first state off the main thread so the page can participate in the
-    // navigation transition immediately.
+    // 首次打开异步读取；已有短时缓存时直接沿用，不重复触发页面闪变。
     LaunchedEffect(cloudAuthRevision) {
         refreshPageState()
     }
@@ -107,7 +115,7 @@ fun ActivationSettingsScreen(
                 hasPaused = true
             } else if (event == Lifecycle.Event.ON_RESUME && hasPaused) {
                 refreshScope.launch {
-                    refreshPageState()
+                    refreshPageState(force = true)
                 }
             }
         }
@@ -132,7 +140,7 @@ fun ActivationSettingsScreen(
     }
 
     val successColor = MaterialTheme.colorScheme.primary
-    val hasLocalBasicPermissions = hasFilesPerm && hasAppListPerm
+    val hasLocalBasicPermissions = hasFilesPerm
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val activationModes = ActivationMode.values().filter { it != ActivationMode.DEFAULT }
 
@@ -181,7 +189,7 @@ fun ActivationSettingsScreen(
                 ActivationDeviceCard(etsAppInfo = etsAppInfo)
             }
 
-            // 基础权限申请区域
+            // 基础权限申请区域：仅保留本地文件访问权限。
             item {
                 SegmentedColumn(
                     title = "系统基础权限",
@@ -189,7 +197,7 @@ fun ActivationSettingsScreen(
                         {
                             ExpressiveSegmentedListItem(
                                 index = 0,
-                                count = 3,
+                                count = 1,
                                 onClick = {
                                     if (!hasFilesPerm) PermissionsHelper.requestAllFilesAccess(context)
                                     else Toast.makeText(context, "已经拥有全文件访问权限啦！", Toast.LENGTH_SHORT).show()
@@ -206,54 +214,6 @@ fun ActivationSettingsScreen(
                                         if (hasFilesPerm) Icons.Default.CheckCircle else Icons.Default.FolderSpecial,
                                         contentDescription = null,
                                         tint = if (hasFilesPerm) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-                                    )
-                                },
-                            )
-                        },
-                        {
-                            ExpressiveSegmentedListItem(
-                                index = 1,
-                                count = 3,
-                                onClick = {
-                                    if (!hasOverlayPerm) PermissionsHelper.requestOverlayPermission(context)
-                                    else Toast.makeText(context, "悬浮窗已经开启啦！", Toast.LENGTH_SHORT).show()
-                                },
-                                headlineContent = { Text("悬浮窗权限") },
-                                supportingContent = {
-                                    Text(
-                                        if (hasOverlayPerm) "已授权" else "允许在其他应用上层显示组件",
-                                        color = if (hasOverlayPerm) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                },
-                                leadingContent = {
-                                    Icon(
-                                        if (hasOverlayPerm) Icons.Default.CheckCircle else Icons.Default.WebAsset,
-                                        contentDescription = null,
-                                        tint = if (hasOverlayPerm) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-                                    )
-                                },
-                            )
-                        },
-                        {
-                            ExpressiveSegmentedListItem(
-                                index = 2,
-                                count = 3,
-                                onClick = {
-                                    if (!hasAppListPerm) PermissionsHelper.requestAppListPermission(context)
-                                    else Toast.makeText(context, "已经可以读取应用列表啦！", Toast.LENGTH_SHORT).show()
-                                },
-                                headlineContent = { Text("应用列表权限") },
-                                supportingContent = {
-                                    Text(
-                                        if (hasAppListPerm) "已授权" else "获取设备已安装的软件包信息",
-                                        color = if (hasAppListPerm) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                },
-                                leadingContent = {
-                                    Icon(
-                                        if (hasAppListPerm) Icons.Default.CheckCircle else Icons.Default.Apps,
-                                        contentDescription = null,
-                                        tint = if (hasAppListPerm) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
                                     )
                                 },
                             )
@@ -278,7 +238,7 @@ fun ActivationSettingsScreen(
                                 onClick = { onModeSelected(mode) },
                                 headlineContent = {
                                     Text(
-                                        mode.name,
+                                        mode.title,
                                         fontWeight = FontWeight.Bold,
                                         color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                                     )
@@ -289,27 +249,6 @@ fun ActivationSettingsScreen(
                                         onClick = null,
                                         colors = RadioButtonDefaults.colors(selectedColor = MaterialTheme.colorScheme.primary),
                                     )
-                                },
-                                trailingContent = {
-                                    val badgeContainerColor = when (mode) {
-                                        ActivationMode.ROOT -> MaterialTheme.colorScheme.errorContainer
-                                        ActivationMode.CLOUD -> if (cloudLoggedIn) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer
-                                        else -> MaterialTheme.colorScheme.primaryContainer
-                                    }
-                                    val badgeContentColor = when (mode) {
-                                        ActivationMode.ROOT -> MaterialTheme.colorScheme.onErrorContainer
-                                        ActivationMode.CLOUD -> if (cloudLoggedIn) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onErrorContainer
-                                        else -> MaterialTheme.colorScheme.onPrimaryContainer
-                                    }
-                                    Surface(color = badgeContainerColor, contentColor = badgeContentColor, shape = MaterialTheme.shapes.small) {
-                                        val displayBadge = when {
-                                            mode == ActivationMode.SHIZUKU && shizukuState.isRunning && shizukuState.permissionGranted -> "UID: ${shizukuState.uid}"
-                                            mode == ActivationMode.CLOUD && cloudLoggedIn -> "已激活"
-                                            mode == ActivationMode.CLOUD -> "未激活"
-                                            else -> mode.badge
-                                        }
-                                        Text(displayBadge, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall)
-                                    }
                                 },
                                 supportingContent = {
                                     Column {
@@ -355,7 +294,7 @@ fun ActivationSettingsScreen(
                                                     ) {
                                                         Text("需要手动确认以完成激活", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                                         Button(
-                                                            onClick = { Toast.makeText(context, "正在请求 ${mode.name} 激活...", Toast.LENGTH_SHORT).show() },
+                                                            onClick = { Toast.makeText(context, "正在请求 ${mode.title} 激活...", Toast.LENGTH_SHORT).show() },
                                                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary),
                                                             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
                                                             modifier = Modifier.height(32.dp),
@@ -646,180 +585,84 @@ fun FeModeStatusCard(
 @Composable
 fun FeDirectReadActivationPanel(hasAllBasicPermissions: Boolean) {
     val context = LocalContext.current
-    val directReadYellow = MaterialTheme.colorScheme.tertiary
-    val successColor = MaterialTheme.colorScheme.primary
-    val errorRedColor = MaterialTheme.colorScheme.error
-    
-    var isZWCAvailable by remember { mutableStateOf(false) }
     var isDirectReadAvailable by remember { mutableStateOf(false) }
     var isTesting by remember { mutableStateOf(false) }
     val refreshScope = rememberCoroutineScope()
 
     suspend fun refreshAvailability() {
-        val availability = withContext(Dispatchers.IO) {
-            ZWCHelper.isVulnerabilityAvailable() to ZWCHelper.isDirectReadAvailable()
+        isDirectReadAvailable = withContext(Dispatchers.IO) {
+            ZWCHelper.isDirectReadAvailable()
         }
-        isZWCAvailable = availability.first
-        isDirectReadAvailable = availability.second
     }
 
-    LaunchedEffect(Unit) {
-        refreshAvailability()
-    }
+    LaunchedEffect(Unit) { refreshAvailability() }
 
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                refreshScope.launch {
-                    refreshAvailability()
-                }
+                refreshScope.launch { refreshAvailability() }
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
-    
-    Column {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = when {
-                    isDirectReadAvailable -> "漏洞直读就绪"
-                    isTesting -> "正在测试..."
-                    else -> "点击测试以检测漏洞直读可用性"
-                },
-                style = MaterialTheme.typography.labelSmall,
-                color = when {
-                    isDirectReadAvailable -> successColor
-                    isTesting -> MaterialTheme.colorScheme.onSurfaceVariant
-                    else -> MaterialTheme.colorScheme.onSurfaceVariant
-                }
-            )
-        }
-        
-        Spacer(Modifier.height(16.dp))
 
-        if (hasAllBasicPermissions) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                if (isDirectReadAvailable) {
-                    OutlinedButton(
-                        onClick = { },
-                        enabled = false,
-                        border = BorderStroke(1.dp, successColor),
-                        colors = ButtonDefaults.outlinedButtonColors(disabledContentColor = successColor),
-                        modifier = Modifier.weight(1f).height(40.dp)
-                    ) {
-                        Icon(Icons.Default.CheckCircle, null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("漏洞直读已就绪", fontWeight = FontWeight.Bold)
-                    }
-                } else {
-                    Button(
-                        onClick = {
-                            if (isTesting) return@Button
-                            isTesting = true
-                            refreshScope.launch {
-                                val availability = withContext(Dispatchers.IO) {
-                                    ZWCHelper.isVulnerabilityAvailable() to ZWCHelper.isDirectReadAvailable()
-                                }
-                                isZWCAvailable = availability.first
-                                isDirectReadAvailable = availability.second
-                                isTesting = false
-
-                                if (availability.second) {
-                                    Toast.makeText(context, "漏洞直读测试通过！", Toast.LENGTH_SHORT).show()
-                                } else {
-                                    Toast.makeText(context, "暂不支持漏洞直读，请授权全文件访问或使用其他模式", Toast.LENGTH_LONG).show()
-                                }
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isTesting) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primary,
-                            contentColor = if (isTesting) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimary
-                        ),
-                        modifier = Modifier.weight(1f).height(40.dp),
-                        enabled = !isTesting
-                    ) {
-                        if (isTesting) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            Icon(Icons.Default.BugReport, null, modifier = Modifier.size(18.dp))
-                        }
-                        Spacer(Modifier.width(8.dp))
-                        Text(if (isTesting) "测试中..." else "测试漏洞直读", fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-            
-            if (isTesting || isDirectReadAvailable) {
-                Spacer(Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(
-                            if (isZWCAvailable) {
-                                MaterialTheme.colorScheme.primaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.surfaceContainerLow
-                            },
-                            MaterialTheme.shapes.small
-                        )
-                        .padding(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = if (isZWCAvailable) Icons.Default.CheckCircle else Icons.Default.Warning,
-                        contentDescription = null,
-                        tint = if (isZWCAvailable) MaterialTheme.colorScheme.onPrimaryContainer else errorRedColor,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = if (isZWCAvailable) "零宽字符漏洞可用" else "零宽字符漏洞不可用",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (isZWCAvailable) MaterialTheme.colorScheme.onPrimaryContainer else errorRedColor
-                    )
-                }
+    if (hasAllBasicPermissions) {
+        if (isDirectReadAvailable) {
+            OutlinedButton(
+                onClick = {},
+                enabled = false,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    disabledContentColor = MaterialTheme.colorScheme.primary,
+                ),
+                modifier = Modifier.fillMaxWidth().height(40.dp),
+            ) {
+                Icon(Icons.Default.CheckCircle, null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("漏洞直读已就绪", fontWeight = FontWeight.Bold)
             }
         } else {
-            Text(
-                text = "请先完成上方基础权限的授权，然后返回此处测试漏洞",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        
-        Spacer(Modifier.height(8.dp))
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(8.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.Info,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(16.dp)
-                )
+            Button(
+                onClick = {
+                    if (isTesting) return@Button
+                    isTesting = true
+                    refreshScope.launch {
+                        val available = withContext(Dispatchers.IO) {
+                            ZWCHelper.isDirectReadAvailable()
+                        }
+                        isDirectReadAvailable = available
+                        isTesting = false
+                        Toast.makeText(
+                            context,
+                            if (available) "漏洞直读测试通过！" else "暂不支持漏洞直读，请授权全文件访问或使用其他模式",
+                            if (available) Toast.LENGTH_SHORT else Toast.LENGTH_LONG,
+                        ).show()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().height(40.dp),
+                enabled = !isTesting,
+            ) {
+                if (isTesting) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        strokeWidth = 2.dp,
+                    )
+                } else {
+                    Icon(Icons.Default.BugReport, null, modifier = Modifier.size(18.dp))
+                }
                 Spacer(Modifier.width(8.dp))
-                Text(
-                    text = "漏洞直读说明",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary
-                )
+                Text(if (isTesting) "测试中..." else "测试漏洞直读", fontWeight = FontWeight.Bold)
             }
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = "利用零宽字符绕过 Android 限制，直接读取 Android/data 目录。点击上方按钮测试漏洞可用性。",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
         }
+    } else {
+        Text(
+            text = "请先完成文件访问授权，然后返回此处测试漏洞",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

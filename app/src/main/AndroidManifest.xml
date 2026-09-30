@@ -8,17 +8,15 @@
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
-    
-    <!-- 悬浮窗权限 -->
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    
+
     <!-- 网络权限（用于检查更新等） -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    
-    <!-- 应用列表权限 (查询已安装应用) -->
-    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
-        tools:ignore="QueryAllPackagesPermission" />
+
+    <!-- 仅声明需要读取版本信息的 ETS100 客户端，避免申请 QUERY_ALL_PACKAGES -->
+    <queries>
+        <package android:name="com.ets100.secondary" />
+    </queries>
 
     <application
         android:name=".FeApplication"
@@ -83,7 +81,7 @@
             android:enabled="true"
             android:exported="true"
             android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
-        
+
         <!-- FileProvider -->
         <provider
             android:name="androidx.core.content.FileProvider"
@@ -94,7 +92,7 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
-        
+
     </application>
 
 </manifest>

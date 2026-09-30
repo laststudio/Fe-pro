@@ -53,6 +53,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -366,6 +367,8 @@ private fun formatAnswerForDisplay(
 fun ReadScreen(
     currentMode: ActivationMode,
     accountOnline: Boolean = true,
+    readAccessChecking: Boolean = false,
+    readAccessIssue: String? = null,
     onNavigateToActivation: () -> Unit,
     onOpenPaperDetail: (ETS100AnswerReader.Paper) -> Unit,
     compactAnswerDisplay: Boolean = SettingsManager.getCompactAnswerDisplay()
@@ -588,8 +591,23 @@ fun ReadScreen(
      * 加载云端作业列表
      */
     suspend fun loadCloudHomeworkList(status: String = selectedCloudHomeworkStatus) {
+        if (isLoadingCloudHomework) return
+
+        // 先进入加载态，再执行授权校验和账号获取，避免点击后网络操作期间页面像卡死。
+        isLoadingCloudHomework = true
+        cloudHomeworkError = null
+        changyanTokenExpired = false
+        CloudHomeworkState.isLoading = true
+        CloudHomeworkState.error = null
+
+        fun stopCloudLoading() {
+            isLoadingCloudHomework = false
+            CloudHomeworkState.isLoading = false
+        }
+
         if (!accountOnline) {
             cloudHomeworkError = "已离线"
+            stopCloudLoading()
             return
         }
         try {
@@ -597,6 +615,7 @@ fun ReadScreen(
         } catch (e: ResolverAuthorizationDeniedException) {
             cloudHomeworkError = e.message ?: "云端模式当前不可用"
             CloudHomeworkState.error = cloudHomeworkError
+            stopCloudLoading()
             return
         }
         selectedCloudHomeworkStatus = status
@@ -612,6 +631,7 @@ fun ReadScreen(
             if (savedToken.isEmpty() || parentId.isEmpty()) {
                 cloudHomeworkError = "讯飞登录信息不完整，请重新登录"
                 addLog(LogLevel.ERROR, LogCategory.SYSTEM, "✗ 讯飞登录信息不完整")
+                stopCloudLoading()
                 return
             }
         } else {
@@ -646,15 +666,11 @@ fun ReadScreen(
                 cloudHomeworkError = e.message ?: "无法读取 LA Studio 绑定账号"
                 CloudHomeworkState.error = cloudHomeworkError
                 addLog(LogLevel.ERROR, LogCategory.SYSTEM, "✗ 后端绑定账号不可用: ${e.message}")
+                stopCloudLoading()
                 return
             }
         }
 
-        isLoadingCloudHomework = true
-        cloudHomeworkError = null
-        changyanTokenExpired = false
-        CloudHomeworkState.isLoading = true
-        CloudHomeworkState.error = null
         addLog(LogLevel.INFO, LogCategory.SYSTEM, "☁️ 开始加载${cloudHomeworkStatusLabel(status)}列表")
 
         val requestStatuses = cloudHomeworkRequestStatuses(status)
@@ -844,14 +860,10 @@ fun ReadScreen(
         CloudHomeworkState.selectedStatus = targetStatus
         selectedPaper = null
         showPaperDetail = false
-        cloudHomeworkError = CloudHomeworkState.error
+        // 分类切换只切换当前视图，不自动发起网络读取；由用户点击“读取作业”主动加载。
+        cloudHomeworkError = null
+        CloudHomeworkState.error = null
         saveCloudReadState()
-
-        if (!homeworkListsByStatus.containsKey(targetStatus) && accountOnline) {
-            scope.launch {
-                loadCloudHomeworkList(targetStatus)
-            }
-        }
     }
 
     fun selectCloudHomeworkStatus(status: String) {
@@ -1434,9 +1446,16 @@ fun ReadScreen(
         }
     }
 
-    LaunchedEffect(currentMode, reloadTrigger, accountOnline) {
+    LaunchedEffect(currentMode, reloadTrigger, accountOnline, readAccessChecking, readAccessIssue) {
         currentModeRef.value = currentMode
         isParsingLocalAnswers = false
+
+        if (readAccessChecking || readAccessIssue != null) {
+            isLoading = false
+            isParsingLocalAnswers = false
+            errorMessage = null
+            return@LaunchedEffect
+        }
 
         if (reloadTrigger == 0 &&
             currentMode != ActivationMode.CLOUD &&
@@ -1721,7 +1740,9 @@ fun ReadScreen(
     val pullRefreshState = rememberPullToRefreshState()
 
     val onRefresh: () -> Unit = {
-        if (!accountOnline) {
+        if (readAccessChecking || readAccessIssue != null) {
+            onNavigateToActivation()
+        } else if (!accountOnline) {
             Toast.makeText(context, "已离线", Toast.LENGTH_SHORT).show()
         } else if (currentMode == ActivationMode.CLOUD) {
             if (homeworkListsByStatus.isNotEmpty()) {
@@ -1818,6 +1839,10 @@ fun ReadScreen(
             SmallExtendedFloatingActionButton(
                 expanded = readFabExpanded,
                 onClick = {
+                    if (readAccessChecking || readAccessIssue != null) {
+                        onNavigateToActivation()
+                        return@SmallExtendedFloatingActionButton
+                    }
                     if (!accountOnline) {
                         Toast.makeText(context, "已离线", Toast.LENGTH_SHORT).show()
                         return@SmallExtendedFloatingActionButton
@@ -1857,7 +1882,44 @@ fun ReadScreen(
                     .background(MaterialTheme.colorScheme.surfaceContainer)
             ) {
             when {
-                // 1. 加载中（本地模式 isLoading 或 云端模式 isLoadingCloudHomework）喵~
+                // 1. 读取前置条件不满足时直接显示可操作提示，不进入底层读取流程。
+                readAccessChecking || readAccessIssue != null -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize().padding(28.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                Icons.Default.Lock,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(64.dp),
+                            )
+                            Spacer(Modifier.height(16.dp))
+                            Text(
+                                if (readAccessChecking) "正在检查读取条件" else "暂时无法读取",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center,
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                readAccessIssue ?: "正在确认账号、权限和运行模式...",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center,
+                            )
+                            if (!readAccessChecking) {
+                                Spacer(Modifier.height(20.dp))
+                                Button(onClick = onNavigateToActivation) {
+                                    Text("前往激活配置")
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 2. 加载中（本地模式 isLoading 或 云端模式 isLoadingCloudHomework）喵~
                 isLoading || (currentMode == ActivationMode.CLOUD && isLoadingCloudHomework) -> {
                     Box(
                         modifier = Modifier.fillMaxSize(),
@@ -2801,191 +2863,80 @@ private fun CloudHomeworkCategorySelector(
     var menuExpanded by remember { mutableStateOf(false) }
     val chevronRotation by animateFloatAsState(
         targetValue = if (menuExpanded) 180f else 0f,
-        label = "chevronRotation"
+        label = "cloudCategoryChevron",
     )
 
     val categoryTitle = when (selectedCategory) {
-        CloudHomeworkState.CATEGORY_CURRENT -> "当前作业"
         CloudHomeworkState.CATEGORY_HISTORY -> "历史作业"
         CloudHomeworkState.CATEGORY_VOCAB_PK -> "词汇PK"
         else -> "当前作业"
     }
 
-    val categorySubtitle = when (selectedCategory) {
-        CloudHomeworkState.CATEGORY_CURRENT -> "正在进行的日常作业任务"
-        CloudHomeworkState.CATEGORY_HISTORY -> "往期完成与逾期归档记录"
-        CloudHomeworkState.CATEGORY_VOCAB_PK -> "在线词汇竞赛与专项目标"
-        else -> "作业分类"
-    }
-
-    val categoryIcon = when (selectedCategory) {
-        CloudHomeworkState.CATEGORY_CURRENT -> Icons.AutoMirrored.Filled.Assignment
-        CloudHomeworkState.CATEGORY_HISTORY -> Icons.Default.History
-        CloudHomeworkState.CATEGORY_VOCAB_PK -> Icons.Default.SportsEsports
-        else -> Icons.Default.Folder
-    }
-
     Box(modifier = Modifier.fillMaxWidth()) {
         Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { menuExpanded = true },
-            shape = MaterialTheme.shapes.large,
+            onClick = { menuExpanded = true },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-            tonalElevation = 2.dp
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .heightIn(min = 48.dp)
+                    .padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                // Leading Icon Container
-                Surface(
-                    shape = MaterialTheme.shapes.medium,
-                    color = when (selectedCategory) {
-                        CloudHomeworkState.CATEGORY_VOCAB_PK -> MaterialTheme.colorScheme.tertiaryContainer
-                        CloudHomeworkState.CATEGORY_HISTORY -> MaterialTheme.colorScheme.secondaryContainer
-                        else -> MaterialTheme.colorScheme.primaryContainer
-                    },
-                    modifier = Modifier.size(40.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = categoryIcon,
-                            contentDescription = null,
-                            tint = when (selectedCategory) {
-                                CloudHomeworkState.CATEGORY_VOCAB_PK -> MaterialTheme.colorScheme.onTertiaryContainer
-                                CloudHomeworkState.CATEGORY_HISTORY -> MaterialTheme.colorScheme.onSecondaryContainer
-                                else -> MaterialTheme.colorScheme.onPrimaryContainer
-                            },
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.width(14.dp))
-
-                // Center Title & Subtitle & Count
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = categoryTitle,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Surface(
-                            shape = MaterialTheme.shapes.small,
-                            color = MaterialTheme.colorScheme.surfaceVariant,
-                        ) {
-                            Text(
-                                text = "$homeworkCount",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = categorySubtitle,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(8.dp))
-
-                // Trailing Chevron
+                Text(
+                    text = categoryTitle,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = homeworkCount.toString(),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.weight(1f))
                 Icon(
                     imageVector = Icons.Default.KeyboardArrowDown,
-                    contentDescription = "选择题型分类",
+                    contentDescription = if (menuExpanded) "收起作业分类" else "选择作业分类",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier
                         .size(24.dp)
-                        .rotate(chevronRotation)
+                        .rotate(chevronRotation),
                 )
             }
         }
 
+        // 使用标准锚定菜单，避免按触点偏移后出现贴边、越界或圆角不协调。
         DropdownMenu(
             expanded = menuExpanded,
             onDismissRequest = { menuExpanded = false },
+            offset = DpOffset(x = 0.dp, y = 4.dp),
+            modifier = Modifier.width(200.dp),
+            shape = RoundedCornerShape(16.dp),
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            tonalElevation = 3.dp,
         ) {
-            DropdownMenuItem(
-                text = {
-                    Column {
-                        Text("当前作业", fontWeight = FontWeight.SemiBold)
-                        Text("正在进行的日常作业任务", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                },
-                leadingIcon = {
-                    Icon(Icons.AutoMirrored.Filled.Assignment, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                },
-                trailingIcon = if (selectedCategory == CloudHomeworkState.CATEGORY_CURRENT) {
-                    { Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
-                } else null,
-                onClick = {
-                    menuExpanded = false
-                    onCategorySelect(CloudHomeworkState.CATEGORY_CURRENT)
-                }
-            )
-
-            DropdownMenuItem(
-                text = {
-                    Column {
-                        Text("历史作业", fontWeight = FontWeight.SemiBold)
-                        Text("往期完成与逾期归档记录", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                },
-                leadingIcon = {
-                    Icon(Icons.Default.History, contentDescription = null, tint = MaterialTheme.colorScheme.secondary)
-                },
-                trailingIcon = if (selectedCategory == CloudHomeworkState.CATEGORY_HISTORY) {
-                    { Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
-                } else null,
-                onClick = {
-                    menuExpanded = false
-                    onCategorySelect(CloudHomeworkState.CATEGORY_HISTORY)
-                }
-            )
-
-            DropdownMenuItem(
-                text = {
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("词汇PK", fontWeight = FontWeight.SemiBold)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = MaterialTheme.colorScheme.tertiaryContainer
-                            ) {
-                                Text(
-                                    "HOT",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onTertiaryContainer,
-                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                )
-                            }
-                        }
-                        Text("在线词汇竞赛与专项目标", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                },
-                leadingIcon = {
-                    Icon(Icons.Default.SportsEsports, contentDescription = null, tint = MaterialTheme.colorScheme.tertiary)
-                },
-                trailingIcon = if (selectedCategory == CloudHomeworkState.CATEGORY_VOCAB_PK) {
-                    { Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
-                } else null,
-                onClick = {
-                    menuExpanded = false
-                    onCategorySelect(CloudHomeworkState.CATEGORY_VOCAB_PK)
-                }
-            )
+            listOf(
+                "当前作业" to CloudHomeworkState.CATEGORY_CURRENT,
+                "历史作业" to CloudHomeworkState.CATEGORY_HISTORY,
+                "词汇PK" to CloudHomeworkState.CATEGORY_VOCAB_PK,
+            ).forEach { (label, category) ->
+                DropdownMenuItem(
+                    text = { Text(label, style = MaterialTheme.typography.labelLarge) },
+                    trailingIcon = if (selectedCategory == category) {
+                        { Icon(Icons.Default.Check, contentDescription = null) }
+                    } else null,
+                    onClick = {
+                        menuExpanded = false
+                        onCategorySelect(category)
+                    },
+                )
+            }
         }
     }
 }

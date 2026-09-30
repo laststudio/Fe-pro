@@ -58,6 +58,9 @@ fun FeNavContainer(
     predictiveBackExitDirection: PredictiveBackExitDirection,
     currentMode: ActivationMode,
     shizukuState: ShizukuState,
+    readAccessChecking: Boolean,
+    readAccessIssue: String?,
+    onHomeRefreshRequested: () -> Unit,
     onActivationModeChanged: (ActivationMode) -> Unit,
     onSelectRootPage: (Int) -> Unit,
     onDarkModeChanged: (Boolean) -> Unit,
@@ -155,7 +158,10 @@ fun FeNavContainer(
                             SettingsManager.saveActivationMode(mode)
                             onActivationModeChanged(mode)
                         },
-                        onBack = navigator::pop,
+                        onBack = {
+                            navigator.pop()
+                            onHomeRefreshRequested()
+                        },
                         onNavigateToCloudActivation = { navigator.push(FeRoute.CloudActivation) },
                         onNavigateToRead = {
                             navigator.popUntil { it is FeRoute.Main }

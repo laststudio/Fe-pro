@@ -5,6 +5,15 @@ import android.content.ClipboardManager
 import android.os.Build
 import android.os.SystemClock
 import android.widget.Toast
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -28,13 +37,13 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
 import com.shuaiqiu.fuckets100.component.material.ExpressiveScaffold
 import com.shuaiqiu.fuckets100.component.material.ExpressiveSegmentedListItem
 import com.shuaiqiu.fuckets100.component.material.SegmentedColumn
 import com.shuaiqiu.fuckets100.component.material.TonalCard
 import com.shuaiqiu.fuckets100.component.material.expressiveTopAppBarColors
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -42,8 +51,6 @@ import kotlinx.coroutines.withContext
 
 private data class HomeRuntimeStatus(
     val hasFilesPerm: Boolean,
-    val hasOverlayPerm: Boolean,
-    val hasAppListPerm: Boolean,
     val hasRootAvailable: Boolean,
     val hasDirectReadAvailable: Boolean,
     val cloudLoggedIn: Boolean
@@ -65,8 +72,6 @@ private object HomeRuntimeStatusStore {
         cached?.let { return it }
         val status = HomeRuntimeStatus(
             hasFilesPerm = PermissionsHelper.hasAllFilesAccess(),
-            hasOverlayPerm = PermissionsHelper.hasOverlayPermission(context),
-            hasAppListPerm = PermissionsHelper.hasAppListPermission(),
             hasRootAvailable = RootManager.isRootAvailable(),
             hasDirectReadAvailable = ZWCHelper.isDirectReadAvailable(),
             cloudLoggedIn = ETS100AuthManager.isLoggedIn(context)
@@ -95,6 +100,7 @@ fun HomeScreen(
     mode: ActivationMode,
     shizukuState: ShizukuState,
     accountState: FeAccountGateState,
+    refreshRevision: Int = 0,
     onNavigateToActivation: () -> Unit,
     onNavigateToRemoteContent: (UpdateStatus?) -> Unit,
     onNavigateToDonate: () -> Unit,
@@ -102,7 +108,6 @@ fun HomeScreen(
 ) {
     val context = LocalContext.current
     val appContext = remember(context) { context.applicationContext }
-    val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
     val currentModeForRefresh by rememberUpdatedState(mode)
     
@@ -133,30 +138,31 @@ fun HomeScreen(
         }
     }
 
-    // 生命周期监听 - 从系统设置返回时自动刷新权限状态
+    // 返回首页时后台刷新真实权限状态，但保留旧状态直到检测完成，避免先闪成未授权。
+    val lifecycleOwner = LocalLifecycleOwner.current
     var hasPaused by remember { mutableStateOf(false) }
-    DisposableEffect(lifecycleOwner) {
+    DisposableEffect(lifecycleOwner, appContext) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_PAUSE) {
-                hasPaused = true
-            } else if (event == Lifecycle.Event.ON_RESUME && hasPaused) {
-                scope.launch {
-                    val status = loadHomeRuntimeStatus(appContext, force = true)
-                    HomeRuntimeStatusStore.update(status, currentModeForRefresh)
-                    runtimeStatus = status
+            when (event) {
+                Lifecycle.Event.ON_PAUSE -> hasPaused = true
+                Lifecycle.Event.ON_RESUME -> if (hasPaused) {
+                    scope.launch {
+                        val status = loadHomeRuntimeStatus(appContext, force = true)
+                        HomeRuntimeStatusStore.update(status, currentModeForRefresh)
+                        runtimeStatus = status
+                    }
                 }
+                else -> Unit
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-        }
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
-    
-    LaunchedEffect(mode) {
+
+    LaunchedEffect(mode, refreshRevision) {
         val status = loadHomeRuntimeStatus(
             context = appContext,
-            force = HomeRuntimeStatusStore.lastMode != mode
+            force = refreshRevision > 0 || HomeRuntimeStatusStore.lastMode != mode
         )
         HomeRuntimeStatusStore.update(status, mode)
         runtimeStatus = status
@@ -169,9 +175,7 @@ fun HomeScreen(
     }
     
     // 检查基础权限是否全部获取
-    val hasAllBasicPermissions = runtimeStatus.hasFilesPerm &&
-        runtimeStatus.hasOverlayPerm &&
-        runtimeStatus.hasAppListPerm
+    val hasAllBasicPermissions = runtimeStatus.hasFilesPerm
     
     // 判断是否真正激活 - 根据不同模式判断激活条件
     val isTrulyActivated = when {
@@ -243,8 +247,6 @@ fun HomeScreen(
                     isTrulyActivated = isTrulyActivated, 
                     cloudLoggedIn = runtimeStatus.cloudLoggedIn,
                     hasFilesPerm = runtimeStatus.hasFilesPerm,
-                    hasOverlayPerm = runtimeStatus.hasOverlayPerm,
-                    hasAppListPerm = runtimeStatus.hasAppListPerm,
                     hasAllBasicPermissions = hasAllBasicPermissions,
                     hasRootAvailable = runtimeStatus.hasRootAvailable,
                     onNavigateToActivation = onNavigateToActivation
@@ -282,8 +284,6 @@ private suspend fun loadHomeRuntimeStatus(
     return withContext(Dispatchers.IO) {
         HomeRuntimeStatus(
             hasFilesPerm = PermissionsHelper.hasAllFilesAccess(),
-            hasOverlayPerm = PermissionsHelper.hasOverlayPermission(context),
-            hasAppListPerm = PermissionsHelper.hasAppListPermission(),
             hasRootAvailable = RootManager.isRootAvailable(),
             hasDirectReadAvailable = ZWCHelper.isDirectReadAvailable(),
             cloudLoggedIn = ETS100AuthManager.isLoggedIn(context)
@@ -303,8 +303,6 @@ fun StatusCard(
     isTrulyActivated: Boolean,
     cloudLoggedIn: Boolean,
     hasFilesPerm: Boolean,
-    hasOverlayPerm: Boolean,
-    hasAppListPerm: Boolean,
     hasAllBasicPermissions: Boolean,
     hasRootAvailable: Boolean,
     onNavigateToActivation: () -> Unit
@@ -320,7 +318,17 @@ fun StatusCard(
         effectiveActivated -> MaterialTheme.colorScheme.secondaryContainer
         else -> MaterialTheme.colorScheme.errorContainer
     }
-    val statusContentColor = contentColorFor(statusContainerColor)
+    val animatedContainerColor by animateColorAsState(
+        targetValue = statusContainerColor,
+        animationSpec = tween(durationMillis = 280),
+        label = "homeStatusContainerColor",
+    )
+    val animatedContentColor by animateColorAsState(
+        targetValue = contentColorFor(statusContainerColor),
+        animationSpec = tween(durationMillis = 220),
+        label = "homeStatusContentColor",
+    )
+    val statusContentColor = animatedContentColor
 
     // 根据当前状态显示不同的标题
     val displayTitle = when {
@@ -349,12 +357,7 @@ fun StatusCard(
         isOffline -> "LA Studio 已离线，部分功能受限"
         isBlocked -> accountState.message
         mode == ActivationMode.CLOUD -> if (cloudLoggedIn) "云端作业与试卷解析服务已连接" else "未绑定或未配置云端凭据，点击前往配置"
-        !hasAllBasicPermissions -> when {
-            !hasFilesPerm -> "需要文件访问权限才能读取题库，请授权"
-            !hasOverlayPerm -> "需要悬浮窗权限才能显示答题界面，请授权"
-            !hasAppListPerm -> "需要应用列表权限才能检测ETS应用，请授权"
-            else -> "请授权上述权限后即可使用"
-        }
+        !hasAllBasicPermissions -> "需要文件访问权限才能读取题库，请授权"
         mode == ActivationMode.SHIZUKU -> when {
             !shizukuState.isRunning -> "请启动Shizuku后再返回此处"
             !shizukuState.permissionGranted -> "请授予Shizuku权限后即可使用"
@@ -382,10 +385,12 @@ fun StatusCard(
             haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
             onNavigateToActivation()
         },
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .animateContentSize(animationSpec = tween(280)),
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(
-            containerColor = statusContainerColor,
+            containerColor = animatedContainerColor,
             contentColor = statusContentColor,
         ),
     ) {
@@ -395,34 +400,58 @@ fun StatusCard(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(
-                imageVector = displayIcon,
-                contentDescription = null,
-                tint = statusContentColor,
-                modifier = Modifier.size(32.dp),
-            )
+            AnimatedContent(
+                targetState = displayIcon,
+                transitionSpec = {
+                    fadeIn(tween(180)) togetherWith fadeOut(tween(120))
+                },
+                label = "homeStatusIcon",
+            ) { icon ->
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = statusContentColor,
+                    modifier = Modifier.size(32.dp),
+                )
+            }
             Spacer(Modifier.width(16.dp))
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.Center,
             ) {
-                Text(
-                    text = displayTitle,
-                    style = MaterialTheme.typography.titleMediumEmphasized,
-                    color = statusContentColor,
-                    maxLines = 1,
-                    minLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                AnimatedContent(
+                    targetState = displayTitle,
+                    transitionSpec = {
+                        fadeIn(tween(180)) togetherWith fadeOut(tween(120))
+                    },
+                    label = "homeStatusTitle",
+                ) { title ->
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMediumEmphasized,
+                        color = statusContentColor,
+                        maxLines = 1,
+                        minLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
                 Spacer(Modifier.height(2.dp))
-                Text(
-                    text = summary,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = statusContentColor.copy(alpha = 0.82f),
-                    maxLines = 1,
-                    minLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                AnimatedContent(
+                    targetState = summary,
+                    transitionSpec = {
+                        fadeIn(tween(180)) togetherWith fadeOut(tween(120))
+                    },
+                    label = "homeStatusSummary",
+                ) { text ->
+                    Text(
+                        text = text,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = statusContentColor.copy(alpha = 0.82f),
+                        maxLines = 1,
+                        minLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
             Spacer(Modifier.width(12.dp))
             if (isConnecting) {

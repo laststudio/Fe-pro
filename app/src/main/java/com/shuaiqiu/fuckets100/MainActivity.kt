@@ -38,7 +38,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.shuaiqiu.fuckets100.component.material.rememberFeMainPagerState
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.withContext
 import com.shuaiqiu.fuckets100.navigation.FeNavContainer
 import com.shuaiqiu.fuckets100.navigation.FeNavigator
 import com.shuaiqiu.fuckets100.navigation.FeRoute
@@ -59,7 +61,6 @@ enum class ActivationMode(
     val title: String,
     val desc: String,
     val sysLabel: String,
-    val badge: String,
     val icon: ImageVector,
     val hexColor: Color,
     val isSysOffline: Boolean
@@ -68,25 +69,22 @@ enum class ActivationMode(
         "未激活",
         "请选择授权模式以启用核心功能",
         "SYS_OFFLINE",
-        "Inactive",
         Icons.Default.Warning,
         Color(0xFFFFB4AB),
         true
     ),
     SHIZUKU(
-        "Shizuku 已连接",
+        "Shizuku 模式",
         "借助 Shizuku 在 Root 环境下以系统级 API 实现答题增强功能",
         "SYS_READY",
-        "Recommended",
         Icons.Default.CheckCircle,
         Color(0xFF4ADE80),
         false
     ),
     ROOT(
-        "Root 权限已获取",
+        "Root 模式",
         "通过 Root 权限直接访问应用数据文件实现答题增强功能",
         "SYS_READY",
-        "Highest Perm",
         Icons.Default.Security,
         Color(0xFFFFB4AB),
         false
@@ -95,7 +93,6 @@ enum class ActivationMode(
         "Direct Read 漏洞直读",
         "利用零宽字符漏洞绕过 Android 限制直接读取应用内部存储实现答题增强",
         "SYS_DIRECT_READ",
-        "Legacy",
         Icons.Default.Bolt,
         Color(0xFFFBBF24),
         false
@@ -104,7 +101,6 @@ enum class ActivationMode(
         "云端模式",
         "通过 ETS100 云端 API 在线获取作业列表和答案",
         "SYS_READY",
-        "Cloud",
         Icons.Default.Cloud,
         Color(0xFF60A5FA),
         false
@@ -283,6 +279,40 @@ fun FeAppMain() {
             SettingsManager.getSavedActivationMode() ?: ShizukuManager.getCurrentActivationMode()
         )
     }
+    var homeStatusRevision by remember { mutableIntStateOf(0) }
+
+    var readAccessChecking by remember { mutableStateOf(true) }
+    var readAccessIssue by remember { mutableStateOf<String?>(null) }
+
+    // 进入读取页前先做一次统一预检，避免把未激活/未授权状态转化成底层异常。
+    LaunchedEffect(
+        currentMode,
+        accountOnline,
+        shizukuState.isRunning,
+        shizukuState.permissionGranted,
+    ) {
+        readAccessChecking = true
+        readAccessIssue = withContext(Dispatchers.IO) {
+            when {
+                !accountOnline -> "LA Studio 账号服务尚未就绪，请先登录或稍后重试"
+                currentMode == ActivationMode.DEFAULT -> "尚未选择运行模式，请先完成激活配置"
+                currentMode == ActivationMode.CLOUD && !ETS100AuthManager.isLoggedIn(context) ->
+                    "云端模式尚未登录，请先完成云端账号绑定"
+                currentMode != ActivationMode.CLOUD && !PermissionsHelper.hasAllFilesAccess() ->
+                    "缺少文件访问权限，无法读取本地答题数据"
+                currentMode == ActivationMode.SHIZUKU && !shizukuState.isRunning ->
+                    "Shizuku 服务未运行，暂时无法读取本地答题数据"
+                currentMode == ActivationMode.SHIZUKU && !shizukuState.permissionGranted ->
+                    "Shizuku 尚未授权，请先完成 Shizuku 授权"
+                currentMode == ActivationMode.ROOT && !RootManager.isRootAvailable() ->
+                    "Root 权限尚未获取，暂时无法读取本地答题数据"
+                currentMode == ActivationMode.DIRECT_READ && !ZWCHelper.isDirectReadAvailable() ->
+                    "漏洞直读尚未就绪，请先在激活页面测试可用性"
+                else -> null
+            }
+        }
+        readAccessChecking = false
+    }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -356,6 +386,9 @@ fun FeAppMain() {
             predictiveBackExitDirection = predictiveBackExitDirection,
             currentMode = currentMode,
             shizukuState = shizukuState,
+            readAccessChecking = readAccessChecking,
+            readAccessIssue = readAccessIssue,
+            onHomeRefreshRequested = { homeStatusRevision++ },
             onActivationModeChanged = { currentMode = it },
             onSelectRootPage = mainPagerState::handlePageChange,
             onDarkModeChanged = { isDarkMode = it },
@@ -383,6 +416,7 @@ fun FeAppMain() {
                             mode = currentMode,
                             shizukuState = shizukuState,
                             accountState = feAccountState,
+                            refreshRevision = homeStatusRevision,
                             onNavigateToActivation = {
                                 navigator.push(FeRoute.Activation)
                             },
@@ -396,6 +430,8 @@ fun FeAppMain() {
                         1 -> ReadScreen(
                             currentMode = currentMode,
                             accountOnline = accountOnline,
+                            readAccessChecking = readAccessChecking,
+                            readAccessIssue = readAccessIssue,
                             onNavigateToActivation = {
                                 navigator.push(FeRoute.Activation)
                             },
