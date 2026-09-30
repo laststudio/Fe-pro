@@ -954,22 +954,33 @@ object ETS100ApiClient {
     /**
      * Map 转 JSON 字符串
      */
-    private fun Map<String, Any>.toJson(): String {
-        val sb = StringBuilder()
-        sb.append("{")
+    private fun Map<String, Any>.toJson(): String = toJsonObject()
+
+    /**
+     * Serializes nested request maps without unchecked casts. The API request
+     * payloads are assembled from maps at several call sites, so preserving
+     * arbitrary key types here is safer than assuming every nested map is
+     * exactly Map<String, Any>.
+     */
+    private fun Map<*, *>.toJsonObject(): String = buildString {
+        append('{')
         entries.forEachIndexed { index, (key, value) ->
-            if (index > 0) sb.append(",")
-            sb.append("\"$key\":")
-            when (value) {
-                is String -> sb.append("\"${value.escapeJson()}\"")
-                is Number -> sb.append(value)
-                is Boolean -> sb.append(value)
-                is Map<*, *> -> sb.append((value as Map<String, Any>).toJson())
-                else -> sb.append("\"${value.toString().escapeJson()}\"")
-            }
+            if (index > 0) append(',')
+            append('\"')
+            append(key?.toString().orEmpty().escapeJson())
+            append("\":")
+            append(value.toJsonValue())
         }
-        sb.append("}")
-        return sb.toString()
+        append('}')
+    }
+
+    private fun Any?.toJsonValue(): String = when (this) {
+        null -> "null"
+        is String -> "\"${escapeJson()}\""
+        is Number, is Boolean -> toString()
+        is Map<*, *> -> toJsonObject()
+        is Iterable<*> -> joinToString(prefix = "[", postfix = "]") { it.toJsonValue() }
+        else -> "\"${toString().escapeJson()}\""
     }
     
     /**
