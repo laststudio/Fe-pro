@@ -2,7 +2,6 @@ package com.shuaiqiu.fuckets100
 
 import android.app.Application
 import dagger.hilt.android.HiltAndroidApp
-import android.content.Context
 import android.util.Log
 import com.shuaiqiu.fuckets100.core.common.AccountAccess
 import com.shuaiqiu.fuckets100.core.common.AppBuildInfo
@@ -32,27 +31,6 @@ class FeApplication : Application() {
 
     companion object {
         private const val TAG = "FeApplication"
-
-        // Shizuku/Sui 运行时状态改由 platform 层持有，供 core 模块读取。
-        val isSui: Boolean get() = ShizukuRuntimeState.isSui
-        val isShizukuBinderReceived: Boolean get() = ShizukuRuntimeState.isBinderReceived
-        val shizukuUid: Int get() = ShizukuRuntimeState.uid
-        val shizukuVersion: Int get() = ShizukuRuntimeState.version
-
-        // 应用全局上下文
-        lateinit var appCtx: Context
-            private set
-
-        @Volatile
-        private var appInstance: FeApplication? = null
-
-        fun refreshRemoteStatusAfterVerification() {
-            appInstance?.checkRemoteConfig(ignoreVerification = true)
-        }
-
-        fun syncRemoteStatus() {
-            appInstance?.checkRemoteConfig()
-        }
     }
 
     override fun onCreate() {
@@ -60,10 +38,6 @@ class FeApplication : Application() {
 
         // 清理分享缓存文件
         cleanupShareCache()
-
-        // 设置应用全局上下文
-        appCtx = this.applicationContext
-        appInstance = this
 
         // 初始化设置管理器
         SettingsManager.init(this)
@@ -80,7 +54,7 @@ class FeApplication : Application() {
 
         // 初始化Sui (Magisk 模块)
         ShizukuRuntimeState.isSui = Sui.init(BuildConfig.APPLICATION_ID)
-        Log.d(TAG, "Sui initialized: $isSui")
+        Log.d(TAG, "Sui initialized: ${ShizukuRuntimeState.isSui}")
 
         // 设置Shizuku监听器
         setupShizukuListeners()
@@ -88,7 +62,7 @@ class FeApplication : Application() {
         // 检查远程配置
         checkRemoteConfig()
 
-        Log.d(TAG, "FeApplication onCreate | isSui: $isSui")
+        Log.d(TAG, "FeApplication onCreate | isSui: ${ShizukuRuntimeState.isSui}")
     }
 
 
@@ -199,11 +173,11 @@ class FeApplication : Application() {
      */
     fun staticGetRuntimeType(): String {
         return when {
-            isSui -> "Sui (Magisk)"
-            isShizukuBinderReceived -> when (shizukuUid) {
+            ShizukuRuntimeState.isSui -> "Sui (Magisk)"
+            ShizukuRuntimeState.isBinderReceived -> when (ShizukuRuntimeState.uid) {
                 0 -> "Shizuku (Root)"
                 2000 -> "Shizuku (ADB)"
-                else -> "Shizuku (UID: $shizukuUid)"
+                else -> "Shizuku (UID: $ShizukuRuntimeState.uid)"
             }
             else -> "Not Available"
         }

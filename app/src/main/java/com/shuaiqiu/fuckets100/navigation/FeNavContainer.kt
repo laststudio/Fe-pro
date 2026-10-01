@@ -45,7 +45,6 @@ import com.shuaiqiu.fuckets100.feature.settings.AboutScreen
 import com.shuaiqiu.fuckets100.ActivationMode
 import com.shuaiqiu.fuckets100.ChangyanWebLoginActivity
 import com.shuaiqiu.fuckets100.feature.read.AnswerScreen
-import com.shuaiqiu.fuckets100.FeApplication
 import com.shuaiqiu.fuckets100.PredictiveBackAnimation
 import com.shuaiqiu.fuckets100.PredictiveBackExitDirection
 import com.shuaiqiu.fuckets100.SettingsManager
