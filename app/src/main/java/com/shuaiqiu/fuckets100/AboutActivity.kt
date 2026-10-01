@@ -26,7 +26,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
-import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.Info
@@ -66,24 +66,20 @@ class AboutActivity : ComponentActivity() {
                 AboutScreen(
                     onBack = ::finish,
                     onDonate = {
-                        startActivity(MainActivity.createIntent(this, TARGET_DONATE))
+                        startActivity(Intent(this, DonateActivity::class.java))
                     },
                     onLegal = {
-                        startActivity(MainActivity.createIntent(this, TARGET_LEGAL))
+                        startActivity(Intent(this, LegalActivity::class.java))
                     },
                 )
             }
         }
     }
 
-    companion object {
-        private const val TARGET_DONATE = "donate"
-        private const val TARGET_LEGAL = "legal"
-    }
 }
 
 private const val WEBSITE_URL = "https://lastudio.cc"
-private const val REPOSITORY_URL = "https://github.com/qiuqiqiuqid/Fuck_ets100"
+private const val CLOUD_DRIVE_URL = "https://oplist.lastudio.cc/Fe_android"
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -158,11 +154,11 @@ private fun AboutScreen(
                 )
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 AboutLinkRow(
-                    icon = Icons.Default.Code,
-                    title = "官方仓库与发布",
-                    subtitle = "查看版本动态与更新",
+                    icon = Icons.Default.Cloud,
+                    title = "官方网盘",
+                    subtitle = "oplist.lastudio.cc/Fe_android",
                     trailingIcon = Icons.AutoMirrored.Filled.OpenInNew,
-                    onClick = { context.openExternal(REPOSITORY_URL) },
+                    onClick = { context.openExternal(CLOUD_DRIVE_URL) },
                 )
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 AboutLinkRow(

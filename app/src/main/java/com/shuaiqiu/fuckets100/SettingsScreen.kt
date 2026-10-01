@@ -29,7 +29,6 @@ fun SettingsScreen(
     onNavigateActivation: () -> Unit,
     onNavigateGeneralSettings: () -> Unit,
     onNavigateThemeSettings: () -> Unit,
-    onNavigateLegal: () -> Unit,
     onNavigateAccount: () -> Unit,
     accountSession: FeAccountSession?,
 ) {
@@ -149,7 +148,7 @@ fun SettingsScreen(
                     {
                         SettingsSegmentedItem(
                             index = 0,
-                            count = 3,
+                            count = 2,
                             icon = Icons.Default.Info,
                             title = "关于 Fe",
                             supportingText = "应用信息与致谢",
@@ -159,19 +158,7 @@ fun SettingsScreen(
                     {
                         SettingsSegmentedItem(
                             index = 1,
-                            count = 3,
-                            icon = Icons.Default.Gavel,
-                            title = "法律信息与使用守则",
-                            supportingText = "使用前请阅读并遵守",
-                            onClick = {
-                                onNavigateLegal()
-                            },
-                        )
-                    },
-                    {
-                        SettingsSegmentedItem(
-                            index = 2,
-                            count = 3,
+                            count = 2,
                             icon = Icons.AutoMirrored.Filled.Help,
                             title = "访问官网",
                             supportingText = "lastudio.cc",

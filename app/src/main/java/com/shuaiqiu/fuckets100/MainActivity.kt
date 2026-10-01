@@ -455,7 +455,6 @@ fun FeAppMain() {
                             onNavigateActivation = { navigator.push(FeRoute.Activation) },
                             onNavigateGeneralSettings = { navigator.push(FeRoute.GeneralSettings) },
                             onNavigateThemeSettings = { navigator.push(FeRoute.ThemeSettings) },
-                            onNavigateLegal = { navigator.push(FeRoute.Legal) },
                             onNavigateAccount = { navigator.push(FeRoute.Account) },
                              accountSession = feAccountState.cachedSessionOrNull,
                         )

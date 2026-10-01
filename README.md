@@ -34,7 +34,7 @@ Fuck ets100 是一款专门为 e听说（ETS 100）用户打造的答案提取�
 
 ### 第一步：先装上
 
-1. 打开 [releases 页面](https://github.com/qiuqiqiuqid/Fuck_ets100/releases)或[云盘](https://oplist.lastudio.cc/Fe_release)
+1. 打开 [官方网盘](https://oplist.lastudio.cc/Fe_android)
 2. 下载最新版本的 APK
 3. 安装到你的手机上
 4. 打开 Fuck ets100 App

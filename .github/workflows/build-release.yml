@@ -126,7 +126,7 @@ jobs:
           set -euo pipefail
           python scripts/release/extract_changelog.py \
             --version "${{ steps.meta.outputs.version }}" \
-            --apk-url "https://oplist.lastudio.cc/Fe_release" \
+            --apk-url "https://oplist.lastudio.cc/Fe_android" \
             --release-notes release_notes.md
 
       - name: Publish Official Release to Fuck_ets100
@@ -193,7 +193,7 @@ jobs:
           python scripts/release/update_remote_config.py \
             --version-code "${{ steps.meta.outputs.version_code }}" \
             --version-name "${{ steps.meta.outputs.version }}" \
-            --apk-url "https://oplist.lastudio.cc/Fe_release" \
+            --apk-url "https://oplist.lastudio.cc/Fe_android" \
             --message-file release_notes.md \
             --local-config-file config/config.json \
             --source-changelog-file update.md

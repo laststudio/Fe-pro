@@ -63,7 +63,7 @@ jobs:
         id: download
         shell: bash
         env:
-          UPDATE_DOWNLOAD_URL: ${{ vars.UPDATE_DOWNLOAD_URL || 'https://oplist.lastudio.cc/Fe_release' }}
+          UPDATE_DOWNLOAD_URL: ${{ vars.UPDATE_DOWNLOAD_URL || 'https://oplist.lastudio.cc/Fe_android' }}
         run: |
           set -euo pipefail
           apk_url="${UPDATE_DOWNLOAD_URL}"
@@ -383,7 +383,7 @@ jobs:
           {
             echo "新版本发布啦喵~"
             echo "最新版本为${{ needs.build.outputs.version_name }}"
-            echo "前往网盘下载:oplist.lastudio.cc"
+            echo "前往网盘下载:https://oplist.lastudio.cc/Fe_android"
             echo
             echo "更新日志:"
             sed -E '/^##[[:space:]]+/d; /^>[[:space:]]*内部版本号/d; /^[[:space:]]*$/d' current_changelog.md
