@@ -1,4 +1,4 @@
-package com.shuaiqiu.fuckets100
+package com.shuaiqiu.fuckets100.feature.account
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -43,6 +43,9 @@ import com.shuaiqiu.fuckets100.component.material.TonalCard
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
+import com.shuaiqiu.fuckets100.FeAccountApiException
+import com.shuaiqiu.fuckets100.FeAccountManager
+import com.shuaiqiu.fuckets100.FeAccountProfileApi
 /**
  * 云端模式共用的 e听说账号绑定卡片。
  *

@@ -1,4 +1,4 @@
-package com.shuaiqiu.fuckets100
+package com.shuaiqiu.fuckets100.feature.account
 
 import android.app.Activity
 import android.content.Intent
@@ -59,6 +59,10 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
+import com.shuaiqiu.fuckets100.ChangyanWebLoginActivity
+import com.shuaiqiu.fuckets100.ETS100AuthManager
+import com.shuaiqiu.fuckets100.FeAccountApi
+import com.shuaiqiu.fuckets100.FeAccountManager
 private const val ACCOUNT_CENTER_URL = "https://lastudio.cc/account"
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)

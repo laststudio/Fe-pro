@@ -30,6 +30,10 @@ import androidx.navigationevent.compose.rememberNavigationEventState
 import com.materialkolor.PaletteStyle
 import com.materialkolor.dynamiccolor.ColorSpec
 import com.shuaiqiu.fuckets100.feature.settings.ThemeSettingsScreen
+import com.shuaiqiu.fuckets100.feature.account.FeAccountScreen
+import com.shuaiqiu.fuckets100.feature.account.CloudActivationScreen
+import com.shuaiqiu.fuckets100.feature.account.AccountSessionsPage
+import com.shuaiqiu.fuckets100.feature.account.AccountDevicesPage
 import com.shuaiqiu.fuckets100.feature.settings.SettingsScreen
 import com.shuaiqiu.fuckets100.feature.settings.RemoteContent
 import com.shuaiqiu.fuckets100.feature.settings.RemoteContentScreen
@@ -39,12 +43,8 @@ import com.shuaiqiu.fuckets100.feature.settings.DonateScreen
 import com.shuaiqiu.fuckets100.feature.settings.AboutScreen
 import com.shuaiqiu.fuckets100.ActivationMode
 import com.shuaiqiu.fuckets100.ActivationSettingsScreen
-import com.shuaiqiu.fuckets100.AccountDevicesPage
-import com.shuaiqiu.fuckets100.AccountSessionsPage
 import com.shuaiqiu.fuckets100.AnswerScreen
-import com.shuaiqiu.fuckets100.CloudActivationScreen
 import com.shuaiqiu.fuckets100.FeAccountManager
-import com.shuaiqiu.fuckets100.FeAccountScreen
 import com.shuaiqiu.fuckets100.FeApplication
 import com.shuaiqiu.fuckets100.PredictiveBackAnimation
 import com.shuaiqiu.fuckets100.PredictiveBackExitDirection
@@ -194,10 +194,10 @@ fun FeNavContainer(
                     )
                 }
                 entry<FeRoute.AccountDevices> {
-                    AccountDevicesPage(manager = FeAccountManager.get(FeApplication.appCtx), onBack = navigator::pop)
+                    AccountDevicesPage(onBack = navigator::pop)
                 }
                 entry<FeRoute.AccountSessions> {
-                    AccountSessionsPage(manager = FeAccountManager.get(FeApplication.appCtx), onBack = navigator::pop)
+                    AccountSessionsPage(onBack = navigator::pop)
                 }
                 entry<FeRoute.GeneralSettings> { GeneralSettingsScreen(onBack = navigator::pop) }
                 entry<FeRoute.ThemeSettings> {

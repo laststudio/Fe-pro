@@ -1,4 +1,4 @@
-package com.shuaiqiu.fuckets100
+package com.shuaiqiu.fuckets100.feature.account
 
 import android.content.Intent
 import android.graphics.Bitmap
@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -52,6 +53,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.shuaiqiu.fuckets100.component.material.TonalCard
+import com.shuaiqiu.fuckets100.cachedSessionOrNull
+import com.shuaiqiu.fuckets100.R
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -62,28 +65,35 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.atomic.AtomicBoolean
 
+import com.shuaiqiu.fuckets100.AvatarCache
+import com.shuaiqiu.fuckets100.FeAccountApi
+import com.shuaiqiu.fuckets100.FeAccountApiException
+import com.shuaiqiu.fuckets100.FeAccountGateState
+import com.shuaiqiu.fuckets100.FeAccountManager
+import com.shuaiqiu.fuckets100.FeAccountProfileApi
+import com.shuaiqiu.fuckets100.FeCapSolver
+import com.shuaiqiu.fuckets100.SettingsListItem
 @Composable
 fun FeAccountGate(
+    viewModel: AccountViewModel = hiltViewModel(),
     content: @Composable () -> Unit,
 ) {
-    val context = LocalContext.current
-    val manager = remember { FeAccountManager.get(context) }
     val lifecycleOwner = LocalLifecycleOwner.current
-    LaunchedEffect(manager) { manager.checkGate() }
-    LaunchedEffect(manager, lifecycleOwner) {
+    LaunchedEffect(viewModel) { viewModel.checkGate() }
+    LaunchedEffect(viewModel, lifecycleOwner) {
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-            val resumedState = manager.gateState.value
+            val resumedState = viewModel.gateState.value
             if (resumedState is FeAccountGateState.Ready ||
                 resumedState is FeAccountGateState.Offline
             ) {
-                manager.revalidateOnline()
+                viewModel.revalidateOnline()
             }
             while (true) {
                 delay(ONLINE_REVALIDATION_INTERVAL_MS)
-                if (manager.gateState.value is FeAccountGateState.Ready ||
-                    manager.gateState.value is FeAccountGateState.Offline
+                if (viewModel.gateState.value is FeAccountGateState.Ready ||
+                    viewModel.gateState.value is FeAccountGateState.Offline
                 ) {
-                    manager.revalidateOnline()
+                    viewModel.revalidateOnline()
                 }
             }
         }
@@ -393,9 +403,10 @@ fun FeAccountScreen(
     onNavigateToDevices: () -> Unit,
     onNavigateToSessions: () -> Unit,
     onLogoutNavigate: () -> Unit,
+    viewModel: AccountViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
-    val manager = remember { FeAccountManager.get(context) }
+    val manager = viewModel.manager
     val state by manager.gateState.collectAsState()
     val session = state.cachedSessionOrNull
     val scope = rememberCoroutineScope()
@@ -1019,7 +1030,10 @@ private fun ChangePasswordDialog(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun AccountDevicesPage(manager: FeAccountManager, onBack: () -> Unit) {
+internal fun AccountDevicesPage(
+    manager: FeAccountManager = hiltViewModel<AccountViewModel>().manager,
+    onBack: () -> Unit,
+) {
     val scope = rememberCoroutineScope()
     var devices by remember { mutableStateOf<List<JSONObject>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -1154,7 +1168,10 @@ private fun AccountDeviceCard(device: JSONObject, onRevoke: () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun AccountSessionsPage(manager: FeAccountManager, onBack: () -> Unit) {
+internal fun AccountSessionsPage(
+    manager: FeAccountManager = hiltViewModel<AccountViewModel>().manager,
+    onBack: () -> Unit,
+) {
     val scope = rememberCoroutineScope()
     var sessions by remember { mutableStateOf<List<JSONObject>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }

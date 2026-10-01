@@ -39,6 +39,8 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import dagger.hilt.android.AndroidEntryPoint
 import com.shuaiqiu.fuckets100.component.material.rememberFeMainPagerState
+import com.shuaiqiu.fuckets100.feature.onboarding.OnboardingScreen
+import com.shuaiqiu.fuckets100.feature.account.FeAccountGate
 import com.shuaiqiu.fuckets100.feature.settings.AnnouncementDialog
 import com.shuaiqiu.fuckets100.feature.settings.VerificationDialog
 import com.shuaiqiu.fuckets100.feature.settings.UpdateDialog

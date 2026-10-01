@@ -1,4 +1,4 @@
-package com.shuaiqiu.fuckets100
+package com.shuaiqiu.fuckets100.feature.onboarding
 
 import android.app.Activity
 import android.content.Context
@@ -59,11 +59,29 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.shuaiqiu.fuckets100.component.material.TonalCard
+import com.shuaiqiu.fuckets100.R
+import com.shuaiqiu.fuckets100.cachedSessionOrNull
+import com.shuaiqiu.fuckets100.RighteousFont
+import com.shuaiqiu.fuckets100.feature.account.InAppRegisterScreen
+import com.shuaiqiu.fuckets100.feature.account.EtingshuoBindingCard
+import com.shuaiqiu.fuckets100.feature.account.CapVerificationDialog
 import com.shuaiqiu.fuckets100.feature.settings.LegalContent
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+import com.shuaiqiu.fuckets100.ActivationMode
+import com.shuaiqiu.fuckets100.ChangyanWebLoginActivity
+import com.shuaiqiu.fuckets100.FeAccountApiException
+import com.shuaiqiu.fuckets100.FeAccountManager
+import com.shuaiqiu.fuckets100.LegalAgreementRepository
+import com.shuaiqiu.fuckets100.PermissionsHelper
+import com.shuaiqiu.fuckets100.RootManager
+import com.shuaiqiu.fuckets100.SettingsManager
+import com.shuaiqiu.fuckets100.ShizukuManager
+import com.shuaiqiu.fuckets100.ShizukuState
+import com.shuaiqiu.fuckets100.rememberShizukuState
 /**
  * 软件初始化冷启动引导向导 (Material 3 Expressive 风格)
  * 4 步流程：1.欢迎与协议 -> 2.账号登录 -> 3.模式与按需权限 -> 4.完成
@@ -72,20 +90,20 @@ import kotlinx.coroutines.launch
 @Composable
 fun OnboardingScreen(
     onFinished: () -> Unit,
+    viewModel: OnboardingViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
     val activity = context as? Activity
-    val scope = rememberCoroutineScope()
-    val accountManager = remember { FeAccountManager.get(context) }
+    val uiState by viewModel.uiState.collectAsState()
+    val currentStep = uiState.currentStep
+    val selectedMode = uiState.selectedMode
+    val accountManager = viewModel.accountManager
     val shizukuState = rememberShizukuState()
-
-    var currentStep by rememberSaveable { mutableIntStateOf(0) }
-    var selectedMode by rememberSaveable { mutableStateOf(ActivationMode.CLOUD) }
 
     // 处理系统返回键：第一步退出应用，后几步回退上一向导页
     BackHandler {
         if (currentStep > 0) {
-            currentStep -= 1
+            viewModel.back()
         } else {
             activity?.finish()
         }
@@ -98,7 +116,7 @@ fun OnboardingScreen(
                 currentStep = currentStep,
                 totalSteps = 4,
                 onBack = {
-                    if (currentStep > 0) currentStep -= 1
+                    if (currentStep > 0) viewModel.back()
                     else activity?.finish()
                 },
             )
@@ -122,30 +140,22 @@ fun OnboardingScreen(
         ) { step ->
             when (step) {
                 0 -> WelcomeStep(
-                    onNext = {
-                        SettingsManager.saveLegalAccepted(true)
-                        currentStep = 1
-                    },
+                    onNext = viewModel::acceptWelcomeAndContinue,
                 )
                 1 -> AccountStep(
                     accountManager = accountManager,
-                    onNext = { currentStep = 2 },
+                    onNext = viewModel::continueFromAccount,
                 )
                 2 -> ModeAndPermissionStep(
                     initialMode = selectedMode,
                     shizukuState = shizukuState,
-                    onNext = { mode ->
-                        selectedMode = mode
-                        currentStep = 3
-                    },
+                    onNext = viewModel::selectModeAndContinue,
                 )
                 3 -> if (selectedMode == ActivationMode.CLOUD) {
                     CloudBindingStep(
                         accountManager = accountManager,
                         onFinish = {
-                            SettingsManager.saveActivationMode(selectedMode)
-                            SettingsManager.saveLegalAccepted(true)
-                            SettingsManager.saveOnboardingCompleted(true)
+                            viewModel.completeOnboarding()
                             onFinished()
                         },
                     )
@@ -153,9 +163,7 @@ fun OnboardingScreen(
                     FinishStep(
                         selectedMode = selectedMode,
                         onFinish = {
-                            SettingsManager.saveActivationMode(selectedMode)
-                            SettingsManager.saveLegalAccepted(true)
-                            SettingsManager.saveOnboardingCompleted(true)
+                            viewModel.completeOnboarding()
                             onFinished()
                         },
                     )
