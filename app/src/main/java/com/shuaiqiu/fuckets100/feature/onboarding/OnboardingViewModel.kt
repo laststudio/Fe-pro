@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.shuaiqiu.fuckets100.ActivationMode
 import com.shuaiqiu.fuckets100.FeAccountManager
+import com.shuaiqiu.fuckets100.LegalAgreement
 import com.shuaiqiu.fuckets100.LegalAgreementRepository
 import com.shuaiqiu.fuckets100.SettingsManager
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -26,6 +27,7 @@ class OnboardingViewModel @Inject constructor(
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(OnboardingUiState())
     val uiState: StateFlow<OnboardingUiState> = _uiState.asStateFlow()
+    val currentAgreement: StateFlow<LegalAgreement> = legalAgreementRepository.currentAgreement
 
     fun refreshLegalAgreement() {
         viewModelScope.launch { legalAgreementRepository.refresh() }

@@ -42,6 +42,7 @@ kotlin {
 
 dependencies {
     implementation(project(":core:common"))
+    implementation(project(":feature:shared"))
     implementation(project(":core:model"))
     implementation(project(":core:settings"))
     implementation(project(":core:designsystem"))

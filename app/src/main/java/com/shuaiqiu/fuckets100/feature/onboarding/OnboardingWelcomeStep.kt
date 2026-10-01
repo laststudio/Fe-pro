@@ -31,8 +31,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.shuaiqiu.fuckets100.R
+import com.shuaiqiu.fuckets100.LegalAgreement
 import com.shuaiqiu.fuckets100.core.designsystem.RighteousFont
-import com.shuaiqiu.fuckets100.feature.settings.LegalContent
+import com.shuaiqiu.fuckets100.feature.shared.LegalContent
 import kotlinx.coroutines.launch
 
 import com.shuaiqiu.fuckets100.SettingsManager
@@ -45,6 +46,7 @@ import com.shuaiqiu.fuckets100.SettingsManager
 internal fun WelcomeStep(
     onNext: () -> Unit,
     onRefreshLegalAgreement: () -> Unit,
+    currentAgreement: LegalAgreement,
 ) {
     val context = LocalContext.current
     var entered by remember { mutableStateOf(false) }
@@ -270,7 +272,10 @@ internal fun WelcomeStep(
                         .weight(1f)
                         .verticalScroll(rememberScrollState()),
                 ) {
-                    LegalContent(showHeader = false)
+                    LegalContent(
+                        showHeader = false,
+                        agreement = currentAgreement,
+                    )
                 }
                 Spacer(Modifier.height(12.dp))
                 Button(

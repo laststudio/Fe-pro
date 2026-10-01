@@ -1,4 +1,4 @@
-package com.shuaiqiu.fuckets100.feature.account
+package com.shuaiqiu.fuckets100.feature.shared
 
 import android.graphics.Bitmap
 import android.net.Uri
@@ -21,7 +21,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun InAppRegisterScreen(
+fun InAppRegisterScreen(
     onBack: () -> Unit,
     onRegistered: () -> Unit = onBack,
 ) {
@@ -124,7 +124,7 @@ internal fun InAppRegisterScreen(
     }
 }
 
-internal fun isTrustedAuthHost(uri: Uri): Boolean =
+fun isTrustedAuthHost(uri: Uri): Boolean =
     uri.scheme == "https" && uri.host in setOf("auth.lastudio.cc", "lastudio.cc")
 
 /**
@@ -132,7 +132,7 @@ internal fun isTrustedAuthHost(uri: Uri): Boolean =
  * 这是注册完成信号，不是普通的官网链接；必须只匹配主框架且限制到明确的官网入口，
  * 避免用户在 WebView 中点击其他官网链接时误关闭注册页。
  */
-internal fun isRegistrationCompletionUrl(uri: Uri): Boolean =
+fun isRegistrationCompletionUrl(uri: Uri): Boolean =
     uri.scheme == "https" &&
         uri.host == "lastudio.cc" &&
         (uri.path.isNullOrBlank() || uri.path == "/")

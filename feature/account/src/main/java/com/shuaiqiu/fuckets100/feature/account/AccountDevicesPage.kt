@@ -1,5 +1,7 @@
 package com.shuaiqiu.fuckets100.feature.account
 
+import com.shuaiqiu.fuckets100.feature.shared.AccountViewModel
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -20,24 +22,25 @@ import com.shuaiqiu.fuckets100.FeAccountManager
 import com.shuaiqiu.fuckets100.FeAccountProfileApi
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun AccountSessionsPage(
+fun AccountDevicesPage(
     manager: FeAccountManager = hiltViewModel<AccountViewModel>().manager,
     onBack: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
-    var sessions by remember { mutableStateOf<List<JSONObject>?>(null) }
+    var devices by remember { mutableStateOf<List<JSONObject>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
+    var pendingRevoke by remember { mutableStateOf<JSONObject?>(null) }
 
     fun refresh(force: Boolean = false) {
         scope.launch {
             error = null
-            runCatching { manager.accountSessions(force = force) }
-                .onSuccess { sessions = it }
+            runCatching { manager.accountDevices(force = force) }
+                .onSuccess { devices = it }
                 .onFailure {
                     if (it is FeAccountApiException && it.error.statusCode == 401) {
                         manager.revalidateOnline()
                     } else {
-                        error = it.message ?: "加载会话失败"
+                        error = it.message ?: "加载设备失败"
                     }
                 }
         }
@@ -48,7 +51,7 @@ internal fun AccountSessionsPage(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("登录会话") },
+                title = { Text("我的设备") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
@@ -56,14 +59,14 @@ internal fun AccountSessionsPage(
                 },
                 actions = {
                     IconButton(onClick = { refresh(force = true) }) {
-                        Icon(Icons.Default.Refresh, "刷新会话")
+                        Icon(Icons.Default.Refresh, "刷新设备")
                     }
                 },
             )
         },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(20.dp)) {
-            if (sessions == null && error == null) {
+            if (devices == null && error == null) {
                 Box(Modifier.fillMaxWidth().padding(top = 80.dp), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 }
@@ -72,30 +75,14 @@ internal fun AccountSessionsPage(
                     Text(it, color = MaterialTheme.colorScheme.error)
                     Spacer(Modifier.height(12.dp))
                 }
-                val list = sessions.orEmpty()
+                val list = devices.orEmpty()
                 if (list.isEmpty()) {
-                    Text("暂无会话", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("暂无设备", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
-                    list.forEach { session ->
-                        AccountSessionCard(
-                            session = session,
-                            onRevoke = {
-                                val id = session.optInt("id", -1)
-                                scope.launch {
-                                    runCatching { FeAccountProfileApi().revokeSession(manager.requireAccessToken(), id) }
-                                        .onSuccess {
-                                            manager.invalidateAccountData()
-                                            refresh(force = true)
-                                        }
-                                        .onFailure {
-                                            if (it is FeAccountApiException && it.error.statusCode == 401) {
-                                                manager.revalidateOnline()
-                                            } else {
-                                                error = it.message ?: "下线失败"
-                                            }
-                                        }
-                                }
-                            },
+                    list.forEach { device ->
+                        AccountDeviceCard(
+                            device = device,
+                            onRevoke = { pendingRevoke = device },
                         )
                         Spacer(Modifier.height(12.dp))
                     }
@@ -103,10 +90,41 @@ internal fun AccountSessionsPage(
             }
         }
     }
+
+    pendingRevoke?.let { device ->
+        AlertDialog(
+            onDismissRequest = { pendingRevoke = null },
+            title = { Text("下线设备？") },
+            text = { Text("将下线「${device.optString("display_name", "未知设备")}」的全部登录会话。") },
+            confirmButton = {
+                TextButton(onClick = {
+                    val id = device.optInt("id", -1)
+                    pendingRevoke = null
+                    scope.launch {
+                    runCatching { FeAccountProfileApi().revokeDevice(manager.requireAccessToken(), id) }
+                            .onSuccess {
+                                manager.invalidateAccountData()
+                                refresh(force = true)
+                            }
+                            .onFailure {
+                                if (it is FeAccountApiException && it.error.statusCode == 401) {
+                                    manager.revalidateOnline()
+                                } else {
+                                    error = it.message ?: "下线失败"
+                                }
+                            }
+                    }
+                }) { Text("下线") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingRevoke = null }) { Text("取消") }
+            },
+        )
+    }
 }
 
 @Composable
-internal fun AccountSessionCard(session: JSONObject, onRevoke: () -> Unit) {
+fun AccountDeviceCard(device: JSONObject, onRevoke: () -> Unit) {
     OutlinedCard(modifier = Modifier.fillMaxWidth()) {
         Row(
             Modifier.fillMaxWidth().padding(16.dp),
@@ -114,26 +132,26 @@ internal fun AccountSessionCard(session: JSONObject, onRevoke: () -> Unit) {
         ) {
             Column(Modifier.weight(1f)) {
                 Text(
-                    session.optString("user_agent", "未知客户端").take(40),
+                    device.optString("display_name", "未知设备"),
                     style = MaterialTheme.typography.titleSmall,
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "版本 v${session.optInt("app_version_code", 0)} · ${session.optString("client_ip", "?")}",
+                    "${device.optString("platform", "android")} · ${device.optString("device_id", "")}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
-                    if (session.optString("status") == "active") "当前在线" else "已下线",
+                    "状态：${if (device.optString("status") == "active") "在线" else "已下线"}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = if (session.optString("status") == "active") {
+                    color = if (device.optString("status") == "active") {
                         MaterialTheme.colorScheme.primary
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant
                     },
                 )
             }
-            if (session.optString("status") == "active") {
+            if (device.optString("status") == "active") {
                 TextButton(onClick = onRevoke) { Text("下线") }
             }
         }

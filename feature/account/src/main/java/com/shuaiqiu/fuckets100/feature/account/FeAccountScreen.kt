@@ -1,5 +1,9 @@
 package com.shuaiqiu.fuckets100.feature.account
 
+import com.shuaiqiu.fuckets100.feature.shared.AccountInitialAvatar
+import com.shuaiqiu.fuckets100.feature.shared.AccountViewModel
+import com.shuaiqiu.fuckets100.feature.shared.ACCOUNT_CENTER_URL
+
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast

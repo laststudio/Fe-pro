@@ -1,4 +1,4 @@
-package com.shuaiqiu.fuckets100.feature.account
+package com.shuaiqiu.fuckets100.feature.shared
 
 import android.net.Uri
 import androidx.compose.foundation.Image
@@ -77,4 +77,4 @@ fun AccountInitialAvatar(
     }
 }
 
-internal const val AVATAR_TIMEOUT_MS = 5_000
+const val AVATAR_TIMEOUT_MS = 5_000

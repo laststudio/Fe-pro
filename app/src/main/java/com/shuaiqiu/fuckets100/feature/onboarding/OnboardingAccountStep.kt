@@ -23,8 +23,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.shuaiqiu.fuckets100.core.designsystem.TonalCard
 import com.shuaiqiu.fuckets100.cachedSessionOrNull
-import com.shuaiqiu.fuckets100.feature.account.InAppRegisterScreen
-import com.shuaiqiu.fuckets100.feature.account.CapVerificationDialog
+import com.shuaiqiu.fuckets100.feature.shared.InAppRegisterScreen
+import com.shuaiqiu.fuckets100.feature.shared.CapVerificationDialog
 import kotlinx.coroutines.launch
 
 import com.shuaiqiu.fuckets100.FeAccountApiException

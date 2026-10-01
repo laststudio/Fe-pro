@@ -43,6 +43,7 @@ import com.shuaiqiu.fuckets100.feature.settings.GeneralSettingsScreen
 import com.shuaiqiu.fuckets100.feature.settings.DonateScreen
 import com.shuaiqiu.fuckets100.feature.settings.AboutScreen
 import com.shuaiqiu.fuckets100.ActivationMode
+import com.shuaiqiu.fuckets100.ChangyanWebLoginActivity
 import com.shuaiqiu.fuckets100.feature.read.AnswerScreen
 import com.shuaiqiu.fuckets100.FeApplication
 import com.shuaiqiu.fuckets100.PredictiveBackAnimation
@@ -173,6 +174,9 @@ fun FeNavContainer(
                 entry<FeRoute.CloudActivation> {
                     CloudActivationScreen(
                         onBack = navigator::pop,
+                        createChangyanLoginIntent = { ctx ->
+                            ChangyanWebLoginActivity.createIntent(ctx)
+                        },
                         onLoginSuccess = {
                             SettingsManager.saveActivationMode(ActivationMode.CLOUD)
                             onActivationModeChanged(ActivationMode.CLOUD)

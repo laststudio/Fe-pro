@@ -1,5 +1,9 @@
 package com.shuaiqiu.fuckets100.feature.account
 
+import com.shuaiqiu.fuckets100.feature.shared.AccountViewModel
+import com.shuaiqiu.fuckets100.feature.shared.EtingshuoBindingCard
+import com.shuaiqiu.fuckets100.feature.shared.ACCOUNT_CENTER_URL
+
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
@@ -60,7 +64,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
-import com.shuaiqiu.fuckets100.ChangyanWebLoginActivity
 import com.shuaiqiu.fuckets100.ETS100AuthManager
 import com.shuaiqiu.fuckets100.FeAccountApi
 import com.shuaiqiu.fuckets100.FeAccountManager
@@ -70,6 +73,7 @@ import com.shuaiqiu.fuckets100.FeAccountManager
 fun CloudActivationScreen(
     onBack: () -> Unit,
     onLoginSuccess: () -> Unit,
+    createChangyanLoginIntent: (android.content.Context) -> Intent,
     accountManager: FeAccountManager = hiltViewModel<AccountViewModel>().manager,
 ) {
     val context = LocalContext.current
@@ -181,7 +185,7 @@ fun CloudActivationScreen(
                     context.startActivity(intent)
                 },
                 onChangyanLogin = {
-                    changyanLoginLauncher.launch(ChangyanWebLoginActivity.createIntent(context))
+                    changyanLoginLauncher.launch(createChangyanLoginIntent(context))
                 },
             )
             TonalCard(

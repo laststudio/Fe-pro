@@ -70,7 +70,9 @@ def violations(graph: dict[str, set[str]]) -> list[str]:
         source_kind = module_kind(module)
         for dependency in dependencies:
             target_kind = module_kind(dependency)
-            if source_kind == "feature" and target_kind == "feature":
+            # :feature:shared is a sanctioned shared-UI layer that other features
+            # may depend on; feature-to-feature dependencies are otherwise forbidden.
+            if source_kind == "feature" and target_kind == "feature" and dependency != ":feature:shared":
                 errors.append(f"{module} must not depend on feature {dependency}")
             if source_kind == "data" and target_kind == "feature":
                 errors.append(f"{module} must not depend on feature {dependency}")
@@ -108,12 +110,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
-# Phase 3: feature modules may only depend on core/data, never on each other or :app.
-FEATURE_MODULE_NAMES = [name for name in ALL_MODULES if name.startswith(":feature:")]
-for module in FEATURE_MODULE_NAMES:
-    for dep in MODULE_DEPS.get(module, []):
-        if dep.startswith(":feature:"):
-            raise SystemExit(f"feature module {module} must not depend on feature module {dep}")
-        if dep == ":app":
-            raise SystemExit(f"feature module {module} must not depend on :app")

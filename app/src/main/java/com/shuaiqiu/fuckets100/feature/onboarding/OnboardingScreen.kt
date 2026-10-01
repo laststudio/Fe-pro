@@ -78,6 +78,7 @@ fun OnboardingScreen(
                 0 -> WelcomeStep(
                     onNext = viewModel::acceptWelcomeAndContinue,
                     onRefreshLegalAgreement = viewModel::refreshLegalAgreement,
+                    currentAgreement = viewModel.currentAgreement.collectAsState().value,
                 )
                 1 -> AccountStep(
                     accountManager = accountManager,

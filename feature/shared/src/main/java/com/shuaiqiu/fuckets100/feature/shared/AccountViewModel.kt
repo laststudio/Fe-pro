@@ -1,4 +1,4 @@
-package com.shuaiqiu.fuckets100.feature.account
+package com.shuaiqiu.fuckets100.feature.shared
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope

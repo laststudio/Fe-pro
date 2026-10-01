@@ -1,4 +1,4 @@
-package com.shuaiqiu.fuckets100.feature.account
+package com.shuaiqiu.fuckets100.feature.shared
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -22,7 +22,7 @@ import kotlinx.coroutines.withContext
 
 import com.shuaiqiu.fuckets100.FeCapSolver
 @Composable
-internal fun CapVerificationDialog(
+fun CapVerificationDialog(
     onDismiss: () -> Unit,
     onToken: (String) -> Unit,
 ) {

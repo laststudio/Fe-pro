@@ -1,5 +1,8 @@
 package com.shuaiqiu.fuckets100.feature.account
 
+import com.shuaiqiu.fuckets100.feature.shared.CapVerificationDialog
+import com.shuaiqiu.fuckets100.feature.shared.InAppRegisterScreen
+
 import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -24,7 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import com.shuaiqiu.fuckets100.R
+import com.shuaiqiu.fuckets100.feature.account.R
 import kotlinx.coroutines.launch
 
 import com.shuaiqiu.fuckets100.FeAccountApiException

@@ -1,4 +1,4 @@
-package com.shuaiqiu.fuckets100.feature.account
+package com.shuaiqiu.fuckets100.feature.shared
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -53,7 +53,7 @@ import com.shuaiqiu.fuckets100.FeAccountProfileApi
  * 绑定接口仍由 LA Studio 后端完成，但用户不再需要先跳到官网个人中心寻找入口。
  */
 @Composable
-internal fun EtingshuoBindingCard(
+fun EtingshuoBindingCard(
     manager: FeAccountManager,
     modifier: Modifier = Modifier,
     onBound: () -> Unit = {},

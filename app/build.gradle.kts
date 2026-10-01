@@ -122,6 +122,8 @@ dependencies {
     implementation(project(":feature:settings"))
     implementation(project(":feature:activation"))
     implementation(project(":feature:read"))
+    implementation(project(":feature:account"))
+    implementation(project(":feature:shared"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
