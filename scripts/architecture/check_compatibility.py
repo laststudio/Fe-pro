@@ -40,10 +40,10 @@ def main() -> int:
             errors.append(error)
 
     sources = {
-        "app/src/main/java/com/shuaiqiu/fuckets100/SettingsManager.kt": [
+        "core/settings/src/main/java/com/shuaiqiu/fuckets100/SettingsManager.kt": [
             '"fe_settings"',
         ],
-        "app/src/main/java/com/shuaiqiu/fuckets100/ThemeManager.kt": [
+        "core/settings/src/main/java/com/shuaiqiu/fuckets100/ThemeManager.kt": [
             '"fe_settings"', '"app_theme"', '"dark_mode"', '"auto_dark_mode"',
             '"dynamic_color"', '"palette_style"', '"color_spec"', '"amoled"', '"key_color"',
         ],

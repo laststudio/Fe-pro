@@ -26,5 +26,7 @@ dependencyResolutionManagement {
 rootProject.name = "Fe"
 include(":app")
 include(":core:common")
+include(":core:model")
 include(":core:designsystem")
+include(":core:settings")
 include(":baselineprofile")
