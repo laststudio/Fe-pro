@@ -174,16 +174,16 @@ fun ReadScreen(
             if (CloudHomeworkState.homeworkListsByStatus.isEmpty() &&
                 CloudHomeworkState.downloadedPapers.isEmpty()
             ) {
-                val validDownloadedPapers = snapshot.downloadedPapers.filterValues { papers ->
-                    papers.isNotEmpty() && papers.all { it.source is PaperSource.Cloud }
-                }
+                val (validDownloadedPapers, validHomeworkNames) = ReadDerivedState.sanitizeDownloadedPapers(
+                    downloadedPapers = snapshot.downloadedPapers,
+                    downloadedHomeworkNames = snapshot.downloadedHomeworkNames,
+                )
                 CloudHomeworkState.selectedStatus = snapshot.selectedStatus
                 CloudHomeworkState.selectedCategory = snapshot.selectedCategory
                 CloudHomeworkState.homeworkListsByStatus = snapshot.homeworkListsByStatus
                 CloudHomeworkState.cloudBaseUrl = snapshot.cloudBaseUrl
                 CloudHomeworkState.downloadedPapers = validDownloadedPapers
-                CloudHomeworkState.downloadedHomeworkNames =
-                    snapshot.downloadedHomeworkNames.intersect(validDownloadedPapers.keys)
+                CloudHomeworkState.downloadedHomeworkNames = validHomeworkNames
                 CloudHomeworkState.failedCloudHomeworks = snapshot.failedCloudHomeworks
             }
         }
@@ -272,44 +272,14 @@ fun ReadScreen(
 
     // 宝贝新增：云端作业占位符列表喵~ 支持当前、历史及词汇PK三类视图
     val homeworkList by remember {
-        derivedStateOf {
-            when (selectedCloudCategory) {
-                CloudHomeworkState.CATEGORY_CURRENT ->
-                    homeworkListsByStatus[CloudHomeworkState.STATUS_CURRENT].orEmpty()
-                CloudHomeworkState.CATEGORY_HISTORY ->
-                    homeworkListsByStatus[CloudHomeworkState.STATUS_HISTORY].orEmpty()
-                CloudHomeworkState.CATEGORY_VOCAB_PK -> {
-                    val allLoaded = (homeworkListsByStatus[CloudHomeworkState.STATUS_CURRENT].orEmpty() +
-                        homeworkListsByStatus[CloudHomeworkState.STATUS_HISTORY].orEmpty())
-                        .distinctBy { it.id.ifBlank { it.name } }
-                    allLoaded.filter { it.pk == 1 || it.setType == 6 }
-                }
-                else -> homeworkListsByStatus[CloudHomeworkState.STATUS_CURRENT].orEmpty()
-            }
-        }
+        derivedStateOf { ReadDerivedState.homeworkList(selectedCloudCategory, homeworkListsByStatus) }
     }
     val selectedCloudHomeworkLabel by remember {
-        derivedStateOf {
-            when (selectedCloudCategory) {
-                CloudHomeworkState.CATEGORY_CURRENT -> "当前作业"
-                CloudHomeworkState.CATEGORY_HISTORY -> "历史作业"
-                CloudHomeworkState.CATEGORY_VOCAB_PK -> "词汇PK"
-                else -> "当前作业"
-            }
-        }
+        derivedStateOf { ReadDerivedState.categoryLabel(selectedCloudCategory) }
     }
     val isCurrentCategoryLoaded by remember {
         derivedStateOf {
-            when (selectedCloudCategory) {
-                CloudHomeworkState.CATEGORY_CURRENT ->
-                    homeworkListsByStatus.containsKey(CloudHomeworkState.STATUS_CURRENT)
-                CloudHomeworkState.CATEGORY_HISTORY ->
-                    homeworkListsByStatus.containsKey(CloudHomeworkState.STATUS_HISTORY)
-                CloudHomeworkState.CATEGORY_VOCAB_PK ->
-                    homeworkListsByStatus.containsKey(CloudHomeworkState.STATUS_CURRENT) ||
-                    homeworkListsByStatus.containsKey(CloudHomeworkState.STATUS_HISTORY)
-                else -> false
-            }
+            ReadDerivedState.isCategoryLoaded(selectedCloudCategory, homeworkListsByStatus)
         }
     }
     val cloudHomeworkPlaceholders by remember {
@@ -320,7 +290,7 @@ fun ReadScreen(
     val loadedLocalSectionCount by remember { derivedStateOf { papers.totalSectionCount() } }
     val loadedLocalQuestionCount by remember { derivedStateOf { papers.totalQuestionCount() } }
     val downloadedCloudPapers by remember {
-        derivedStateOf { downloadedPapers.values.flatten() }
+        derivedStateOf { ReadDerivedState.downloadedCloudPapers(downloadedPapers) }
     }
     val downloadedCloudQuestionCount by remember {
         derivedStateOf { downloadedCloudPapers.totalQuestionCount() }
