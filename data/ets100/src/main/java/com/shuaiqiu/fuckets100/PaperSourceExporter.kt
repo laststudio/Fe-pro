@@ -124,7 +124,7 @@ object PaperSourceExporter {
         source: PaperSource.Cloud
     ): Inspection = withContext(Dispatchers.IO) {
         val cacheDir = cloudCacheDirectory(context, source).apply { mkdirs() }
-        val collisions = cloudFileNameCollisions(source)
+        val collisions = ets100CloudFileNameCollisions(source)
         source.contents.distinctBy { it.url }.forEach { content ->
             val fileName = cloudFileName(content.url)
             if (fileName.isBlank() || fileName in collisions) return@forEach
@@ -165,12 +165,12 @@ object PaperSourceExporter {
         try {
             ZipOutputStream(FileOutputStream(stagingFile).buffered()).use { zip ->
                 when (source) {
-                    is PaperSource.Local -> writeLocalSources(context, source, zip)
-                    is PaperSource.Cloud -> writeCloudSources(context, source, zip)
+                    is PaperSource.Local -> ets100WriteLocalSources(context, source, zip)
+                    is PaperSource.Cloud -> ets100WriteCloudSources(context, source, zip)
                 }
-                writeTextEntry(zip, "导出说明.txt", buildReadme(paper, source, inspection))
+                ets100WriteTextEntry(zip, "导出说明.txt", buildLocalSourceReadme(paper, source, inspection))
             }
-            publishToDownloads(context, stagingFile, fileName).let { uri ->
+            ets100PublishToDownloads(context, stagingFile, fileName).let { uri ->
                 ExportResult(uri, fileName, inspection.missing + inspection.conflicts)
             }
         } finally {
@@ -205,13 +205,13 @@ object PaperSourceExporter {
         val dataFiles = mutableListOf<LocalDirectoryFile>()
         val resourceDirectories = mutableListOf<LocalResourceDirectory>()
         val skipped = mutableListOf<String>()
-        collectLocalDataFiles(
+        ets100CollectLocalDataFiles(
             reader = reader,
             sourcePath = dataPath,
             files = dataFiles,
             skipped = skipped
         )
-        collectLocalResourceDirectories(
+        ets100CollectLocalResourceDirectories(
             reader = reader,
             sourcePath = resourcePath,
             directories = resourceDirectories,
@@ -245,15 +245,15 @@ object PaperSourceExporter {
                     writeStagedLocalSources(localStageDir, inspection, zip)
                 } else {
                     inspection.dataFiles.forEach { file ->
-                        writeStreamEntry(zip, file.archivePath) { reader.openInputStream(file.sourcePath) }
+                        ets100WriteStreamEntry(zip, file.archivePath) { reader.openInputStream(file.sourcePath) }
                     }
                     inspection.resourceDirectories.forEach { directory ->
-                        writeDirectory(reader, directory.sourcePath, "resource/${directory.name}/", zip)
+                        ets100WriteDirectory(reader, directory.sourcePath, "resource/${directory.name}/", zip)
                     }
                 }
-                writeTextEntry(zip, "导出说明.txt", buildLocalDirectoryReadme(inspection))
+                ets100WriteTextEntry(zip, "导出说明.txt", buildLocalDirectoryReadme(inspection))
             }
-            LocalDirectoryExportResult(publishToDownloads(context, stagingFile, fileName), fileName)
+            LocalDirectoryExportResult(ets100PublishToDownloads(context, stagingFile, fileName), fileName)
         } finally {
             stagingFile.delete()
             localStageDir.deleteRecursively()
@@ -274,7 +274,7 @@ object PaperSourceExporter {
         if (!rootIsSafe) {
             skipped += "cloud_homework（缓存根目录无效）"
         } else if (root.isDirectory) {
-            collectCloudDirectoryFiles(root, root, files, skipped)
+            ets100CollectCloudDirectoryFiles(root, root, files, skipped)
         }
         CloudDirectoryInspection(
             root = root,
@@ -308,11 +308,11 @@ object PaperSourceExporter {
                     check(canonicalSource.isFile && canonicalSource.canRead()) { "缓存文件已失效" }
                     writtenBytes += canonicalSource.length()
                     check(writtenBytes <= LOCAL_DIRECTORY_EXPORT_MAX_BYTES) { "云端缓存总大小超过 150 MiB" }
-                    writeStreamEntry(zip, file.archivePath) { FileInputStream(canonicalSource) }
+                    ets100WriteStreamEntry(zip, file.archivePath) { FileInputStream(canonicalSource) }
                 }
-                writeTextEntry(zip, "导出说明.txt", buildCloudDirectoryReadme(inspection))
+                ets100WriteTextEntry(zip, "导出说明.txt", buildCloudDirectoryReadme(inspection))
             }
-            LocalDirectoryExportResult(publishToDownloads(context, stagingFile, fileName), fileName)
+            LocalDirectoryExportResult(ets100PublishToDownloads(context, stagingFile, fileName), fileName)
         } finally {
             stagingFile.delete()
         }
@@ -321,7 +321,7 @@ object PaperSourceExporter {
     fun cloudCacheDirectory(context: Context, source: PaperSource.Cloud): File {
         val urls = source.contents.map { resolveCloudUrl(source.baseUrl, it.url) }.sorted().joinToString("|")
         val identity = "${source.status}:${source.homeworkIdentity}:${source.baseUrl}:$urls"
-        return File(File(context.cacheDir, "cloud_homework"), sha256(identity).take(24))
+        return File(File(context.cacheDir, "cloud_homework"), ets100Sha256(identity).take(24))
     }
 
     fun cloudCacheDirectory(
@@ -336,7 +336,7 @@ object PaperSourceExporter {
     )
 
     fun cloudCachedFile(cacheDir: File, url: String, displayName: String = cloudFileName(url)): File =
-        File(cacheDir, "${sha256(url).take(16)}_$displayName")
+        File(cacheDir, "${ets100Sha256(url).take(16)}_$displayName")
 
     internal fun buildExportFileName(title: String, timestamp: Long = System.currentTimeMillis()): String {
         val safeTitle = title
@@ -386,7 +386,7 @@ object PaperSourceExporter {
             val expectedModified = source.resourceModifiedTimes[directoryName]?.takeIf { it > 0L }
             val actualModified = reader.getFileModifiedTime(path).takeIf { it > 0L }
             when {
-                !isSafeName(directoryName) || !reader.exists(path) -> listOf("$directoryName/")
+                !ets100IsSafeName(directoryName) || !reader.exists(path) -> listOf("$directoryName/")
                 reader.isSymbolicLink(path) -> listOf("$directoryName/（符号链接）")
                 expectedModified != null && actualModified != null &&
                     kotlin.math.abs(actualModified - expectedModified) > 1_000L ->
@@ -398,7 +398,7 @@ object PaperSourceExporter {
         return Inspection(
             expected = expected,
             missing = missing,
-            relatedDataIndexes = findRelatedDataIndexes(reader, source.resourceDirectoryNames.toSet())
+            relatedDataIndexes = ets100FindRelatedDataIndexes(reader, source.resourceDirectoryNames.toSet())
         )
     }
 
@@ -413,7 +413,7 @@ object PaperSourceExporter {
             val childPath = "$sourcePath/${child.name}"
             val childRelativePath = "$relativePath${child.name}"
             when {
-                !isSafeName(child.name) -> listOf("$childRelativePath（非法文件名）")
+                !ets100IsSafeName(child.name) -> listOf("$childRelativePath（非法文件名）")
                 reader.isSymbolicLink(childPath) -> listOf("$childRelativePath（符号链接）")
                 child.isDirectory -> inspectLocalDirectory(reader, childPath, "$childRelativePath/")
                 else -> {
@@ -425,7 +425,7 @@ object PaperSourceExporter {
     }
 
     private fun inspectCloud(context: Context, source: PaperSource.Cloud): Inspection {
-        val collisions = cloudFileNameCollisions(source)
+        val collisions = ets100CloudFileNameCollisions(source)
         val cacheDir = cloudCacheDirectory(context, source)
         val expected = source.contents.distinctBy { it.url }.map { cloudFileName(it.url).ifBlank { it.url } }
         val missing = source.contents.distinctBy { it.url }.mapNotNull { content ->
@@ -436,82 +436,6 @@ object PaperSourceExporter {
                 ?.ifBlank { content.url }
         }
         return Inspection(expected, missing, collisions.toList())
-    }
-
-    private fun writeLocalSources(context: Context, source: PaperSource.Local, zip: ZipOutputStream) {
-        val reader = ETS100FileReader.getReader(source.mode, context)
-        val includedResources = source.resourceDirectoryNames.filter { isSafeName(it) }.toSet()
-        includedResources.forEach { directoryName ->
-            val path = "${ETS100FileReader.Path.getResourceDir()}/$directoryName"
-            if (reader.exists(path) && !reader.isSymbolicLink(path)) {
-                writeDirectory(reader, path, "$directoryName/", zip)
-            }
-        }
-
-        findRelatedDataIndexes(reader, includedResources).forEach { index ->
-            val path = "${ETS100FileReader.Path.getDataDir()}/${index.fileName}"
-            writeStreamEntry(zip, uniqueDataEntryName(index.fileName, includedResources)) {
-                reader.openInputStream(path)
-            }
-        }
-    }
-
-    private fun collectLocalDataFiles(
-        reader: ETS100FileReader.Reader,
-        sourcePath: String,
-        files: MutableList<LocalDirectoryFile>,
-        skipped: MutableList<String>
-    ) {
-        if (!reader.exists(sourcePath)) return
-        if (reader.isSymbolicLink(sourcePath)) {
-            skipped += "data/（符号链接目录，已跳过）"
-            return
-        }
-        reader.listFiles(sourcePath).forEach { child ->
-            if (!isSafeName(child.name)) {
-                skipped += "data/${child.name}（非法文件名，已跳过）"
-                return@forEach
-            }
-            val childSourcePath = "$sourcePath/${child.name}"
-            if (reader.isSymbolicLink(childSourcePath)) {
-                skipped += "data/${child.name}（符号链接，已跳过）"
-            } else if (child.isDirectory) {
-                skipped += "data/${child.name}/（非文件条目，已跳过）"
-            } else {
-                files += LocalDirectoryFile(
-                    sourcePath = childSourcePath,
-                    archivePath = "data/${child.name}",
-                    size = child.size.takeIf { it > 0L } ?: reader.getFileSize(childSourcePath)
-                )
-            }
-        }
-    }
-
-    private fun collectLocalResourceDirectories(
-        reader: ETS100FileReader.Reader,
-        sourcePath: String,
-        directories: MutableList<LocalResourceDirectory>,
-        skipped: MutableList<String>
-    ) {
-        if (!reader.exists(sourcePath)) return
-        if (reader.isSymbolicLink(sourcePath)) {
-            skipped += "resource/（符号链接目录，已跳过）"
-            return
-        }
-        reader.listFiles(sourcePath).forEach { child ->
-            if (!isSafeName(child.name)) {
-                skipped += "resource/${child.name}（非法文件名，已跳过）"
-                return@forEach
-            }
-            val childSourcePath = "$sourcePath/${child.name}"
-            if (reader.isSymbolicLink(childSourcePath)) {
-                skipped += "resource/${child.name}（符号链接，已跳过）"
-            } else if (child.isDirectory) {
-                directories += LocalResourceDirectory(childSourcePath, child.name)
-            } else {
-                skipped += "resource/${child.name}（非题目目录，已跳过）"
-            }
-        }
     }
 
     private fun stagePrivilegedLocalSources(
@@ -563,40 +487,6 @@ object PaperSourceExporter {
         }
     }
 
-    private fun writeStagedLocalSources(
-        stageDir: File,
-        inspection: LocalDirectoryInspection,
-        zip: ZipOutputStream
-    ) {
-        inspection.dataFiles.forEach { file ->
-            val stagedFile = File(stageDir, file.archivePath)
-            writeStreamEntry(zip, file.archivePath) { FileInputStream(stagedFile) }
-        }
-        inspection.resourceDirectories.forEach { directory ->
-            val stagedDirectory = File(stageDir, "resource/${directory.name}")
-            writeLocalDirectory(stagedDirectory, "resource/${directory.name}/", zip)
-        }
-    }
-
-    private fun writeLocalDirectory(directory: File, entryPath: String, zip: ZipOutputStream) {
-        if (java.nio.file.Files.isSymbolicLink(directory.toPath())) return
-        val children = directory.listFiles()?.filter { isSafeName(it.name) }?.sortedBy { it.name }.orEmpty()
-        if (children.isEmpty()) {
-            zip.putNextEntry(ZipEntry(entryPath))
-            zip.closeEntry()
-            return
-        }
-        children.forEach { child ->
-            if (java.nio.file.Files.isSymbolicLink(child.toPath())) return@forEach
-            val childEntry = "$entryPath${child.name}"
-            if (child.isDirectory) {
-                writeLocalDirectory(child, "$childEntry/", zip)
-            } else if (child.isFile) {
-                writeStreamEntry(zip, childEntry) { FileInputStream(child) }
-            }
-        }
-    }
-
     internal fun extractTarToDirectory(input: InputStream, destination: File): Int {
         val root = destination.canonicalFile
         var entryCount = 0
@@ -636,164 +526,6 @@ object PaperSourceExporter {
         return entryCount
     }
 
-    private fun readTarBlock(input: InputStream, block: ByteArray): Boolean {
-        var offset = 0
-        while (offset < block.size) {
-            val count = input.read(block, offset, block.size - offset)
-            if (count < 0) {
-                check(offset == 0) { "tar 头部不完整" }
-                return false
-            }
-            offset += count
-        }
-        return true
-    }
-
-    private fun tarText(bytes: ByteArray, offset: Int, length: Int): String {
-        val end = (offset until offset + length).firstOrNull { bytes[it] == 0.toByte() } ?: offset + length
-        return String(bytes, offset, end - offset, Charsets.UTF_8).trim()
-    }
-
-    private fun tarOctal(bytes: ByteArray, offset: Int, length: Int): Long {
-        val text = tarText(bytes, offset, length).trim()
-        return text.toLongOrNull(8) ?: 0L
-    }
-
-    private fun isSafeTarPath(path: String): Boolean =
-        path.isNotBlank() && !path.startsWith('/') && path.split('/').none { it == ".." || it.isBlank() }
-
-    private fun copyTarBytes(input: InputStream, output: FileOutputStream, size: Long) {
-        var remaining = size
-        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-        while (remaining > 0L) {
-            val count = input.read(buffer, 0, minOf(buffer.size.toLong(), remaining).toInt())
-            check(count > 0) { "tar 数据不完整" }
-            output.write(buffer, 0, count)
-            remaining -= count
-        }
-    }
-
-    private fun skipTarBytes(input: InputStream, size: Long) {
-        var remaining = size
-        while (remaining > 0L) {
-            val skipped = input.skip(remaining)
-            if (skipped > 0L) {
-                remaining -= skipped
-            } else {
-                check(input.read() >= 0) { "tar 数据不完整" }
-                remaining--
-            }
-        }
-    }
-
-    private fun skipTarPadding(input: InputStream, size: Long) {
-        val blockSize = TAR_BLOCK_SIZE.toLong()
-        val padding = (blockSize - (size % blockSize)) % blockSize
-        skipTarBytes(input, padding)
-    }
-
-    private fun writeCloudSources(context: Context, source: PaperSource.Cloud, zip: ZipOutputStream) {
-        val cacheDir = cloudCacheDirectory(context, source)
-        val collisions = cloudFileNameCollisions(source)
-        source.contents.distinctBy { it.url }.forEach { content ->
-            val name = cloudFileName(content.url)
-            val file = cloudCachedFile(cacheDir, content.url, name)
-            if (name.isNotBlank() && name !in collisions && isUsableZip(file)) {
-                writeStreamEntry(zip, name) { FileInputStream(file) }
-            }
-        }
-    }
-
-    private fun collectCloudDirectoryFiles(
-        root: File,
-        current: File,
-        files: MutableList<CloudDirectoryFile>,
-        skipped: MutableList<String>
-    ) {
-        current.listFiles()?.forEach { child ->
-            if (files.size >= CLOUD_DIRECTORY_EXPORT_MAX_FILES) {
-                skipped += "文件数量达到上限，停止继续扫描"
-                return
-            }
-            val relative = child.relativeTo(root).invariantSeparatorsPath
-            val canonicalChild = runCatching { child.canonicalFile }.getOrElse {
-                skipped += "$relative（无法解析路径）"
-                return@forEach
-            }
-            when {
-                java.nio.file.Files.isSymbolicLink(child.toPath()) -> skipped += "$relative（符号链接）"
-                !canonicalChild.toPath().startsWith(root.toPath()) -> skipped += "$relative（超出缓存目录）"
-                canonicalChild.isDirectory -> collectCloudDirectoryFiles(root, canonicalChild, files, skipped)
-                canonicalChild.isFile && canonicalChild.canRead() -> files += CloudDirectoryFile(
-                    source = canonicalChild,
-                    archivePath = "cloud_homework/$relative",
-                    size = canonicalChild.length()
-                )
-                else -> skipped += "$relative（无法读取）"
-            }
-        } ?: skipped.add("${current.relativeTo(root).invariantSeparatorsPath.ifBlank { "cloud_homework" }}/（无法读取目录）")
-    }
-
-    private fun writeDirectory(
-        reader: ETS100FileReader.Reader,
-        sourcePath: String,
-        entryPath: String,
-        zip: ZipOutputStream
-    ) {
-        val children = reader.listFiles(sourcePath)
-        if (children.isEmpty()) {
-            zip.putNextEntry(ZipEntry(entryPath))
-            zip.closeEntry()
-            return
-        }
-        children.filter { isSafeName(it.name) }.forEach { child ->
-            val childSource = "$sourcePath/${child.name}"
-            if (reader.isSymbolicLink(childSource)) return@forEach
-            val childEntry = "$entryPath${child.name}"
-            if (child.isDirectory) {
-                writeDirectory(reader, childSource, "$childEntry/", zip)
-            } else {
-                writeStreamEntry(zip, childEntry) { reader.openInputStream(childSource) }
-            }
-        }
-    }
-
-    private fun writeStreamEntry(zip: ZipOutputStream, name: String, stream: () -> java.io.InputStream?) {
-        if (!isSafeZipEntry(name)) return
-        val input = stream() ?: error("无法读取源文件：$name")
-        input.use {
-            zip.putNextEntry(ZipEntry(name))
-            it.copyTo(zip)
-            zip.closeEntry()
-        }
-    }
-
-    private fun writeTextEntry(zip: ZipOutputStream, name: String, text: String) {
-        zip.putNextEntry(ZipEntry(name))
-        zip.write(text.toByteArray(Charsets.UTF_8))
-        zip.closeEntry()
-    }
-
-    private fun findRelatedDataIndexes(
-        reader: ETS100FileReader.Reader,
-        resourceNames: Set<String>
-    ): List<DataIndexInfo> {
-        return reader.listFiles(ETS100FileReader.Path.getDataDir())
-            .filter { !it.isDirectory && isSafeName(it.name) }
-            .filterNot { reader.isSymbolicLink("${ETS100FileReader.Path.getDataDir()}/${it.name}") }
-            .mapNotNull { item ->
-                val raw = reader.readFile("${ETS100FileReader.Path.getDataDir()}/${item.name}") ?: return@mapNotNull null
-                val references = extractResourceReferences(raw)
-                val currentReferences = references.filter { it in resourceNames }
-                if (currentReferences.isEmpty()) return@mapNotNull null
-                DataIndexInfo(
-                    fileName = item.name,
-                    currentPaperReferences = currentReferences,
-                    otherReferences = references.filterNot { it in resourceNames }
-                )
-            }
-    }
-
     internal fun extractResourceReferences(raw: String): Set<String> {
         val result = linkedSetOf<String>()
         val fieldPattern = Regex("""\"(?:fileName|url)\"\s*:\s*\"((?:\\.|[^\"\\])*)\"""")
@@ -802,46 +534,9 @@ object PaperSourceExporter {
                 .replace("\\/", "/")
                 .replace("\\u002F", "/", ignoreCase = true)
             val name = value.substringAfterLast('/').substringBefore('?').removeSuffix(".zip")
-            if (isSafeName(name)) result += name
+            if (ets100IsSafeName(name)) result += name
         }
         return result
-    }
-
-    private fun buildReadme(
-        paper: ETS100AnswerReader.Paper,
-        source: PaperSource,
-        inspection: Inspection
-    ): String = buildString {
-        appendLine("Fe 答案题目源文件导出")
-        appendLine("本文件仅用于提交给作者适配新题型，不适合作为常规答案分享。")
-        appendLine()
-        appendLine("试卷：${paper.title}")
-        appendLine("模式：${if (source is PaperSource.Cloud) "云端" else "本地"}")
-        appendLine("导出时间：${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())}")
-        if (source is PaperSource.Local) {
-            appendLine("说明：本地资源是官方客户端下载 ZIP 后的原始目录，不是字节级原下载 ZIP。")
-            appendLine("当前试卷资源目录：${source.resourceDirectoryNames.joinToString()}")
-            appendLine("附带的 data 索引：")
-            if (inspection.relatedDataIndexes.isEmpty()) appendLine("- 无")
-            inspection.relatedDataIndexes.forEach { index ->
-                appendLine("- ${index.fileName}")
-                appendLine("  当前试卷引用：${index.currentPaperReferences.joinToString()}")
-                if (index.otherReferences.isNotEmpty()) {
-                    appendLine("  其他引用（仅保留在原索引中，未打包对应资源）：${index.otherReferences.joinToString()}")
-                }
-            }
-        } else if (source is PaperSource.Cloud) {
-            appendLine("作业标识：${source.homeworkIdentity}")
-            source.contents.forEach { appendLine("${it.groupName}: ${it.url} -> ${cloudFileName(it.url)}") }
-        }
-        appendLine()
-        appendLine("预计来源：")
-        inspection.expected.forEach { appendLine("- $it") }
-        if (!inspection.isComplete) {
-            appendLine()
-            appendLine("警告：这是部分导出，以下来源缺失或冲突：")
-            (inspection.missing + inspection.conflicts).distinct().forEach { appendLine("- $it") }
-        }
     }
 
     internal fun buildLocalDirectoryReadme(inspection: LocalDirectoryInspection): String = buildString {
@@ -923,12 +618,6 @@ object PaperSourceExporter {
         }
     }
 
-    private fun formatExportSize(size: Long): String = when {
-        size < 1024L -> "$size B"
-        size < 1024L * 1024L -> "%.1f KiB".format(Locale.US, size / 1024.0)
-        else -> "%.1f MiB".format(Locale.US, size / (1024.0 * 1024.0))
-    }
-
     internal fun completedParsedPapers(
         papers: List<ETS100AnswerReader.Paper>
     ): List<ETS100AnswerReader.Paper> = papers.filter { paper ->
@@ -936,43 +625,7 @@ object PaperSourceExporter {
             paper.sections.sumOf { it.questions.size } > 0
     }
 
-    private fun publishToDownloads(context: Context, source: File, fileName: String): Uri {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val values = ContentValues().apply {
-                put(MediaStore.Downloads.DISPLAY_NAME, fileName)
-                put(MediaStore.Downloads.MIME_TYPE, "application/zip")
-                put(MediaStore.Downloads.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/Fe")
-                put(MediaStore.Downloads.IS_PENDING, 1)
-            }
-            val resolver = context.contentResolver
-            val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
-                ?: error("无法创建下载文件")
-            try {
-                resolver.openOutputStream(uri, "w")?.use { output -> FileInputStream(source).use { it.copyTo(output) } }
-                    ?: error("无法写入下载文件")
-                resolver.update(uri, ContentValues().apply { put(MediaStore.Downloads.IS_PENDING, 0) }, null, null)
-                return uri
-            } catch (e: Exception) {
-                resolver.delete(uri, null, null)
-                throw e
-            }
-        }
-
-        val directory = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Fe")
-        directory.mkdirs()
-        val target = File(directory, fileName)
-        source.copyTo(target, overwrite = false)
-        return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", target)
-    }
-
-    private fun cloudFileName(url: String): String =
-        url.substringAfterLast('/').substringBefore('?').takeIf(::isSafeName).orEmpty()
-
-    private fun cloudFileNameCollisions(source: PaperSource.Cloud): Set<String> = source.contents
-        .distinctBy { it.url }
-        .groupBy { cloudFileName(it.url) }
-        .filter { (name, contents) -> name.isBlank() || contents.map { it.url }.distinct().size > 1 }
-        .keys
+    internal fun cloudFileName(url: String): String = ets100CloudFileName(url)
 
     fun isUsableZip(file: File): Boolean {
         if (!file.isFile || file.length() < 4) return false
@@ -997,22 +650,8 @@ object PaperSourceExporter {
         }.getOrDefault(false)
     }
 
-    private fun uniqueDataEntryName(name: String, resourceNames: Set<String>): String =
-        if (name in resourceNames) "data_$name" else name
-
-    private fun isSafeName(name: String): Boolean =
-        name.isNotBlank() && name != "." && name != ".." && '/' !in name && '\\' !in name
-
-    private fun isSafeZipEntry(name: String): Boolean =
-        name.isNotBlank() && !name.startsWith('/') && name.split('/').none { it == ".." }
-
-    private fun sha256(value: String): String = MessageDigest.getInstance("SHA-256")
-        .digest(value.toByteArray())
-        .joinToString("") { "%02x".format(it) }
-
     private const val LOCAL_DIRECTORY_EXPORT_MAX_BYTES = 150L * 1024L * 1024L
     private const val LOCAL_DIRECTORY_EXPORT_MAX_PARSED_PAPERS = 3
     private const val CLOUD_DIRECTORY_EXPORT_MAX_FILES = 10_000
-    private const val TAR_BLOCK_SIZE = 512
     private const val EXPORTER_TAG = "PaperSourceExporter"
 }
