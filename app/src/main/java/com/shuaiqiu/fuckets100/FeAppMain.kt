@@ -238,6 +238,9 @@ fun FeAppMain(
                     showOnboarding = false
                     currentMode = SettingsManager.getSavedActivationMode() ?: ShizukuManager.getCurrentActivationMode()
                 },
+                createChangyanLoginIntent = { ctx ->
+                    ChangyanWebLoginActivity.createIntent(ctx)
+                },
             )
         } else {
             FeAccountGate {

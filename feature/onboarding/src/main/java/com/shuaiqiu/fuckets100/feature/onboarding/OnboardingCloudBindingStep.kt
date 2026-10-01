@@ -19,7 +19,6 @@ import androidx.compose.ui.unit.dp
 import com.shuaiqiu.fuckets100.feature.shared.EtingshuoBindingCard
 import kotlinx.coroutines.launch
 
-import com.shuaiqiu.fuckets100.ChangyanWebLoginActivity
 import com.shuaiqiu.fuckets100.FeAccountManager
 // ============================================================================
 // 云端模式：明确完成 e听说账号绑定
@@ -29,6 +28,7 @@ import com.shuaiqiu.fuckets100.FeAccountManager
 internal fun CloudBindingStep(
     accountManager: FeAccountManager,
     onFinish: () -> Unit,
+    createChangyanLoginIntent: (android.content.Context) -> android.content.Intent,
 ) {
     val context = LocalContext.current
     val changyanLoginLauncher = rememberLauncherForActivityResult(
@@ -62,7 +62,7 @@ internal fun CloudBindingStep(
             manager = accountManager,
             modifier = Modifier.fillMaxWidth(),
             onChangyanLogin = {
-                changyanLoginLauncher.launch(ChangyanWebLoginActivity.createIntent(context))
+                changyanLoginLauncher.launch(createChangyanLoginIntent(context))
             },
         )
 

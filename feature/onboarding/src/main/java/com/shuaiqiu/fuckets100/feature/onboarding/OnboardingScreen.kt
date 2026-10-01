@@ -26,6 +26,7 @@ import com.shuaiqiu.fuckets100.rememberShizukuState
 @Composable
 fun OnboardingScreen(
     onFinished: () -> Unit,
+    createChangyanLoginIntent: (android.content.Context) -> android.content.Intent,
     viewModel: OnboardingViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
@@ -96,6 +97,7 @@ fun OnboardingScreen(
                             viewModel.completeOnboarding()
                             onFinished()
                         },
+                        createChangyanLoginIntent = createChangyanLoginIntent,
                     )
                 } else {
                     FinishStep(
