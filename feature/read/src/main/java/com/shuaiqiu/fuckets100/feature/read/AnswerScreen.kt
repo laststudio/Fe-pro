@@ -18,12 +18,11 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.shuaiqiu.fuckets100.FeAccountFeatures
 import com.shuaiqiu.fuckets100.FeAccountManager
 import com.shuaiqiu.fuckets100.PaperStore
-import com.shuaiqiu.fuckets100.feature.account.AccountViewModel
 @Composable
 fun AnswerScreen(
     paperKey: String,
     onBack: () -> Unit,
-    accountManager: FeAccountManager = hiltViewModel<AccountViewModel>().manager,
+    accountManager: FeAccountManager = hiltViewModel<ReadViewModel>().accountManager,
 ) {
     val context = LocalContext.current
     val paper = remember(paperKey) { PaperStore.get(paperKey) }

@@ -80,8 +80,6 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.nio.charset.StandardCharsets
 import com.shuaiqiu.fuckets100.ActivationMode
-import com.shuaiqiu.fuckets100.AppCoroutineScope
-import com.shuaiqiu.fuckets100.ChangyanWebLoginActivity
 import com.shuaiqiu.fuckets100.CloudContent
 import com.shuaiqiu.fuckets100.CloudHomeworkState
 import com.shuaiqiu.fuckets100.ETS100AnswerReader
@@ -99,7 +97,6 @@ import com.shuaiqiu.fuckets100.ResolverAuthorizationDeniedException
 import com.shuaiqiu.fuckets100.ResolverAuthorizer
 import com.shuaiqiu.fuckets100.SettingsManager
 import com.shuaiqiu.fuckets100.ZipPasswordGenerator
-import com.shuaiqiu.fuckets100.feature.account.AccountViewModel
 import com.shuaiqiu.fuckets100.core.designsystem.FeFilledCard
 import com.shuaiqiu.fuckets100.core.designsystem.FeThinDivider
 import com.shuaiqiu.fuckets100.core.designsystem.FeTonalIconContainer
@@ -118,7 +115,7 @@ fun PaperDetailScreen(
     categoryColors: Map<String, Color>,
     compactAnswerDisplay: Boolean = SettingsManager.getCompactAnswerDisplay(),
     onCopyText: () -> Unit = {},
-    accountManager: FeAccountManager = hiltViewModel<AccountViewModel>().manager,
+    accountManager: FeAccountManager = hiltViewModel<ReadViewModel>().accountManager,
 ) {
     var showMenu by remember { mutableStateOf(false) }
     var sourceExportPaper by remember { mutableStateOf<ETS100AnswerReader.Paper?>(null) }

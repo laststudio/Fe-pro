@@ -35,7 +35,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 import com.shuaiqiu.fuckets100.ActivationMode
-import com.shuaiqiu.fuckets100.ChangyanWebLoginActivity
 import com.shuaiqiu.fuckets100.CloudHomeworkState
 import com.shuaiqiu.fuckets100.ETS100AnswerReader
 import com.shuaiqiu.fuckets100.ETS100AuthManager
@@ -87,6 +86,7 @@ fun ReadScreen(
     readAccessIssue: String? = null,
     onNavigateToActivation: () -> Unit,
     onOpenPaperDetail: (ETS100AnswerReader.Paper) -> Unit,
+    onOpenChangyanLogin: () -> Unit = {},
     compactAnswerDisplay: Boolean = SettingsManager.getCompactAnswerDisplay(),
     viewModel: ReadViewModel = hiltViewModel(),
 ) {
@@ -508,7 +508,7 @@ fun ReadScreen(
                             Button(
                                 onClick = {
                                     if (shouldOpenChangyanLoginDirectly) {
-                                        context.startActivity(ChangyanWebLoginActivity.createIntent(context))
+                                        onOpenChangyanLogin()
                                     } else {
                                         onNavigateToActivation()
                                     }

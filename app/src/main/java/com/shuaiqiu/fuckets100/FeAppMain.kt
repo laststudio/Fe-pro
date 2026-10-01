@@ -24,6 +24,7 @@ import com.shuaiqiu.fuckets100.feature.settings.SettingsScreen
 import com.shuaiqiu.fuckets100.feature.settings.RemoteContent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import com.shuaiqiu.fuckets100.ChangyanWebLoginActivity
 import com.shuaiqiu.fuckets100.feature.home.HomeScreen
 import com.shuaiqiu.fuckets100.feature.account.AccountInitialAvatar
 import com.shuaiqiu.fuckets100.feature.read.ReadScreen
@@ -295,6 +296,9 @@ fun FeAppMain(
                             },
                             onOpenPaperDetail = { paper ->
                                 navigator.push(FeRoute.Answer(PaperStore.put(paper)))
+                            },
+                            onOpenChangyanLogin = {
+                                context.startActivity(ChangyanWebLoginActivity.createIntent(context))
                             },
                             compactAnswerDisplay = compactAnswerDisplay,
                         )

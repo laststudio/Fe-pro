@@ -79,8 +79,6 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.nio.charset.StandardCharsets
 import com.shuaiqiu.fuckets100.ActivationMode
-import com.shuaiqiu.fuckets100.AppCoroutineScope
-import com.shuaiqiu.fuckets100.ChangyanWebLoginActivity
 import com.shuaiqiu.fuckets100.CloudContent
 import com.shuaiqiu.fuckets100.CloudHomeworkState
 import com.shuaiqiu.fuckets100.ETS100AnswerReader

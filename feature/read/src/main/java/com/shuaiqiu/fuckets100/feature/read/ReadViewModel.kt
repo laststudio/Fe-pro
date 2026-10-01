@@ -33,7 +33,7 @@ import java.io.File
 @HiltViewModel
 class ReadViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val accountManager: FeAccountManager,
+    val accountManager: FeAccountManager,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(ReadUiState())
     val uiState: StateFlow<ReadUiState> = _uiState.asStateFlow()
