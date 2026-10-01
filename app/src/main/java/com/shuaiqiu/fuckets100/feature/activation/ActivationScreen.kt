@@ -72,6 +72,7 @@ fun ActivationSettingsScreen(
     val cloudPhone = pageSnapshot?.cloudPhone
     val etsAppInfo = pageSnapshot?.etsAppInfo
     var pendingPermissionRequest by remember { mutableStateOf(false) }
+    var statusRefreshRevision by remember { mutableIntStateOf(0) }
 
     // 首次打开异步读取；已有短时缓存时直接沿用，不重复触发页面闪变。
     LaunchedEffect(cloudAuthRevision) {
@@ -99,6 +100,7 @@ fun ActivationSettingsScreen(
                 pendingPermissionRequest = false
                 if (grantResult == PackageManager.PERMISSION_GRANTED) {
                     Toast.makeText(context, "Shizuku 权限授权成功！", Toast.LENGTH_SHORT).show()
+                    statusRefreshRevision++
                     onModeSelected(ActivationMode.SHIZUKU)
                 } else {
                     Toast.makeText(context, "Shizuku 权限被拒绝了", Toast.LENGTH_SHORT).show()
@@ -139,22 +141,22 @@ fun ActivationSettingsScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            item { Spacer(Modifier.height(16.dp)) }
-
-            // 当前模式状态卡片
+            // 当前模式状态卡片：单独作为页面首个信息区块，和设备信息明确分组。
             item {
+                ActivationSectionLabel(text = "当前授权状态")
                 FeModeStatusCard(
                     currentMode = currentMode,
                     shizukuState = shizukuState,
                     hasAllBasicPermissions = hasLocalBasicPermissions,
                     cloudLoggedIn = cloudLoggedIn,
                     cloudPhone = cloudPhone,
-                    context = context
+                    context = context,
+                    refreshRevision = statusRefreshRevision,
                 )
-                Spacer(Modifier.height(8.dp))
             }
 
             item {
+                ActivationSectionLabel(text = "设备与 e听说")
                 ActivationDeviceCard(etsAppInfo = etsAppInfo)
             }
 
@@ -232,10 +234,12 @@ fun ActivationSettingsScreen(
                                                 when (mode) {
                                                     ActivationMode.SHIZUKU -> FeShizukuActivationPanel(
                                                         shizukuState = shizukuState,
+                                                        onStatusRefresh = { statusRefreshRevision++ },
                                                         onRequestPermission = {
                                                             if (shizukuState.isRunning) {
                                                                 if (ShizukuManager.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
                                                                     Toast.makeText(context, "Shizuku 已授权！", Toast.LENGTH_SHORT).show()
+                                                                    statusRefreshRevision++
                                                                 } else {
                                                                     pendingPermissionRequest = true
                                                                     ShizukuManager.requestPermission(ShizukuManager.REQUEST_CODE_SHIZUKU_PERMISSION)
@@ -246,7 +250,10 @@ fun ActivationSettingsScreen(
                                                         },
                                                         onOpenShizuku = { ShizukuManager.openShizukuApp(context) },
                                                     )
-                                                    ActivationMode.ROOT -> FeRootActivationPanel(context)
+                                                    ActivationMode.ROOT -> FeRootActivationPanel(
+                                                        context = context,
+                                                        onAvailabilityChanged = { statusRefreshRevision++ },
+                                                    )
                                                     ActivationMode.DIRECT_READ -> FeDirectReadActivationPanel(hasLocalBasicPermissions)
                                                     ActivationMode.CLOUD -> FeCloudActivationPanel(
                                                         context = context,
@@ -285,96 +292,82 @@ fun ActivationSettingsScreen(
 }
 
 @Composable
-private fun ActivationDeviceCard(etsAppInfo: Pair<Boolean, String>?) {
-    val themePrimaryColor = MaterialTheme.colorScheme.primary
-    val successColor = MaterialTheme.colorScheme.primary
-    val errorColor = MaterialTheme.colorScheme.error
+private fun ActivationSectionLabel(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(start = 16.dp, bottom = 8.dp),
+    )
+}
 
-    TonalCard(
+@Composable
+private fun ActivationDeviceCard(etsAppInfo: Pair<Boolean, String>?) {
+    val installed = etsAppInfo?.first == true
+    val statusColor = if (installed) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.error
+    }
+
+    OutlinedCard(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
-        containerColor = MaterialTheme.colorScheme.surfaceBright,
+        colors = CardDefaults.outlinedCardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
         Column(
-            modifier = Modifier.padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Smartphone, null, tint = themePrimaryColor)
-                    Spacer(Modifier.width(16.dp))
-                    Column {
-                        Text(
-                            "DEVICE",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            Build.MODEL ?: "Unknown",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        "OS",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        "Android ${Build.VERSION.RELEASE}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
+            DeviceInfoRow(
+                icon = Icons.Default.Smartphone,
+                iconTint = MaterialTheme.colorScheme.primary,
+                title = Build.MODEL ?: "Unknown",
+                label = "设备",
+                trailingLabel = "Android ${Build.VERSION.RELEASE}",
+                trailingTitle = "系统版本",
+            )
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+            DeviceInfoRow(
+                icon = Icons.Default.Memory,
+                iconTint = statusColor,
+                title = if (installed) "已安装" else "未安装",
+                label = "e听说",
+                titleColor = statusColor,
+                trailingLabel = etsAppInfo?.second?.takeIf { it.isNotEmpty() } ?: "未知",
+                trailingTitle = "版本",
+            )
+        }
+    }
+}
 
-            FeThinDivider()
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Default.Memory,
-                        null,
-                        tint = if (etsAppInfo?.first == true) successColor else errorColor
-                    )
-                    Spacer(Modifier.width(16.dp))
-                    Column {
-                        Text(
-                            "ETS应用",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = if (etsAppInfo?.first == true) "已安装" else "未安装",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = if (etsAppInfo?.first == true) successColor else errorColor
-                        )
-                    }
-                }
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        "VERSION",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = etsAppInfo?.second?.takeIf { it.isNotEmpty() } ?: "未知",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
+@Composable
+private fun DeviceInfoRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    iconTint: Color,
+    title: String,
+    label: String,
+    trailingLabel: String,
+    trailingTitle: String,
+    titleColor: Color = MaterialTheme.colorScheme.onSurface,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(22.dp))
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, color = titleColor, maxLines = 1)
+        }
+        Column(horizontalAlignment = Alignment.End) {
+            Text(trailingTitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(trailingLabel, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
         }
     }
 }
@@ -386,7 +379,8 @@ fun FeModeStatusCard(
     hasAllBasicPermissions: Boolean,
     cloudLoggedIn: Boolean,
     cloudPhone: String?,
-    context: android.content.Context
+    context: android.content.Context,
+    refreshRevision: Int = 0,
 ) {
     var isRootAvailable by remember { mutableStateOf(false) }
     var isDirectReadAvailable by remember { mutableStateOf(false) }
@@ -402,7 +396,7 @@ fun FeModeStatusCard(
 
     // Root and direct-read checks can start processes and touch external storage.
     // Do not run them while the destination scene is being composed.
-    LaunchedEffect(Unit) {
+    LaunchedEffect(refreshRevision) {
         refreshAvailability()
     }
 
@@ -424,9 +418,11 @@ fun FeModeStatusCard(
     
     val errorRedColor = MaterialTheme.colorScheme.error
     
+    val shizukuPermissionGranted = shizukuState.permissionGranted ||
+        ShizukuManager.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
     val statusColor = when (currentMode) {
         ActivationMode.DEFAULT -> MaterialTheme.colorScheme.outline
-        ActivationMode.SHIZUKU -> if (shizukuState.isRunning && shizukuState.permissionGranted) MaterialTheme.colorScheme.primary else errorRedColor
+        ActivationMode.SHIZUKU -> if (shizukuState.isRunning && shizukuPermissionGranted) MaterialTheme.colorScheme.primary else errorRedColor
         ActivationMode.ROOT -> if (hasAllBasicPermissions && isRootAvailable) MaterialTheme.colorScheme.primary else errorRedColor
         ActivationMode.DIRECT_READ -> if (hasAllBasicPermissions && isDirectReadAvailable) MaterialTheme.colorScheme.primary else errorRedColor
         ActivationMode.CLOUD -> if (cloudLoggedIn) MaterialTheme.colorScheme.primary else errorRedColor
@@ -445,7 +441,7 @@ fun FeModeStatusCard(
             val title = if (shizukuState.isRunning) "Shizuku 运行中" else "Shizuku 未运行"
             val desc = when {
                 !shizukuState.isRunning -> "底层服务未连接"
-                !shizukuState.permissionGranted -> "等待权限授权"
+                !shizukuPermissionGranted -> "等待权限授权"
                 else -> "一切准备就绪"
             }
             val detail = if (shizukuState.isRunning) {
@@ -483,53 +479,47 @@ fun FeModeStatusCard(
         }
     }
     
-    TonalCard(
+    Card(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
-        containerColor = MaterialTheme.colorScheme.surfaceBright,
+        colors = CardDefaults.cardColors(
+            containerColor = statusContainerColor,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
-        Box(modifier = Modifier.fillMaxWidth()) {
-            Row(
-                modifier = Modifier.padding(20.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(Modifier.size(48.dp).background(statusContainerColor, CircleShape), Alignment.Center) {
-                    Icon(
-                        imageVector = if (isActive) Icons.Default.CheckCircle else Icons.Default.Warning,
-                        contentDescription = null,
-                        tint = statusColor,
-                        modifier = Modifier.size(28.dp)
-                    )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = if (isActive) Icons.Default.CheckCircle else Icons.Default.Warning,
+                contentDescription = null,
+                tint = statusColor,
+                modifier = Modifier.size(28.dp),
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(currentMode.icon, contentDescription = null, tint = statusColor, modifier = Modifier.size(15.dp))
+                    Spacer(Modifier.width(5.dp))
+                    Text(statusTitle, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 }
-                Spacer(Modifier.width(16.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = currentMode.icon,
-                            contentDescription = null,
-                            tint = statusColor,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Text(statusTitle, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                    }
-                    Spacer(Modifier.height(4.dp))
-                    Text(statusDesc, style = MaterialTheme.typography.bodySmall, color = statusColor)
-
-                    if (statusDetail != null) {
-                        Spacer(Modifier.height(4.dp))
-                        Text(statusDetail, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+                Spacer(Modifier.height(3.dp))
+                Text(statusDesc, style = MaterialTheme.typography.bodySmall, color = statusColor)
+                if (statusDetail != null) {
+                    Spacer(Modifier.height(2.dp))
+                    Text(statusDetail, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-
-                if (!isActive && currentMode == ActivationMode.SHIZUKU && !shizukuState.isRunning) {
-                    FilledTonalButton(
-                        onClick = { ShizukuManager.openShizukuDownloadPage(context) },
-                        colors = ButtonDefaults.filledTonalButtonColors(containerColor = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.onErrorContainer)
-                    ) {
-                        Text("去下载", fontWeight = FontWeight.Bold)
-                    }
-                }
+            }
+            if (!isActive && currentMode == ActivationMode.SHIZUKU && !shizukuState.isRunning) {
+                Spacer(Modifier.width(8.dp))
+                FilledTonalButton(
+                    onClick = { ShizukuManager.openShizukuDownloadPage(context) },
+                    contentPadding = PaddingValues(horizontal = 12.dp),
+                ) { Text("去下载", style = MaterialTheme.typography.labelLarge) }
             }
         }
     }
@@ -677,6 +667,7 @@ fun FeShizukuStatusCard(shizukuState: ShizukuState, context: android.content.Con
 @Composable
 fun FeShizukuActivationPanel(
     shizukuState: ShizukuState,
+    onStatusRefresh: () -> Unit = {},
     onRequestPermission: () -> Unit,
     onOpenShizuku: () -> Unit
 ) {
@@ -737,7 +728,10 @@ fun FeShizukuActivationPanel(
 }
 
 @Composable
-fun FeRootActivationPanel(context: android.content.Context) {
+fun FeRootActivationPanel(
+    context: android.content.Context,
+    onAvailabilityChanged: () -> Unit = {},
+) {
     val successColor = MaterialTheme.colorScheme.primary
     val errorColor = MaterialTheme.colorScheme.error
     
@@ -811,6 +805,7 @@ fun FeRootActivationPanel(context: android.content.Context) {
                             }
                             isRootAvailable = available
                             isChecking = false
+                            onAvailabilityChanged()
 
                             if (!available) {
                                 Toast.makeText(context, "未检测到 Root 权限...", Toast.LENGTH_SHORT).show()

@@ -370,6 +370,7 @@ object ETS100AnswerReader {
     suspend fun readPapersParallel(
         context: Context,
         mode: ActivationMode,
+        onGroupStarted: (suspend (Int, Int) -> Unit)? = null,
         onGroupParsed: (suspend (Int, List<Paper>) -> Unit)? = null
     ): List<Paper> = coroutineScope {
         if (!ETS100FileReader.isModeAvailable(mode, context)) {
@@ -403,6 +404,7 @@ object ETS100AnswerReader {
             val orderedFolderGroup = orderResourceFoldersByPaperStructure(folderGroup, resourceOrderMap)
             async(kotlinx.coroutines.Dispatchers.IO) {
                 semaphore.withPermit {
+                    onGroupStarted?.invoke(groupIndex, groupedFolders.size)
                     val startMs = System.currentTimeMillis()
                     Log.i(
                         TAG,

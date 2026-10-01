@@ -25,6 +25,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -48,8 +49,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -160,6 +164,9 @@ private object LocalReadProgressState {
     var sectionCount by mutableIntStateOf(0)
     var questionCount by mutableIntStateOf(0)
     var parsedGroupIndexes by mutableStateOf(emptySet<Int>())
+    var completedGroupCount by mutableIntStateOf(0)
+    var totalGroupCount by mutableIntStateOf(0)
+    var activeGroupIndex by mutableIntStateOf(-1)
     var message by mutableStateOf("")
     var parseJob: Job? = null
 
@@ -172,6 +179,9 @@ private object LocalReadProgressState {
         sectionCount = 0
         questionCount = 0
         parsedGroupIndexes = emptySet()
+        completedGroupCount = 0
+        totalGroupCount = 0
+        activeGroupIndex = -1
         message = ""
     }
 }
@@ -1428,12 +1438,21 @@ fun ReadScreen(
                                 try {
                                     val paperList = ETS100AnswerReader.readPapersParallel(
                                         context = context,
-                                        mode = currentMode
+                                        mode = currentMode,
+                                        onGroupStarted = { groupIndex, totalGroups ->
+                                            withContext(Dispatchers.Main) {
+                                                LocalReadProgressState.totalGroupCount = totalGroups
+                                                LocalReadProgressState.activeGroupIndex = groupIndex
+                                                LocalReadProgressState.message = "正在解析第 ${groupIndex + 1}/$totalGroups 组"
+                                            }
+                                        },
                                     ) { groupIndex, parsedGroupPapers ->
                                         withContext(Dispatchers.Main) {
                                             LocalReadProgressState.parsedGroupIndexes =
                                                 LocalReadProgressState.parsedGroupIndexes + groupIndex
                                             LocalReadProgressState.doneCount =
+                                                LocalReadProgressState.parsedGroupIndexes.size
+                                            LocalReadProgressState.completedGroupCount =
                                                 LocalReadProgressState.parsedGroupIndexes.size
                                             if (parsedGroupPapers.isNotEmpty()) {
                                                 papers = papers.toMutableList().also { currentPapers ->
@@ -1743,8 +1762,25 @@ fun ReadScreen(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            CircularProgressIndicator()
+                        val loadingPulse = rememberInfiniteTransition(label = "localReadLoadingPulse")
+                            .animateFloat(
+                                initialValue = 0.72f,
+                                targetValue = 1f,
+                                animationSpec = infiniteRepeatable(
+                                    animation = tween(900),
+                                    repeatMode = RepeatMode.Reverse,
+                                ),
+                                label = "localReadLoadingAlpha",
+                            )
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.animateContentSize(tween(260)),
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(44.dp),
+                                strokeWidth = 3.dp,
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = loadingPulse.value),
+                            )
                             Spacer(modifier = Modifier.height(16.dp))
                             val loadingTitle = if (currentMode == ActivationMode.CLOUD) {
                                 "正在加载云端作业..."
@@ -1755,23 +1791,35 @@ fun ReadScreen(
                                     else -> "正在加载试卷..."
                                 }
                             }
-                            Text(
-                                loadingTitle,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            AnimatedContent(
+                                targetState = loadingTitle,
+                                transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(120)) },
+                                label = "localReadLoadingTitle",
+                            ) { title ->
+                                Text(
+                                    title,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                             Spacer(modifier = Modifier.height(6.dp))
                             val statsText = if (currentMode == ActivationMode.CLOUD) {
                                 "已下载 ${downloadedCloudPapers.size} 份作业，累计 $downloadedCloudQuestionCount 道题"
                             } else {
                                 "已发现 ${papers.size} 份试卷，${loadedLocalSectionCount} 个分区，${loadedLocalQuestionCount} 道题"
                             }
-                            Text(
-                                statsText,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                textAlign = TextAlign.Center
-                            )
+                            AnimatedContent(
+                                targetState = statsText,
+                                transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(120)) },
+                                label = "localReadLoadingStats",
+                            ) { stats ->
+                                Text(
+                                    stats,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center,
+                                )
+                            }
                         }
                     }
                 }
@@ -2024,6 +2072,9 @@ fun ReadScreen(
                                             totalCount = LocalReadProgressState.totalCount,
                                             sectionCount = LocalReadProgressState.sectionCount,
                                             questionCount = LocalReadProgressState.questionCount,
+                                            completedGroupCount = LocalReadProgressState.completedGroupCount,
+                                            totalGroupCount = LocalReadProgressState.totalGroupCount,
+                                            activeGroupIndex = LocalReadProgressState.activeGroupIndex,
                                             message = LocalReadProgressState.message
                                         )
                                     }
@@ -2512,6 +2563,9 @@ private fun LocalAnswerParsingCard(
     totalCount: Int,
     sectionCount: Int,
     questionCount: Int,
+    completedGroupCount: Int,
+    totalGroupCount: Int,
+    activeGroupIndex: Int,
     message: String
 ) {
     val isFinished = phase == LocalParsePhase.COMPLETED
@@ -2521,6 +2575,14 @@ private fun LocalAnswerParsingCard(
     } else {
         null
     }
+    val groupProgress = if (totalGroupCount > 0) {
+        (completedGroupCount.toFloat() / totalGroupCount).coerceIn(0f, 1f)
+    } else 0f
+    val animatedProgress by animateFloatAsState(
+        targetValue = groupProgress,
+        animationSpec = tween(320),
+        label = "localAnswerGroupProgress",
+    )
     val title = when (phase) {
         LocalParsePhase.SCANNING -> "正在扫描试卷列表"
         LocalParsePhase.PARSING -> "正在后台解析答案"
@@ -2531,8 +2593,9 @@ private fun LocalAnswerParsingCard(
     val description = when (phase) {
         LocalParsePhase.SCANNING -> message.ifBlank { "正在批量读取资源目录并生成试卷列表" }
         LocalParsePhase.PARSING -> {
-            val countText = if (totalCount > 0) "（$doneCount/$totalCount）" else ""
-            message.ifBlank { "试卷列表已可查看，答案完成后会自动更新" } + countText
+            val groupText = if (totalGroupCount > 0) "（已完成 $completedGroupCount/$totalGroupCount 组）" else ""
+            val activeText = if (activeGroupIndex >= 0 && totalGroupCount > 0) "正在处理第 ${activeGroupIndex + 1} 组" else "正在后台解析答案"
+            message.ifBlank { activeText } + groupText
         }
         LocalParsePhase.COMPLETED -> message.ifBlank { "全部试卷已经解析完成" }
         LocalParsePhase.FAILED -> message.ifBlank { "后台解析失败，请重新读取" }
@@ -2558,6 +2621,7 @@ private fun LocalAnswerParsingCard(
     TonalCard(
         modifier = Modifier
             .fillMaxWidth()
+            .animateContentSize(animationSpec = tween(260))
             .then(
                 if (isFailed) Modifier.border(1.dp, MaterialTheme.colorScheme.error, MaterialTheme.shapes.large)
                 else Modifier
@@ -2597,17 +2661,29 @@ private fun LocalAnswerParsingCard(
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = iconColor
-                    )
-                    Text(
-                        text = description,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = textColor
-                    )
+                    AnimatedContent(
+                        targetState = title,
+                        transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(120)) },
+                        label = "localAnswerPhaseTitle",
+                    ) { phaseTitle ->
+                        Text(
+                            text = phaseTitle,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = iconColor,
+                        )
+                    }
+                    AnimatedContent(
+                        targetState = description,
+                        transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(120)) },
+                        label = "localAnswerPhaseDescription",
+                    ) { phaseDescription ->
+                        Text(
+                            text = phaseDescription,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = textColor,
+                        )
+                    }
                     if (sectionCount > 0 || questionCount > 0) {
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
@@ -2620,13 +2696,15 @@ private fun LocalAnswerParsingCard(
             }
             if (!isFinished && !isFailed) {
                 Spacer(modifier = Modifier.height(12.dp))
-                if (progress != null) {
+                // 组内解析目前没有更细粒度的回调：上方使用真实的组完成进度，
+                // 同时保留一条流动指示，避免把静态百分比误认为实时精确进度。
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                if (totalGroupCount > 0) {
+                    Spacer(Modifier.height(6.dp))
                     LinearProgressIndicator(
-                        progress = { progress },
-                        modifier = Modifier.fillMaxWidth()
+                        progress = { animatedProgress },
+                        modifier = Modifier.fillMaxWidth(),
                     )
-                } else {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 }
             }
         }
@@ -2679,6 +2757,9 @@ private fun CloudHomeworkCategorySelector(
     onCategorySelect: (String) -> Unit,
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
+    var menuOffsetX by remember { mutableStateOf(0.dp) }
+    var anchorWidthPx by remember { mutableIntStateOf(0) }
+    val density = LocalDensity.current
     val chevronRotation by animateFloatAsState(
         targetValue = if (menuExpanded) 180f else 0f,
         label = "cloudCategoryChevron",
@@ -2692,8 +2773,20 @@ private fun CloudHomeworkCategorySelector(
 
     Box(modifier = Modifier.fillMaxWidth()) {
         OutlinedCard(
-            onClick = { menuExpanded = true },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .onGloballyPositioned { anchorWidthPx = it.size.width }
+                .pointerInput(density, anchorWidthPx) {
+                    detectTapGestures { position ->
+                        val menuWidthPx = with(density) { 200.dp.toPx() }
+                        val maxOffsetPx = (anchorWidthPx - menuWidthPx).coerceAtLeast(0f)
+                        val centeredOffsetPx = position.x - menuWidthPx / 2f
+                        menuOffsetX = with(density) {
+                            centeredOffsetPx.coerceIn(0f, maxOffsetPx).toDp()
+                        }
+                        menuExpanded = true
+                    }
+                },
             shape = MaterialTheme.shapes.medium,
             colors = CardDefaults.outlinedCardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -2731,11 +2824,11 @@ private fun CloudHomeworkCategorySelector(
             }
         }
 
-        // 使用标准锚定菜单，避免按触点偏移后出现贴边、越界或圆角不协调。
+        // 以触点为菜单中心，并将菜单限制在入口卡片范围内，避免贴边或越界。
         DropdownMenu(
             expanded = menuExpanded,
             onDismissRequest = { menuExpanded = false },
-            offset = DpOffset(x = 0.dp, y = 4.dp),
+            offset = DpOffset(x = menuOffsetX, y = 4.dp),
             modifier = Modifier.width(200.dp),
             shape = MaterialTheme.shapes.large,
             containerColor = MaterialTheme.colorScheme.surfaceContainer,
@@ -3252,13 +3345,20 @@ private fun DeleteConfirmDialog(
             )
         },
         title = {
-            Text("确认删除？")
+            Text(if (isCloudMode) "确认清除云端缓存？" else "确认删除本地缓存？")
         },
         text = {
             if (isCloudMode) {
                 Text("这将清除所有云端缓存的作业数据。\n\n此操作不可撤销！")
             } else {
-                Text("这将删除以下目录中的所有文件：\n\n• data/ 目录\n• resource/ 目录\n\n此操作不可撤销！")
+                Text(
+                    "这将删除本地题目缓存：\n\n" +
+                        "• data/ 目录\n" +
+                        "• resource/ 目录\n\n" +
+                        "删除后可以重新前往 e听说客户端下载题目缓存并再次读取。\n" +
+                        "不会影响 e听说账号、登录状态或其他应用数据。\n\n" +
+                        "此操作不可撤销。"
+                )
             }
         },
         confirmButton = {
@@ -3268,7 +3368,7 @@ private fun DeleteConfirmDialog(
                     contentColor = MaterialTheme.colorScheme.error
                 )
             ) {
-                Text("确认删除")
+                Text(if (isCloudMode) "确认清除" else "确认删除")
             }
         },
         dismissButton = {
