@@ -69,9 +69,11 @@ class FeNavigator(initialRoute: FeRoute) {
         val Saver: Saver<FeNavigator, Any> = listSaver(
             save = { it.backStack.filterNot { route -> route is FeRoute.Answer } },
             restore = { saved ->
-                FeNavigator(saved.firstOrNull() ?: FeRoute.Main).also { navigator ->
+                // 恢复后的返回栈必须至少含有一个路由，否则 current() 为 null 会导致页面空白。
+                val routes = saved.ifEmpty { listOf(FeRoute.Main) }
+                FeNavigator(routes.first()).also { navigator ->
                     navigator.backStack.clear()
-                    navigator.backStack.addAll(saved)
+                    navigator.backStack.addAll(routes)
                 }
             },
         )
