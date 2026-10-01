@@ -1,4 +1,4 @@
-package com.shuaiqiu.fuckets100
+package com.shuaiqiu.fuckets100.feature.settings
 
 import android.annotation.SuppressLint
 import android.os.Build
@@ -93,6 +93,7 @@ import com.materialkolor.PaletteStyle
 import com.materialkolor.dynamiccolor.ColorSpec
 import com.materialkolor.rememberDynamicColorScheme
 import com.shuaiqiu.fuckets100.component.material.ExpressiveDialog
+import com.shuaiqiu.fuckets100.label
 import com.shuaiqiu.fuckets100.component.material.ExpressiveScaffold
 import com.shuaiqiu.fuckets100.component.material.ExpressiveSegmentedDropdownItem
 import com.shuaiqiu.fuckets100.component.material.ExpressiveSegmentedListItem
@@ -102,6 +103,11 @@ import com.shuaiqiu.fuckets100.component.material.TonalCard
 import com.shuaiqiu.fuckets100.component.material.TopBarBackButton
 import com.shuaiqiu.fuckets100.component.material.expressiveTopAppBarColors
 
+import com.shuaiqiu.fuckets100.FeThemeWrapper
+import com.shuaiqiu.fuckets100.PredictiveBackAnimation
+import com.shuaiqiu.fuckets100.PredictiveBackExitDirection
+import com.shuaiqiu.fuckets100.SettingsManager
+import com.shuaiqiu.fuckets100.ThemeManager
 private enum class ThemeDisplayMode {
     SYSTEM,
     LIGHT,

@@ -1,4 +1,4 @@
-package com.shuaiqiu.fuckets100
+package com.shuaiqiu.fuckets100.feature.settings
 
 import android.content.Context
 import android.content.Intent
@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
 
+import com.shuaiqiu.fuckets100.UpdateStatus
 /**
  * 更新弹窗组件
  * 宝贝用于显示版本更新提示喵~

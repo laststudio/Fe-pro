@@ -68,7 +68,7 @@ def main() -> int:
             "https://api.lastudio.cc/software/fe/config",
         ],
         "app/src/main/java/com/shuaiqiu/fuckets100/FeAccountApi.kt": ['"https://api.lastudio.cc"'],
-        "app/src/main/java/com/shuaiqiu/fuckets100/AboutScreen.kt": [
+        "app/src/main/java/com/shuaiqiu/fuckets100/feature/settings/AboutScreen.kt": [
             "https://oplist.lastudio.cc/Fe_android",
         ],
         "scripts/release/update_remote_config.py": [

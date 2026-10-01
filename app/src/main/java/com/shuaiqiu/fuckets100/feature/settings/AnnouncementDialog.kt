@@ -1,4 +1,4 @@
-package com.shuaiqiu.fuckets100
+package com.shuaiqiu.fuckets100.feature.settings
 
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text

@@ -1,4 +1,4 @@
-package com.shuaiqiu.fuckets100
+package com.shuaiqiu.fuckets100.feature.settings
 
 import android.content.Context
 import android.content.Intent
@@ -49,6 +49,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.shuaiqiu.fuckets100.component.material.ExpressiveScaffold
+import com.shuaiqiu.fuckets100.R
+import com.shuaiqiu.fuckets100.BuildConfig
 import com.shuaiqiu.fuckets100.component.material.TopBarBackButton
 import com.shuaiqiu.fuckets100.component.material.expressiveTopAppBarColors
 

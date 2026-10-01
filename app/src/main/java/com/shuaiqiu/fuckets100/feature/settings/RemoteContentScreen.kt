@@ -1,4 +1,4 @@
-package com.shuaiqiu.fuckets100
+package com.shuaiqiu.fuckets100.feature.settings
 
 import android.content.Context
 import android.widget.Toast
@@ -43,6 +43,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.shuaiqiu.fuckets100.component.material.ExpressiveScaffold
+import com.shuaiqiu.fuckets100.BuildConfig
 import com.shuaiqiu.fuckets100.component.material.TonalCard
 import com.shuaiqiu.fuckets100.component.material.TopBarBackButton
 import com.shuaiqiu.fuckets100.component.material.expressiveTopAppBarColors
@@ -53,6 +54,8 @@ import java.net.URL
 import java.net.URLConnection
 import java.security.MessageDigest
 
+import com.shuaiqiu.fuckets100.RemoteConfigManager
+import com.shuaiqiu.fuckets100.UpdateStatus
 data class RemoteContent(
     val announcementTitle: String,
     val announcementMessage: String,

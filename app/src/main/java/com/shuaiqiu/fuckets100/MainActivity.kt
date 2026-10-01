@@ -39,6 +39,11 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import dagger.hilt.android.AndroidEntryPoint
 import com.shuaiqiu.fuckets100.component.material.rememberFeMainPagerState
+import com.shuaiqiu.fuckets100.feature.settings.AnnouncementDialog
+import com.shuaiqiu.fuckets100.feature.settings.VerificationDialog
+import com.shuaiqiu.fuckets100.feature.settings.UpdateDialog
+import com.shuaiqiu.fuckets100.feature.settings.SettingsScreen
+import com.shuaiqiu.fuckets100.feature.settings.RemoteContent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.withContext

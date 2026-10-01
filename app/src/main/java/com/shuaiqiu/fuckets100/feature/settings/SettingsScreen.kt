@@ -1,4 +1,4 @@
-package com.shuaiqiu.fuckets100
+package com.shuaiqiu.fuckets100.feature.settings
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -23,6 +23,8 @@ import com.shuaiqiu.fuckets100.component.material.ExpressiveSegmentedListItem
 import com.shuaiqiu.fuckets100.component.material.SegmentedColumn
 import com.shuaiqiu.fuckets100.component.material.expressiveTopAppBarColors
 
+import com.shuaiqiu.fuckets100.AccountInitialAvatar
+import com.shuaiqiu.fuckets100.FeAccountSession
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun SettingsScreen(
