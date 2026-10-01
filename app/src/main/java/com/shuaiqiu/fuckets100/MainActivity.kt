@@ -42,6 +42,7 @@ import com.shuaiqiu.fuckets100.component.material.rememberFeMainPagerState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.withContext
+import com.shuaiqiu.fuckets100.feature.home.HomeScreen
 import com.shuaiqiu.fuckets100.navigation.FeNavContainer
 import com.shuaiqiu.fuckets100.navigation.FeNavigator
 import com.shuaiqiu.fuckets100.navigation.FeRoute

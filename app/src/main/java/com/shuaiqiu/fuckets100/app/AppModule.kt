@@ -12,5 +12,11 @@ import javax.inject.Singleton
 object AppModule {
     @Provides
     @Singleton
-    fun provideAppBuildInfo(): AppBuildInfo = AppBuildInfo.fromBuildConfig()
+    fun provideAppBuildInfo(): AppBuildInfo = AppBuildInfo(
+        applicationId = com.shuaiqiu.fuckets100.BuildConfig.APPLICATION_ID,
+        versionCode = com.shuaiqiu.fuckets100.BuildConfig.VERSION_CODE,
+        versionName = com.shuaiqiu.fuckets100.BuildConfig.VERSION_NAME,
+        expectedPackageName = com.shuaiqiu.fuckets100.BuildConfig.EXPECTED_PACKAGE_NAME,
+        expectedSignatureSha256 = com.shuaiqiu.fuckets100.BuildConfig.EXPECTED_SIGNATURE_SHA256,
+    )
 }

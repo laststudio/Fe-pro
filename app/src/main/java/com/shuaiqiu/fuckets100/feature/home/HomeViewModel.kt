@@ -3,6 +3,7 @@ package com.shuaiqiu.fuckets100.feature.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.shuaiqiu.fuckets100.ActivationMode
+import com.shuaiqiu.fuckets100.core.common.AppBuildInfo
 import com.shuaiqiu.fuckets100.FeApplication
 import com.shuaiqiu.fuckets100.LegalAgreementRepository
 import com.shuaiqiu.fuckets100.UpdateStatus
@@ -19,11 +20,13 @@ data class HomeUiState(
     val runtimeStatus: HomeRuntimeStatus,
     val remoteStatus: UpdateStatus? = null,
     val isRefreshing: Boolean = false,
+    val appVersion: String,
 )
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val runtimeStatusRepository: HomeRuntimeStatusRepository,
+    buildInfo: AppBuildInfo,
 ) : ViewModel() {
     private var lastMode: ActivationMode? = null
     private var initialized = false
@@ -37,6 +40,7 @@ class HomeViewModel @Inject constructor(
                 cloudLoggedIn = false,
             ),
             remoteStatus = FeApplication.remoteStatus,
+            appVersion = "v${buildInfo.versionName} (${buildInfo.versionCode})",
         ),
     )
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()

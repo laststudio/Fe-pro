@@ -1,4 +1,4 @@
-package com.shuaiqiu.fuckets100
+package com.shuaiqiu.fuckets100.feature.home
 
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -37,12 +37,16 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.shuaiqiu.fuckets100.ActivationMode
+import com.shuaiqiu.fuckets100.FeAccountGateState
+import com.shuaiqiu.fuckets100.RighteousFont
+import com.shuaiqiu.fuckets100.ShizukuState
+import com.shuaiqiu.fuckets100.UpdateStatus
 import com.shuaiqiu.fuckets100.component.material.ExpressiveScaffold
 import com.shuaiqiu.fuckets100.component.material.ExpressiveSegmentedListItem
 import com.shuaiqiu.fuckets100.component.material.SegmentedColumn
 import com.shuaiqiu.fuckets100.component.material.TonalCard
 import com.shuaiqiu.fuckets100.component.material.expressiveTopAppBarColors
-import com.shuaiqiu.fuckets100.feature.home.HomeViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 
@@ -168,7 +172,10 @@ fun HomeScreen(
                 )
 
                 // 版本信息（设备、Android、管理器版本）
-                HomeVersionInfoSection(context = context)
+                HomeVersionInfoSection(
+                    context = context,
+                    appVersion = uiState.appVersion,
+                )
 
                 // 公告
                 HomeAnnouncementSection(
@@ -414,9 +421,7 @@ private object DeviceInfoHelper {
         return "${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})"
     }
 
-    fun getAppVersion(): String {
-        return "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
-    }
+    fun getAppVersion(buildVersion: String): String = buildVersion
 }
 
 private fun copyToClipboard(context: android.content.Context, label: String, text: String) {
@@ -429,10 +434,12 @@ private fun copyToClipboard(context: android.content.Context, label: String, tex
 }
 
 @Composable
-private fun HomeVersionInfoSection(context: android.content.Context) {
+private fun HomeVersionInfoSection(
+    context: android.content.Context,
+    appVersion: String,
+) {
     val deviceModel = remember { DeviceInfoHelper.getDeviceModel() }
     val androidVersion = remember { DeviceInfoHelper.getAndroidVersion() }
-    val appVersion = remember { DeviceInfoHelper.getAppVersion() }
 
     SegmentedColumn(
         title = "版本信息",
