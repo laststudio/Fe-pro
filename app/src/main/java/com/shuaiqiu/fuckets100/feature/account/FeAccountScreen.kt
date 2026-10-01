@@ -29,7 +29,7 @@ import kotlinx.coroutines.launch
 import com.shuaiqiu.fuckets100.FeAccountApiException
 import com.shuaiqiu.fuckets100.FeAccountGateState
 import com.shuaiqiu.fuckets100.FeAccountProfileApi
-import com.shuaiqiu.fuckets100.SettingsListItem
+import com.shuaiqiu.fuckets100.core.designsystem.SettingsListItem
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FeAccountScreen(
