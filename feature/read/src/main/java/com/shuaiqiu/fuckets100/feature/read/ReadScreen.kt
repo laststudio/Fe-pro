@@ -25,8 +25,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.shuaiqiu.fuckets100.core.designsystem.ExpressiveScaffold
@@ -115,7 +113,7 @@ fun ReadScreen(
         clipboard.setPrimaryClip(android.content.ClipData.newPlainText(paper.title, text))
         android.widget.Toast.makeText(context, "已复制答案到剪贴板", android.widget.Toast.LENGTH_SHORT).show()
     }
-    
+
     var selectedPaper by remember { mutableStateOf<ETS100AnswerReader.Paper?>(null) }
     var selectedSectionIndex by remember { mutableIntStateOf(-1) }
     var selectedQuestionIndex by remember { mutableIntStateOf(-1) }
@@ -128,14 +126,14 @@ fun ReadScreen(
     var showLocalDirectoryExport by remember { mutableStateOf(false) }
     var showCloudDirectoryExport by remember { mutableStateOf(false) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }  // 宝贝添加了删除确认对话框状态喵~
-    
+
     // 展开状态 - 宝贝现在使用 PaperListItem，不需要这些展开状态了喵~
     // var expandedPapers by remember { mutableStateOf(setOf<Int>()) }
     // var expandedSections by remember { mutableStateOf(setOf<Pair<Int, Int>>()) }
     // 搜索相关状态 - 已移除喵~
     // var questionSearchQuery by remember { mutableStateOf("") }
     // var showOnlyAnswered by remember { mutableStateOf(false) }
-    
+
     // 可展开 FAB 相关状态
     var showCloudReadConfirmDialog by remember { mutableStateOf(false) }
     var showReadActionsMenu by remember { mutableStateOf(false) }
@@ -186,7 +184,7 @@ fun ReadScreen(
     }
 
     val categoryColors = answerCategoryColors()
-    
+
     // Diagnostics remain in Logcat without retaining an unbounded UI history.
     fun addLog(
         level: LogLevel = LogLevel.INFO,
@@ -229,7 +227,7 @@ fun ReadScreen(
             readAccessIssue = readAccessIssue,
         )
     }
-    
+
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     var isRefreshing by remember { mutableStateOf(false) }
@@ -376,148 +374,39 @@ fun ReadScreen(
             when {
                 // 1. 读取前置条件不满足时直接显示可操作提示，不进入底层读取流程。
                 readAccessChecking || readAccessIssue != null -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize().padding(28.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                Icons.Default.Lock,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.size(64.dp),
-                            )
-                            Spacer(Modifier.height(16.dp))
-                            Text(
-                                if (readAccessChecking) "正在检查读取条件" else "暂时无法读取",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
-                                textAlign = TextAlign.Center,
-                            )
-                            Spacer(Modifier.height(8.dp))
-                            Text(
-                                readAccessIssue ?: "正在确认账号、权限和运行模式...",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                textAlign = TextAlign.Center,
-                            )
-                            if (!readAccessChecking) {
-                                Spacer(Modifier.height(20.dp))
-                                Button(onClick = onNavigateToActivation) {
-                                    Text("前往激活配置")
-                                }
-                            }
-                        }
-                    }
+                    ReadAccessGate(
+                    readAccessChecking = readAccessChecking,
+                    readAccessIssue = readAccessIssue,
+                    onNavigateToActivation = onNavigateToActivation,
+                )
                 }
 
                 // 2. 加载中（本地模式 isLoading 或 云端模式 isLoadingCloudHomework）喵~
                 isLoading || (currentMode == ActivationMode.CLOUD && isLoadingCloudHomework) -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        val loadingPulse = rememberInfiniteTransition(label = "localReadLoadingPulse")
-                            .animateFloat(
-                                initialValue = 0.72f,
-                                targetValue = 1f,
-                                animationSpec = infiniteRepeatable(
-                                    animation = tween(900),
-                                    repeatMode = RepeatMode.Reverse,
-                                ),
-                                label = "localReadLoadingAlpha",
-                            )
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.animateContentSize(tween(260)),
-                        ) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(44.dp),
-                                strokeWidth = 3.dp,
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = loadingPulse.value),
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            val loadingTitle = if (currentMode == ActivationMode.CLOUD) {
-                                "正在加载云端作业..."
-                            } else {
-                                when (uiState.localProgress.phase) {
-                                    LocalParsePhase.SCANNING -> "正在扫描试卷列表..."
-                                    LocalParsePhase.PARSING -> "正在解析答案..."
-                                    else -> "正在加载试卷..."
-                                }
-                            }
-                            AnimatedContent(
-                                targetState = loadingTitle,
-                                transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(120)) },
-                                label = "localReadLoadingTitle",
-                            ) { title ->
-                                Text(
-                                    title,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(6.dp))
-                            val statsText = if (currentMode == ActivationMode.CLOUD) {
-                                "已下载 ${downloadedCloudPapers.size} 份作业，累计 $downloadedCloudQuestionCount 道题"
-                            } else {
-                                "已发现 ${papers.size} 份试卷，${loadedLocalSectionCount} 个分区，${loadedLocalQuestionCount} 道题"
-                            }
-                            AnimatedContent(
-                                targetState = statsText,
-                                transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(120)) },
-                                label = "localReadLoadingStats",
-                            ) { stats ->
-                                Text(
-                                    stats,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    textAlign = TextAlign.Center,
-                                )
-                            }
-                        }
-                    }
+                    ReadLoadingState(
+                    currentMode = currentMode,
+                    localPhase = uiState.localProgress.phase,
+                    downloadedCloudPaperCount = downloadedCloudPapers.size,
+                    downloadedCloudQuestionCount = downloadedCloudQuestionCount,
+                    localPaperCount = papers.size,
+                    localSectionCount = loadedLocalSectionCount,
+                    localQuestionCount = loadedLocalQuestionCount,
+                )
                 }
 
                 // 2. 错误状态（本地 errorMessage 或 云端 cloudHomeworkError）喵~
                 errorMessage != null || cloudHomeworkError != null -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .verticalScroll(rememberScrollState()),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.padding(32.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.ErrorOutline,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.size(64.dp)
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text(
-                                errorMessage ?: cloudHomeworkError ?: "未知错误",
-                                style = MaterialTheme.typography.bodyLarge,
-                                textAlign = TextAlign.Center,
-                                color = MaterialTheme.colorScheme.error
-                            )
-                            Spacer(modifier = Modifier.height(24.dp))
-                            Button(
-                                onClick = {
-                                    if (shouldOpenChangyanLoginDirectly) {
-                                        onOpenChangyanLogin()
-                                    } else {
-                                        onNavigateToActivation()
-                                    }
-                                }
-                            ) {
-                                Text(if (shouldOpenChangyanLoginDirectly) "前往登录" else "前往激活")
-                            }
+                    ReadErrorState(
+                    message = errorMessage ?: cloudHomeworkError ?: "未知错误",
+                    actionLabel = if (shouldOpenChangyanLoginDirectly) "前往登录" else "前往激活",
+                    onAction = {
+                        if (shouldOpenChangyanLoginDirectly) {
+                            onOpenChangyanLogin()
+                        } else {
+                            onNavigateToActivation()
                         }
-                    }
+                    },
+                )
                 }
 
                 // 3. 云端模式：作业列表非空，显示作业列表或答案详情喵~
@@ -751,7 +640,7 @@ fun ReadScreen(
                     }
                 }
             }
-            
+
             // 宝贝删除确认对话框喵~
             if (showDeleteConfirmDialog) {
                 DeleteConfirmDialog(
