@@ -135,21 +135,6 @@ private enum class LogCategory(val label: String) {
 }
 
 /**
- * 初始化结果密封类
- * 用于安全地在 IO 线程和主线程之间传递数据
- */
-private sealed class InitResult {
-    data class Success(
-        val readerInfo: String,
-        val dataFiles: List<ETS100FileReader.FileItem>,
-        val resourceFiles: List<ETS100FileReader.FileItem>,
-        val papers: List<ETS100AnswerReader.Paper>
-    ) : InitResult()
-    
-    data class Error(val message: String) : InitResult()
-}
-
-/**
  * 阅读界面 - 显示ETS 100答案的阅读界面
  * 支持多种激活模式（Shizuku、Root、SAF等）
  */
@@ -1281,173 +1266,119 @@ fun ReadScreen(
             // 在 IO 线程执行文件扫描，先把试卷列表显示出来
             addLog(LogLevel.INFO, LogCategory.SYSTEM, "开始扫描试卷列表...")
             val summaryStartMs = System.currentTimeMillis()
-            val summaryResult = withContext(Dispatchers.IO) {
-                try {
-                    // 获取阅读器
-                    addLog(LogLevel.DEBUG, LogCategory.FILE, "获取文件阅读器...")
-                    val reader = ETS100FileReader.getReader(currentMode, context)
-                    addLog(LogLevel.SUCCESS, LogCategory.FILE, "✓ 阅读器创建成功: ${reader.javaClass.simpleName}")
-                    
-                    // 获取路径信息
-                    val dataDirPath = ETS100FileReader.Path.getDataDir()
-                    val resourceDirPath = ETS100FileReader.Path.getResourceDir()
-                    addLog(LogLevel.DEBUG, LogCategory.FILE, "数据目录: $dataDirPath")
-                    addLog(LogLevel.DEBUG, LogCategory.FILE, "资源目录: $resourceDirPath")
-
-                    val shouldScanDebugFileLists = currentMode == ActivationMode.DIRECT_READ
-                    
-                    val dataFilesList = if (shouldScanDebugFileLists) {
-                        addLog(LogLevel.INFO, LogCategory.FILE, "扫描 data 目录...")
-                        reader.listFiles(dataDirPath)
-                            .filter { file -> !file.isDirectory && file.size > ETS100FileReader.Path.MIN_FILE_SIZE }
-                            .sortedByDescending { it.lastModified }
-                            .also { files ->
-                                addLog(LogLevel.SUCCESS, LogCategory.FILE, "✓ 找到 ${files.size} 个数据文件")
-                                if (files.isNotEmpty()) {
-                                    addLog(LogLevel.DEBUG, LogCategory.FILE, "  最新文件: ${files.first().name} (${formatFileSize(files.first().size)})")
-                                }
-                            }
-                    } else {
-                        addLog(LogLevel.INFO, LogCategory.FILE, "Root/Shizuku 列表阶段跳过 data 明细扫描")
-                        emptyList()
-                    }
-                    
-                    val resourceFilesList = if (shouldScanDebugFileLists) {
-                        addLog(LogLevel.INFO, LogCategory.FILE, "扫描 resource 目录...")
-                        reader.listFiles(resourceDirPath).also { files ->
-                            addLog(LogLevel.SUCCESS, LogCategory.FILE, "✓ 找到 ${files.size} 个资源文件")
-                        }
-                    } else {
-                        addLog(LogLevel.INFO, LogCategory.FILE, "Root/Shizuku 列表阶段跳过 resource 明细扫描")
-                        emptyList()
-                    }
-                    
-                    // 先轻量读取试卷列表，不在这里解析完整答案
-                    addLog(LogLevel.INFO, LogCategory.PAPER, "=" .repeat(40))
-                    addLog(LogLevel.INFO, LogCategory.PAPER, "📚 开始读取试卷列表...")
-                    val paperList = ETS100AnswerReader.readPaperSummaries(context, currentMode)
-                    addLog(LogLevel.SUCCESS, LogCategory.PAPER, "✓ 成功扫描到 ${paperList.size} 份试卷")
-                    
-                    InitResult.Success(
-                        readerInfo = reader.toString(),
-                        dataFiles = dataFilesList,
-                        resourceFiles = resourceFilesList,
-                        papers = paperList
-                    )
-                } catch (e: Exception) {
-                    addLog(LogLevel.ERROR, LogCategory.SYSTEM, "✗ IO 操作失败: ${e.message}")
-                    InitResult.Error(e.message ?: "未知错误")
-                }
+            addLog(LogLevel.DEBUG, LogCategory.FILE, "获取文件阅读器...")
+            if (currentMode == ActivationMode.DIRECT_READ) {
+                addLog(LogLevel.INFO, LogCategory.FILE, "扫描 data/resource 目录...")
+            } else {
+                addLog(LogLevel.INFO, LogCategory.FILE, "Root/Shizuku 列表阶段跳过目录明细扫描")
             }
+            addLog(LogLevel.INFO, LogCategory.PAPER, "=".repeat(40))
+            addLog(LogLevel.INFO, LogCategory.PAPER, "📚 开始读取试卷列表...")
+            val summaryResult = ReadLocalLoader.scan(context, currentMode)
             val summaryCostMs = System.currentTimeMillis() - summaryStartMs
             
             addLog(LogLevel.INFO, LogCategory.SYSTEM, "处理试卷列表扫描结果...")
             when (summaryResult) {
-                is InitResult.Success -> {
-                    readerInfo = summaryResult.readerInfo
-                    dataFiles = summaryResult.dataFiles
-                    resourceFiles = summaryResult.resourceFiles
-                    papers = summaryResult.papers
+                is LocalReadResult.Success -> {
+                    val snapshot = summaryResult.value
+                    readerInfo = snapshot.readerInfo
+                    dataFiles = snapshot.dataFiles
+                    resourceFiles = snapshot.resourceFiles
+                    papers = snapshot.papers
                     errorMessage = null
                     isLoading = false
-                    LocalReadProgressState.totalCount = summaryResult.papers.size
+                    LocalReadProgressState.totalCount = snapshot.papers.size
+                    addLog(LogLevel.SUCCESS, LogCategory.FILE, "✓ 阅读器创建成功: ${snapshot.readerInfo.substringAfterLast('.')}")
+                    addLog(LogLevel.SUCCESS, LogCategory.FILE, "✓ 数据文件 ${snapshot.dataFiles.size} 个，资源文件 ${snapshot.resourceFiles.size} 个")
+                    snapshot.dataFiles.firstOrNull()?.let { file ->
+                        addLog(LogLevel.DEBUG, LogCategory.FILE, "  最新文件: ${file.name} (${formatFileSize(file.size)})")
+                    }
+                    addLog(LogLevel.SUCCESS, LogCategory.PAPER, "✓ 成功扫描到 ${snapshot.papers.size} 份试卷")
                     LocalReadProgressState.doneCount = 0
                     LocalReadProgressState.parsedGroupIndexes = emptySet()
                     LocalReadProgressState.message = "列表扫描耗时 ${summaryCostMs}ms，正在后台解析答案"
                     addLog(
                         LogLevel.SUCCESS,
                         LogCategory.SYSTEM,
-                        "✓ 已显示 ${summaryResult.papers.size} 份试卷，列表扫描耗时 ${summaryCostMs}ms，开始后台解析答案"
+                        "✓ 已显示 ${snapshot.papers.size} 份试卷，列表扫描耗时 ${summaryCostMs}ms，开始后台解析答案"
                     )
 
-                    if (summaryResult.papers.isNotEmpty()) {
+                    if (snapshot.papers.isNotEmpty()) {
                         isParsingLocalAnswers = true
                         LocalReadProgressState.phase = LocalParsePhase.PARSING
                         LocalReadProgressState.message = "列表扫描耗时 ${summaryCostMs}ms，正在后台解析答案"
                         LocalReadProgressState.parseJob = AppCoroutineScope.scope.launch {
                             delay(32)
                             val parseStartMs = System.currentTimeMillis()
-                            val fullResult = withContext(Dispatchers.IO) {
-                                try {
-                                    val paperList = ETS100AnswerReader.readPapersParallel(
-                                        context = context,
-                                        mode = currentMode,
-                                        onGroupStarted = { groupIndex, totalGroups ->
-                                            withContext(Dispatchers.Main) {
-                                                LocalReadProgressState.totalGroupCount = totalGroups
-                                                LocalReadProgressState.activeGroupIndex = groupIndex
-                                                LocalReadProgressState.message = "正在解析第 ${groupIndex + 1}/$totalGroups 组"
-                                            }
-                                        },
-                                    ) { groupIndex, parsedGroupPapers ->
-                                        withContext(Dispatchers.Main) {
-                                            LocalReadProgressState.parsedGroupIndexes =
-                                                LocalReadProgressState.parsedGroupIndexes + groupIndex
-                                            LocalReadProgressState.doneCount =
-                                                LocalReadProgressState.parsedGroupIndexes.size
-                                            LocalReadProgressState.completedGroupCount =
-                                                LocalReadProgressState.parsedGroupIndexes.size
-                                            if (parsedGroupPapers.isNotEmpty()) {
-                                                papers = papers.toMutableList().also { currentPapers ->
-                                                    parsedGroupPapers.forEachIndexed { offset, parsedPaper ->
-                                                        val existingIndex = currentPapers.indexOfFirst {
-                                                            it.paperId == parsedPaper.paperId
-                                                        }
-                                                        if (existingIndex >= 0) {
-                                                            currentPapers[existingIndex] = parsedPaper
-                                                        } else {
-                                                            val insertIndex = (groupIndex + offset)
-                                                                .coerceIn(0, currentPapers.size)
-                                                            currentPapers.add(insertIndex, parsedPaper)
-                                                        }
+                            val fullResult = ReadLocalLoader.parse(
+                                context = context,
+                                mode = currentMode,
+                                onGroupStarted = { groupIndex, totalGroups ->
+                                    withContext(Dispatchers.Main) {
+                                        LocalReadProgressState.totalGroupCount = totalGroups
+                                        LocalReadProgressState.activeGroupIndex = groupIndex
+                                        LocalReadProgressState.message = "正在解析第 ${groupIndex + 1}/$totalGroups 组"
+                                    }
+                                },
+                                onGroupParsed = { groupIndex, parsedGroupPapers ->
+                                    withContext(Dispatchers.Main) {
+                                        LocalReadProgressState.parsedGroupIndexes =
+                                            LocalReadProgressState.parsedGroupIndexes + groupIndex
+                                        LocalReadProgressState.doneCount =
+                                            LocalReadProgressState.parsedGroupIndexes.size
+                                        LocalReadProgressState.completedGroupCount =
+                                            LocalReadProgressState.parsedGroupIndexes.size
+                                        if (parsedGroupPapers.isNotEmpty()) {
+                                            papers = papers.toMutableList().also { currentPapers ->
+                                                parsedGroupPapers.forEachIndexed { offset, parsedPaper ->
+                                                    val existingIndex = currentPapers.indexOfFirst {
+                                                        it.paperId == parsedPaper.paperId
+                                                    }
+                                                    if (existingIndex >= 0) {
+                                                        currentPapers[existingIndex] = parsedPaper
+                                                    } else {
+                                                        val insertIndex = (groupIndex + offset)
+                                                            .coerceIn(0, currentPapers.size)
+                                                        currentPapers.add(insertIndex, parsedPaper)
                                                     }
                                                 }
-                                                LocalReadProgressState.sectionCount = papers.totalSectionCount()
-                                                LocalReadProgressState.questionCount = papers.totalQuestionCount()
-                                                addLog(
-                                                    LogLevel.SUCCESS,
-                                                    LogCategory.PAPER,
-                                                    "✓ 已解析第 ${groupIndex + 1} 份试卷 " +
-                                                        "(${LocalReadProgressState.doneCount}/${LocalReadProgressState.totalCount})，" +
-                                                        "累计 ${LocalReadProgressState.sectionCount} 个分区、${LocalReadProgressState.questionCount} 道题"
-                                                )
                                             }
+                                            LocalReadProgressState.sectionCount = papers.totalSectionCount()
+                                            LocalReadProgressState.questionCount = papers.totalQuestionCount()
+                                            addLog(
+                                                LogLevel.SUCCESS,
+                                                LogCategory.PAPER,
+                                                "✓ 已解析第 ${groupIndex + 1} 份试卷 " +
+                                                    "(${LocalReadProgressState.doneCount}/${LocalReadProgressState.totalCount})，" +
+                                                    "累计 ${LocalReadProgressState.sectionCount} 个分区、${LocalReadProgressState.questionCount} 道题"
+                                            )
                                         }
                                     }
-                                    InitResult.Success(
-                                        readerInfo = summaryResult.readerInfo,
-                                        dataFiles = summaryResult.dataFiles,
-                                        resourceFiles = summaryResult.resourceFiles,
-                                        papers = paperList
-                                    )
-                                } catch (e: CancellationException) {
-                                    throw e
-                                } catch (e: Exception) {
-                                    InitResult.Error(e.message ?: "未知错误")
-                                }
-                            }
+                                },
+                            )
 
                             try {
                                 when (fullResult) {
-                                    is InitResult.Success -> {
-                                        if (fullResult.papers.isNotEmpty()) {
-                                            papers = fullResult.papers
+                                    is LocalReadResult.Success -> {
+                                        val parsedPapers = fullResult.value
+                                        if (parsedPapers.isNotEmpty()) {
+                                            papers = parsedPapers
                                             ReadPageStateStore.saveLocal(
                                                 context,
                                                 ReadPageStateStore.LocalSnapshot(
                                                     mode = currentMode,
-                                                    readerInfo = fullResult.readerInfo,
-                                                    dataFiles = fullResult.dataFiles,
-                                                    resourceFiles = fullResult.resourceFiles,
-                                                    papers = fullResult.papers
+                                                    readerInfo = snapshot.readerInfo,
+                                                    dataFiles = snapshot.dataFiles,
+                                                    resourceFiles = snapshot.resourceFiles,
+                                                    papers = parsedPapers
                                                 )
                                             )
 
                                             addLog(LogLevel.INIT, LogCategory.PAPER, "📊 试卷统计:")
-                                            addLog(LogLevel.INIT, LogCategory.PAPER, "   总试卷数: ${fullResult.papers.size}")
-                                            val totalSections = fullResult.papers.sumOf { it.sections.size }
-                                            val totalQuestions = fullResult.papers.sumOf { it.sections.sumOf { s -> s.questions.size } }
-                                            val answeredQuestions = fullResult.papers.sumOf { it.sections.sumOf { s -> s.questions.count { q -> q.answer.isNotEmpty() } } }
+                                            addLog(LogLevel.INIT, LogCategory.PAPER, "   总试卷数: ${parsedPapers.size}")
+                                            val totalSections = parsedPapers.sumOf { it.sections.size }
+                                            val totalQuestions = parsedPapers.sumOf { it.sections.sumOf { s -> s.questions.size } }
+                                            val answeredQuestions = parsedPapers.sumOf { it.sections.sumOf { s -> s.questions.count { q -> q.answer.isNotEmpty() } } }
                                             val answeredPercent = if (totalQuestions > 0) {
                                                 (answeredQuestions * 100.0 / totalQuestions).toInt()
                                             } else {
@@ -1462,14 +1393,14 @@ fun ReadScreen(
                                             LocalReadProgressState.sectionCount = totalSections
                                             LocalReadProgressState.questionCount = totalQuestions
                                             LocalReadProgressState.phase = LocalParsePhase.COMPLETED
-                                            LocalReadProgressState.message = "共 ${fullResult.papers.size} 份试卷、$totalSections 个分区、$totalQuestions 道题"
+                                            LocalReadProgressState.message = "共 ${parsedPapers.size} 份试卷、$totalSections 个分区、$totalQuestions 道题"
                                         } else {
                                             addLog(LogLevel.WARN, LogCategory.SYSTEM, "后台解析未返回完整试卷，保留当前试卷列表")
                                             LocalReadProgressState.phase = LocalParsePhase.FAILED
                                             LocalReadProgressState.message = "后台解析未返回完整试卷"
                                         }
                                     }
-                                    is InitResult.Error -> {
+                                    is LocalReadResult.Error -> {
                                         addLog(LogLevel.ERROR, LogCategory.SYSTEM, "✗ 后台解析答案失败: ${fullResult.message}")
                                         LocalReadProgressState.phase = LocalParsePhase.FAILED
                                         LocalReadProgressState.message = "后台解析答案失败: ${fullResult.message}"
@@ -1486,7 +1417,7 @@ fun ReadScreen(
                         LocalReadProgressState.message = "未扫描到试卷"
                     }
                 }
-                is InitResult.Error -> {
+                is LocalReadResult.Error -> {
                     addLog(LogLevel.ERROR, LogCategory.SYSTEM, "✗ 加载失败: ${summaryResult.message}")
                     errorMessage = "加载失败: ${summaryResult.message}"
                     LocalReadProgressState.phase = LocalParsePhase.FAILED
