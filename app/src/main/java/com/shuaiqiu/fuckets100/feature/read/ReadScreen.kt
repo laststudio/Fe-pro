@@ -90,7 +90,6 @@ import com.shuaiqiu.fuckets100.ETS100ApiClient
 import com.shuaiqiu.fuckets100.ETS100AuthManager
 import com.shuaiqiu.fuckets100.ETS100FileReader
 import com.shuaiqiu.fuckets100.FeAccountFeatures
-import com.shuaiqiu.fuckets100.FeAccountManager
 import com.shuaiqiu.fuckets100.core.designsystem.FeFilledCard
 import com.shuaiqiu.fuckets100.core.designsystem.FeThinDivider
 import com.shuaiqiu.fuckets100.core.designsystem.FeTonalIconContainer
@@ -186,7 +185,7 @@ fun ReadScreen(
     }
 
     fun copyPaperText(paper: ETS100AnswerReader.Paper) {
-        val (available, reason) = FeAccountManager.get(context).isFeatureAvailable(FeAccountFeatures.ANSWER_SHARE)
+        val (available, reason) = viewModel.isFeatureAvailable(FeAccountFeatures.ANSWER_SHARE)
         if (!available) {
             android.widget.Toast.makeText(context, reason ?: "答案分享功能当前不可用", android.widget.Toast.LENGTH_SHORT).show()
             return
@@ -368,7 +367,7 @@ fun ReadScreen(
             }
         } else {
             try {
-                val cloudSession = FeAccountManager.get(context).cloudSession(
+                val cloudSession = viewModel.cloudSession(
                     ETS100AuthManager.getSelectedEcardId(context).orEmpty()
                 )
                 ETS100AuthManager.saveDeviceCode(context, cloudSession.deviceCode)
@@ -485,7 +484,7 @@ fun ReadScreen(
         if (responses.isEmpty()) {
             if (!isChangyanLogin) {
                 try {
-                    val cloudSession = FeAccountManager.get(context).cloudSession(
+                    val cloudSession = viewModel.cloudSession(
                         ETS100AuthManager.getSelectedEcardId(context).orEmpty()
                     )
                     ETS100AuthManager.saveDeviceCode(context, cloudSession.deviceCode)

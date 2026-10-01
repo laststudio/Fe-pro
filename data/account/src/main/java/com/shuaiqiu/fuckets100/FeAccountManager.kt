@@ -1,8 +1,8 @@
 package com.shuaiqiu.fuckets100
 
 import android.content.Context
-import com.shuaiqiu.fuckets100.core.common.AppBuildInfoHolder
-import com.shuaiqiu.fuckets100.core.common.AuthServices
+import com.shuaiqiu.fuckets100.core.common.AppBuildInfo
+import com.shuaiqiu.fuckets100.core.common.AuthCacheInvalidator
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -19,8 +19,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
-class FeAccountManager private constructor(context: Context) {
-    private val api = FeAccountApi(context.applicationContext)
+class FeAccountManager private constructor(
+    context: Context,
+    private val buildInfo: AppBuildInfo,
+    private val authCacheInvalidator: AuthCacheInvalidator,
+) {
+    private val api = FeAccountApi(context.applicationContext, buildInfo)
     private val profileApi = FeAccountProfileApi()
     private val store = FeSecureSessionStore(context.applicationContext)
     /**
@@ -105,7 +109,7 @@ class FeAccountManager private constructor(context: Context) {
                     _features.value = list.associateBy { it.featureKey }
                 }
             when (val decision = evaluateFeSoftwarePolicy(
-                currentVersionCode = AppBuildInfoHolder.versionCodeOrZero(),
+                currentVersionCode = buildInfo.versionCode,
                 killSwitch = policy.killSwitch,
                 latestVersionCode = policy.latestVersionCode,
                 forceUpdate = policy.forceUpdate,
@@ -313,7 +317,7 @@ class FeAccountManager private constructor(context: Context) {
             withContext(NonCancellable) {
                 sessionMutex.withLock {
                     val tokenToRevoke = accessToken
-                    AuthServices.authCacheInvalidator?.invalidateAuthCache()
+                    authCacheInvalidator.invalidateAuthCache()
                     // clear() commits synchronously and may throw; do not navigate or change gate on failure.
                     clearCredentialsLocked()
                     try {
@@ -451,10 +455,15 @@ class FeAccountManager private constructor(context: Context) {
         private const val REFRESH_CRITICAL_TIMEOUT_MS = 10_000L
         private const val SESSION_CACHE_TTL_MS = 60_000L
         private const val PROFILE_CACHE_TTL_MS = 120_000L
-        @Volatile private var instance: FeAccountManager? = null
 
-        fun get(context: Context): FeAccountManager = instance ?: synchronized(this) {
-            instance ?: FeAccountManager(context).also { instance = it }
-        }
+        fun create(
+            context: Context,
+            buildInfo: AppBuildInfo,
+            authCacheInvalidator: AuthCacheInvalidator,
+        ): FeAccountManager = FeAccountManager(
+            context = context.applicationContext,
+            buildInfo = buildInfo,
+            authCacheInvalidator = authCacheInvalidator,
+        )
     }
 }

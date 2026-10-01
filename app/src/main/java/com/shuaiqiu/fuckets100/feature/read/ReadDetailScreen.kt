@@ -59,6 +59,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.compose.ui.window.Dialog
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -98,6 +99,7 @@ import com.shuaiqiu.fuckets100.ResolverAuthorizationDeniedException
 import com.shuaiqiu.fuckets100.ResolverAuthorizer
 import com.shuaiqiu.fuckets100.SettingsManager
 import com.shuaiqiu.fuckets100.ZipPasswordGenerator
+import com.shuaiqiu.fuckets100.feature.account.AccountViewModel
 import com.shuaiqiu.fuckets100.core.designsystem.FeFilledCard
 import com.shuaiqiu.fuckets100.core.designsystem.FeThinDivider
 import com.shuaiqiu.fuckets100.core.designsystem.FeTonalIconContainer
@@ -115,7 +117,8 @@ fun PaperDetailScreen(
     onBack: () -> Unit,
     categoryColors: Map<String, Color>,
     compactAnswerDisplay: Boolean = SettingsManager.getCompactAnswerDisplay(),
-    onCopyText: () -> Unit = {}
+    onCopyText: () -> Unit = {},
+    accountManager: FeAccountManager = hiltViewModel<AccountViewModel>().manager,
 ) {
     var showMenu by remember { mutableStateOf(false) }
     var sourceExportPaper by remember { mutableStateOf<ETS100AnswerReader.Paper?>(null) }
@@ -172,7 +175,7 @@ fun PaperDetailScreen(
                             text = { Text("\u5bfc\u51fa\u56fe\u7247") },
                             onClick = {
                                 showMenu = false
-                                exportPaperAsImage(context, paper)
+                                exportPaperAsImage(context, paper, accountManager)
                             },
                             leadingIcon = {
                                 Icon(Icons.Default.Image, contentDescription = null)

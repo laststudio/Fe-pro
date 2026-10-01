@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.shuaiqiu.fuckets100.ActivationMode
 import com.shuaiqiu.fuckets100.ETS100AnswerReader
 import com.shuaiqiu.fuckets100.ETS100FileReader
+import com.shuaiqiu.fuckets100.FeAccountManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -35,6 +36,7 @@ data class ReadUiState(
 @HiltViewModel
 class ReadViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
+    private val accountManager: FeAccountManager,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(ReadUiState())
     val uiState: StateFlow<ReadUiState> = _uiState.asStateFlow()
@@ -222,6 +224,12 @@ class ReadViewModel @Inject constructor(
             }
         }
     }
+
+    fun isFeatureAvailable(featureKey: String): Pair<Boolean, String?> =
+        accountManager.isFeatureAvailable(featureKey)
+
+    suspend fun cloudSession(preferredAccountId: String) =
+        accountManager.cloudSession(preferredAccountId)
 
     fun requestReload() {
         _uiState.update { it.copy(reloadTrigger = it.reloadTrigger + 1, errorMessage = null) }

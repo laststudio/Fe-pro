@@ -38,6 +38,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 import com.shuaiqiu.fuckets100.core.designsystem.rememberFeMainPagerState
 import com.shuaiqiu.fuckets100.feature.onboarding.OnboardingScreen
 import com.shuaiqiu.fuckets100.feature.account.FeAccountGate
@@ -79,6 +80,8 @@ sealed class Screen(val route: String, val icon: ImageVector, val label: String)
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+    @Inject lateinit var accountManager: FeAccountManager
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
@@ -99,7 +102,7 @@ class MainActivity : ComponentActivity() {
         ThemeManager.init(this)
         
         setContent {
-            FeAppMain()
+            FeAppMain(accountManager)
         }
     }
 
@@ -171,10 +174,9 @@ private fun handleTargetRoute(
 /** 
  * 搴旂敤涓荤晫闈㈢粍鍚堝嚱鏁? */
 @Composable
-fun FeAppMain() {
+fun FeAppMain(accountManager: FeAccountManager) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    val accountManager = remember(context) { FeAccountManager.get(context) }
     val feAccountState by accountManager.gateState.collectAsState()
     val accountOnline = feAccountState is FeAccountGateState.Ready
     val navigator = rememberFeNavigator(FeRoute.Main)

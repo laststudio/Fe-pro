@@ -51,6 +51,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.shuaiqiu.fuckets100.core.designsystem.ExpressiveScaffold
 import com.shuaiqiu.fuckets100.core.designsystem.TonalCard
 import com.shuaiqiu.fuckets100.core.designsystem.TopBarBackButton
@@ -70,9 +71,9 @@ private const val ACCOUNT_CENTER_URL = "https://lastudio.cc/account"
 fun CloudActivationScreen(
     onBack: () -> Unit,
     onLoginSuccess: () -> Unit,
+    accountManager: FeAccountManager = hiltViewModel<AccountViewModel>().manager,
 ) {
     val context = LocalContext.current
-    val accountManager = remember(context) { FeAccountManager.get(context) }
     val scope = rememberCoroutineScope()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     var isLoading by remember { mutableStateOf(false) }

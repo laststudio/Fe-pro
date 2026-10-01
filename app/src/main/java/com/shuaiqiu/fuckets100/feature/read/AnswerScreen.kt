@@ -13,14 +13,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 
 import com.shuaiqiu.fuckets100.FeAccountFeatures
 import com.shuaiqiu.fuckets100.FeAccountManager
 import com.shuaiqiu.fuckets100.PaperStore
+import com.shuaiqiu.fuckets100.feature.account.AccountViewModel
 @Composable
 fun AnswerScreen(
     paperKey: String,
     onBack: () -> Unit,
+    accountManager: FeAccountManager = hiltViewModel<AccountViewModel>().manager,
 ) {
     val context = LocalContext.current
     val paper = remember(paperKey) { PaperStore.get(paperKey) }
@@ -41,7 +44,7 @@ fun AnswerScreen(
         onBack = onBack,
         categoryColors = answerCategoryColors(),
         onCopyText = {
-            val (available, reason) = FeAccountManager.get(context).isFeatureAvailable(FeAccountFeatures.ANSWER_SHARE)
+            val (available, reason) = accountManager.isFeatureAvailable(FeAccountFeatures.ANSWER_SHARE)
             if (!available) {
                 Toast.makeText(context, reason ?: "答案分享功能当前不可用", Toast.LENGTH_SHORT).show()
                 return@PaperDetailScreen

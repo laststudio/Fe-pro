@@ -16,8 +16,12 @@ import com.shuaiqiu.fuckets100.FeAccountManager
 
 private const val FE_SHARE_SIGNATURE = "Fe守护你的答案喵~ 官网:lastudio.cc"
 
-internal fun exportPaperAsImage(context: android.content.Context, paper: ETS100AnswerReader.Paper) {
-    val (available, reason) = FeAccountManager.get(context).isFeatureAvailable(FeAccountFeatures.ANSWER_SHARE)
+internal fun exportPaperAsImage(
+    context: android.content.Context,
+    paper: ETS100AnswerReader.Paper,
+    accountManager: FeAccountManager,
+) {
+    val (available, reason) = accountManager.isFeatureAvailable(FeAccountFeatures.ANSWER_SHARE)
     if (!available) {
         android.widget.Toast.makeText(context, reason ?: "答案分享功能当前不可用", android.widget.Toast.LENGTH_SHORT).show()
         return

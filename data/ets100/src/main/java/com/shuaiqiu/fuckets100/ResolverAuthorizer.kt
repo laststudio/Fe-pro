@@ -5,7 +5,6 @@ import com.shuaiqiu.fuckets100.core.common.AccountAccess
 import com.shuaiqiu.fuckets100.core.common.AccountAccessException
 import com.shuaiqiu.fuckets100.core.common.AppBuildInfo
 import com.shuaiqiu.fuckets100.core.common.AuthCacheInvalidator
-import com.shuaiqiu.fuckets100.core.common.AuthServices
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -23,12 +22,14 @@ object ResolverAuthorizer : AuthCacheInvalidator {
 
     /** 由 Application 注入，避免 data 层反向依赖 app 层 BuildConfig。 */
     @Volatile private var buildInfo: AppBuildInfo? = null
+    @Volatile private var accountAccess: AccountAccess? = null
 
-    fun init(buildInfo: AppBuildInfo) {
+    fun init(buildInfo: AppBuildInfo, accountAccess: AccountAccess) {
         this.buildInfo = buildInfo
+        this.accountAccess = accountAccess
     }
 
-    private fun account(): AccountAccess = AuthServices.accountAccess
+    private fun account(): AccountAccess = accountAccess
         ?: error("AccountAccess 尚未初始化")
 
     const val BASE_URL = "https://api.lastudio.cc"

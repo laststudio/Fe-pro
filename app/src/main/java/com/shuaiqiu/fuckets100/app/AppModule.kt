@@ -1,12 +1,16 @@
 package com.shuaiqiu.fuckets100.app
 
 import android.content.Context
+import com.shuaiqiu.fuckets100.FeAccountAccess
 import com.shuaiqiu.fuckets100.FeAccountManager
+import com.shuaiqiu.fuckets100.ResolverAuthorizer
+import com.shuaiqiu.fuckets100.core.common.AccountAccess
 import com.shuaiqiu.fuckets100.core.common.AppBuildInfo
-import dagger.hilt.android.qualifiers.ApplicationContext
+import com.shuaiqiu.fuckets100.core.common.AuthCacheInvalidator
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
@@ -25,6 +29,21 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideFeAccountManager(@ApplicationContext context: Context): FeAccountManager =
-        FeAccountManager.get(context)
+    fun provideAuthCacheInvalidator(): AuthCacheInvalidator = ResolverAuthorizer
+
+    @Provides
+    @Singleton
+    fun provideFeAccountManager(
+        @ApplicationContext context: Context,
+        buildInfo: AppBuildInfo,
+        authCacheInvalidator: AuthCacheInvalidator,
+    ): FeAccountManager = FeAccountManager.create(
+        context = context,
+        buildInfo = buildInfo,
+        authCacheInvalidator = authCacheInvalidator,
+    )
+
+    @Provides
+    @Singleton
+    fun provideAccountAccess(manager: FeAccountManager): AccountAccess = FeAccountAccess(manager)
 }

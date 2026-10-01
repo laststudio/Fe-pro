@@ -41,17 +41,3 @@ class AccountAccessException(
 interface AuthCacheInvalidator {
     fun invalidateAuthCache()
 }
-
-/**
- * 过渡期服务定位器。
- *
- * 账号与 ETS100 授权当前都是进程级单例，这里用最小桥接打破模块环依赖，
- * 后续可由 Hilt/AppContainer 注入替换。
- */
-object AuthServices {
-    @Volatile
-    var accountAccess: AccountAccess? = null
-
-    @Volatile
-    var authCacheInvalidator: AuthCacheInvalidator? = null
-}

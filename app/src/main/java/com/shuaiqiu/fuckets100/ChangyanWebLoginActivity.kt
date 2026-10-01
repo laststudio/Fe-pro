@@ -7,6 +7,8 @@ import android.content.Intent
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
+import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 import android.util.Log
 import android.view.ViewGroup
 import android.webkit.JavascriptInterface
@@ -32,7 +34,9 @@ import java.security.MessageDigest
 import java.security.SecureRandom
 import android.util.Base64
 
+@AndroidEntryPoint
 open class ChangyanWebLoginActivity : ComponentActivity() {
+    @Inject lateinit var accountManager: FeAccountManager
 
     private lateinit var webView: WebView
     private lateinit var progressBar: ProgressBar
@@ -232,7 +236,7 @@ open class ChangyanWebLoginActivity : ComponentActivity() {
                 // 讯飞登录凭据交给 LA Studio 后端完成校验和绑定。
                 // 后端返回的短期会话直接用于本地云端读取，避免 Android 端再单独登录一次 ETS100。
                 val session = withContext(Dispatchers.IO) {
-                    FeAccountManager.get(this@ChangyanWebLoginActivity).bindChangyanAccount(
+                    accountManager.bindChangyanAccount(
                         login = login,
                         userId = userId,
                         sucUserToken = sucUserToken,
