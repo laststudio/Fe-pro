@@ -18,18 +18,21 @@ import java.net.URL
  * 用户协议与法务条款统一仓库
  * 支持云端动态获取、本地缓存持久化与离线 Fallback 兜底机制
  */
-object LegalAgreementRepository {
-    private const val TAG = "LegalAgreementRepo"
-    private const val PREFS_NAME = "fe_legal_agreement_cache"
-    private const val KEY_CACHED_JSON = "cached_agreement_json"
-    private const val TIMEOUT_MS = 6000
+class LegalAgreementRepository(
+    private val appContext: Context,
+    private val buildInfo: AppBuildInfo,
+) {
+    companion object {
+        private const val TAG = "LegalAgreementRepo"
+        private const val PREFS_NAME = "fe_legal_agreement_cache"
+        private const val KEY_CACHED_JSON = "cached_agreement_json"
+        private const val TIMEOUT_MS = 6000
+        private val ENDPOINTS = listOf(
+            "https://api.lastudio.cc/legal/agreement",
+            "https://api.lastudio.cc/terms",
+        )
 
-    private val ENDPOINTS = listOf(
-        "https://api.lastudio.cc/legal/agreement",
-        "https://api.lastudio.cc/terms",
-    )
-
-    val FALLBACK_AGREEMENT = LegalAgreement(
+        val FALLBACK_AGREEMENT = LegalAgreement(
         title = "LA Studio 服务协议、隐私政策与免责声明",
         effectiveDate = "2026 年 9 月 25 日",
         version = "2026-09-25",
@@ -178,24 +181,70 @@ object LegalAgreementRepository {
         ),
     )
 
+        fun parseAgreement(jsonStr: String): LegalAgreement {
+            val root = JSONObject(jsonStr)
+            val title = root.optString("title", FALLBACK_AGREEMENT.title)
+            val effectiveDate = root.optString("effective_date", FALLBACK_AGREEMENT.effectiveDate)
+            val version = root.optString("version", FALLBACK_AGREEMENT.version)
+            val scope = root.optString("scope", FALLBACK_AGREEMENT.scope)
+
+            val sectionsArray = root.optJSONArray("sections") ?: JSONArray()
+            val sections = mutableListOf<LegalAgreementSection>()
+            for (i in 0 until sectionsArray.length()) {
+                val secObj = sectionsArray.getJSONObject(i)
+                val id = secObj.optString("id", "section-$i")
+                val secTitle = secObj.optString("title", "")
+                val badge = if (secObj.has("badge") && !secObj.isNull("badge")) secObj.optString("badge") else null
+                val warning = secObj.optBoolean("warning", false)
+                val content = if (secObj.has("content") && !secObj.isNull("content")) secObj.optString("content") else null
+
+                val itemsList = mutableListOf<LegalAgreementItem>()
+                if (secObj.has("items")) {
+                    val itemsArr = secObj.optJSONArray("items") ?: JSONArray()
+                    for (j in 0 until itemsArr.length()) {
+                        val itemObj = itemsArr.getJSONObject(j)
+                        itemsList.add(
+                            LegalAgreementItem(
+                                title = itemObj.optString("title", ""),
+                                content = itemObj.optString("content", ""),
+                            )
+                        )
+                    }
+                }
+
+                sections.add(
+                    LegalAgreementSection(
+                        id = id,
+                        title = secTitle,
+                        badge = badge,
+                        warning = warning,
+                        content = content,
+                        items = itemsList,
+                    )
+                )
+            }
+
+            return LegalAgreement(
+                title = title,
+                effectiveDate = effectiveDate,
+                version = version,
+                scope = scope,
+                sections = if (sections.isNotEmpty()) sections else FALLBACK_AGREEMENT.sections,
+            )
+        }
+    }
+
+
     private val _currentAgreement = MutableStateFlow(FALLBACK_AGREEMENT)
     val currentAgreement: StateFlow<LegalAgreement> = _currentAgreement.asStateFlow()
 
-    private var appContext: Context? = null
-    private var buildInfo: AppBuildInfo? = null
-
-    /**
-     * 在 Application 中初始化并载入本地持久化缓存
-     */
-    fun init(context: Context, buildInfo: AppBuildInfo) {
-        appContext = context.applicationContext
-        this.buildInfo = buildInfo
-        loadCached(context)
+    init {
+        loadCached()
     }
 
-    fun loadCached(context: Context) {
+    fun loadCached() {
         try {
-            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             val cachedJson = prefs.getString(KEY_CACHED_JSON, null)
             if (!cachedJson.isNullOrBlank()) {
                 val parsed = parseAgreement(cachedJson)
@@ -207,63 +256,12 @@ object LegalAgreementRepository {
         }
     }
 
-    fun parseAgreement(jsonStr: String): LegalAgreement {
-        val root = JSONObject(jsonStr)
-        val title = root.optString("title", FALLBACK_AGREEMENT.title)
-        val effectiveDate = root.optString("effective_date", FALLBACK_AGREEMENT.effectiveDate)
-        val version = root.optString("version", FALLBACK_AGREEMENT.version)
-        val scope = root.optString("scope", FALLBACK_AGREEMENT.scope)
-
-        val sectionsArray = root.optJSONArray("sections") ?: JSONArray()
-        val sections = mutableListOf<LegalAgreementSection>()
-        for (i in 0 until sectionsArray.length()) {
-            val secObj = sectionsArray.getJSONObject(i)
-            val id = secObj.optString("id", "section-$i")
-            val secTitle = secObj.optString("title", "")
-            val badge = if (secObj.has("badge") && !secObj.isNull("badge")) secObj.optString("badge") else null
-            val warning = secObj.optBoolean("warning", false)
-            val content = if (secObj.has("content") && !secObj.isNull("content")) secObj.optString("content") else null
-
-            val itemsList = mutableListOf<LegalAgreementItem>()
-            if (secObj.has("items")) {
-                val itemsArr = secObj.optJSONArray("items") ?: JSONArray()
-                for (j in 0 until itemsArr.length()) {
-                    val itemObj = itemsArr.getJSONObject(j)
-                    itemsList.add(
-                        LegalAgreementItem(
-                            title = itemObj.optString("title", ""),
-                            content = itemObj.optString("content", ""),
-                        )
-                    )
-                }
-            }
-
-            sections.add(
-                LegalAgreementSection(
-                    id = id,
-                    title = secTitle,
-                    badge = badge,
-                    warning = warning,
-                    content = content,
-                    items = itemsList,
-                )
-            )
-        }
-
-        return LegalAgreement(
-            title = title,
-            effectiveDate = effectiveDate,
-            version = version,
-            scope = scope,
-            sections = if (sections.isNotEmpty()) sections else FALLBACK_AGREEMENT.sections,
-        )
-    }
 
     /**
      * 从服务端异步拉取最新用户协议，成功后自动写入持久化缓存
      */
-    suspend fun refresh(context: Context? = null): Result<LegalAgreement> = withContext(Dispatchers.IO) {
-        val ctx = context ?: appContext
+    suspend fun refresh(): Result<LegalAgreement> = withContext(Dispatchers.IO) {
+        val ctx = appContext
         var lastException: Exception? = null
 
         for (endpoint in ENDPOINTS) {
@@ -274,7 +272,7 @@ object LegalAgreementRepository {
                 conn.readTimeout = TIMEOUT_MS
                 conn.requestMethod = "GET"
                 conn.setRequestProperty("Accept", "application/json")
-                conn.setRequestProperty("User-Agent", "Fe-Android-Client/${buildInfo?.versionName.orEmpty()}")
+                conn.setRequestProperty("User-Agent", "Fe-Android-Client/${buildInfo.versionName}")
 
                 val code = conn.responseCode
                 if (code == 200) {
@@ -283,13 +281,11 @@ object LegalAgreementRepository {
                     _currentAgreement.value = parsed
 
                     // 保存到本地持久化缓存
-                    if (ctx != null) {
-                        try {
-                            val prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                            prefs.edit { putString(KEY_CACHED_JSON, jsonStr) }
-                        } catch (e: Exception) {
-                            Log.w(TAG, "写入用户协议本地缓存失败", e)
-                        }
+                    try {
+                        val prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                        prefs.edit { putString(KEY_CACHED_JSON, jsonStr) }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "写入用户协议本地缓存失败", e)
                     }
 
                     Log.i(TAG, "已成功从云端获取最新用户协议版本: ${parsed.version}")

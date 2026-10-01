@@ -1,8 +1,10 @@
 package com.shuaiqiu.fuckets100.feature.onboarding
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.shuaiqiu.fuckets100.ActivationMode
 import com.shuaiqiu.fuckets100.FeAccountManager
+import com.shuaiqiu.fuckets100.LegalAgreementRepository
 import com.shuaiqiu.fuckets100.SettingsManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -10,6 +12,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
 data class OnboardingUiState(
     val currentStep: Int = 0,
@@ -19,9 +22,14 @@ data class OnboardingUiState(
 @HiltViewModel
 class OnboardingViewModel @Inject constructor(
     val accountManager: FeAccountManager,
+    private val legalAgreementRepository: LegalAgreementRepository,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(OnboardingUiState())
     val uiState: StateFlow<OnboardingUiState> = _uiState.asStateFlow()
+
+    fun refreshLegalAgreement() {
+        viewModelScope.launch { legalAgreementRepository.refresh() }
+    }
 
     fun back() {
         _uiState.update { state ->

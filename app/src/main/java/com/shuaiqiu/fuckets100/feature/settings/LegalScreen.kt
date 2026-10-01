@@ -19,22 +19,25 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.shuaiqiu.fuckets100.core.designsystem.ExpressiveScaffold
 import com.shuaiqiu.fuckets100.core.designsystem.TonalCard
 import com.shuaiqiu.fuckets100.core.designsystem.TopBarBackButton
 import com.shuaiqiu.fuckets100.core.designsystem.expressiveTopAppBarColors
 
 import com.shuaiqiu.fuckets100.LegalAgreement
-import com.shuaiqiu.fuckets100.LegalAgreementRepository
 import com.shuaiqiu.fuckets100.LegalAgreementSection
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun LegalScreen(onBack: () -> Unit) {
+fun LegalScreen(
+    onBack: () -> Unit,
+    viewModel: LegalViewModel = hiltViewModel(),
+) {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
-    val agreement by LegalAgreementRepository.currentAgreement.collectAsState()
+    val agreement by viewModel.currentAgreement.collectAsState()
 
     LaunchedEffect(Unit) {
-        LegalAgreementRepository.refresh()
+        viewModel.refresh()
     }
 
     ExpressiveScaffold(
@@ -127,7 +130,7 @@ fun LegalAcceptanceDialog(onAccepted: () -> Unit) {
 @Composable
 fun LegalContent(
     showHeader: Boolean,
-    agreement: LegalAgreement = LegalAgreementRepository.currentAgreement.collectAsState().value,
+    agreement: LegalAgreement = hiltViewModel<LegalViewModel>().currentAgreement.collectAsState().value,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         if (showHeader) {

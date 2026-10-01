@@ -35,7 +35,6 @@ import com.shuaiqiu.fuckets100.RighteousFont
 import com.shuaiqiu.fuckets100.feature.settings.LegalContent
 import kotlinx.coroutines.launch
 
-import com.shuaiqiu.fuckets100.LegalAgreementRepository
 import com.shuaiqiu.fuckets100.SettingsManager
 // ============================================================================
 // 步骤 1: 欢迎与幽默标语 + 用户协议
@@ -45,6 +44,7 @@ import com.shuaiqiu.fuckets100.SettingsManager
 @Composable
 internal fun WelcomeStep(
     onNext: () -> Unit,
+    onRefreshLegalAgreement: () -> Unit,
 ) {
     val context = LocalContext.current
     var entered by remember { mutableStateOf(false) }
@@ -55,7 +55,7 @@ internal fun WelcomeStep(
 
     LaunchedEffect(Unit) {
         entered = true
-        LegalAgreementRepository.refresh(context)
+        onRefreshLegalAgreement()
     }
 
     // Logo 弹性缩放与渐显

@@ -26,6 +26,7 @@ data class HomeUiState(
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val runtimeStatusRepository: HomeRuntimeStatusRepository,
+    private val legalAgreementRepository: LegalAgreementRepository,
     buildInfo: AppBuildInfo,
 ) : ViewModel() {
     private var lastMode: ActivationMode? = null
@@ -70,7 +71,7 @@ class HomeViewModel @Inject constructor(
                 val status = runtimeStatusRepository.load(force = true)
                 _uiState.update { it.copy(runtimeStatus = status) }
                 FeApplication.syncRemoteStatus()
-                LegalAgreementRepository.refresh()
+                legalAgreementRepository.refresh()
                 delay(350)
             } finally {
                 _uiState.update { it.copy(isRefreshing = false) }

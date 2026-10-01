@@ -23,6 +23,7 @@ class FeAccountManager private constructor(
     context: Context,
     private val buildInfo: AppBuildInfo,
     private val authCacheInvalidator: AuthCacheInvalidator,
+    private val remoteConfigManager: RemoteConfigManager,
 ) {
     private val api = FeAccountApi(context.applicationContext, buildInfo)
     private val profileApi = FeAccountProfileApi()
@@ -66,7 +67,7 @@ class FeAccountManager private constructor(
      */
     fun isFeatureAvailable(featureKey: String): Pair<Boolean, String?> {
         // 1. 检查 RemoteConfig 中的版本功能字典 (release.features)
-        if (!RemoteConfigManager.isFeatureEnabled(featureKey, defaultValue = true)) {
+        if (!remoteConfigManager.isFeatureEnabled(featureKey, defaultValue = true)) {
             return false to "当前版本已停用此功能"
         }
         // 2. 检查 SoftwarePolicy 返回的版本功能字典
@@ -460,10 +461,12 @@ class FeAccountManager private constructor(
             context: Context,
             buildInfo: AppBuildInfo,
             authCacheInvalidator: AuthCacheInvalidator,
+            remoteConfigManager: RemoteConfigManager,
         ): FeAccountManager = FeAccountManager(
             context = context.applicationContext,
             buildInfo = buildInfo,
             authCacheInvalidator = authCacheInvalidator,
+            remoteConfigManager = remoteConfigManager,
         )
     }
 }

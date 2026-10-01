@@ -26,6 +26,8 @@ import rikka.sui.Sui
 class FeApplication : Application() {
     @Inject lateinit var buildInfo: AppBuildInfo
     @Inject lateinit var accountAccess: AccountAccess
+    @Inject lateinit var remoteConfigManager: RemoteConfigManager
+    @Inject lateinit var legalAgreementRepository: LegalAgreementRepository
 
     // 应用范围的协程作用域
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -83,13 +85,11 @@ class FeApplication : Application() {
         // 初始化设置管理器
         SettingsManager.init(this)
         
-        RemoteConfigManager.init(buildInfo)
         ResolverAuthorizer.init(buildInfo, accountAccess)
 
-        // 初始化法务协议仓库并静默同步
-        LegalAgreementRepository.init(this, buildInfo)
+        // 法务协议仓库由 Hilt 创建并已载入本地缓存，这里静默同步云端版本。
         applicationScope.launch {
-            LegalAgreementRepository.refresh(this@FeApplication)
+            legalAgreementRepository.refresh()
         }
         
         // 初始化Sui (Magisk 模块)
@@ -137,9 +137,9 @@ class FeApplication : Application() {
         applicationScope.launch {
             try {
                 val status = if (ignoreVerification) {
-                    RemoteConfigManager.checkStatusIgnoringVerification()
+                    remoteConfigManager.checkStatusIgnoringVerification()
                 } else {
-                    RemoteConfigManager.checkStatus()
+                    remoteConfigManager.checkStatus()
                 }
                 remoteStatus = status
                 _remoteStatusFlow.value = status

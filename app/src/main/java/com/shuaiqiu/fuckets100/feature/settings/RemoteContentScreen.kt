@@ -35,6 +35,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.Alignment
@@ -54,7 +55,6 @@ import java.net.URL
 import java.net.URLConnection
 import java.security.MessageDigest
 
-import com.shuaiqiu.fuckets100.RemoteConfigManager
 import com.shuaiqiu.fuckets100.UpdateStatus
 data class RemoteContent(
     val announcementTitle: String,
@@ -70,7 +70,8 @@ data class RemoteContent(
 @Composable
 fun RemoteContentScreen(
     content: RemoteContent,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    viewModel: RemoteContentViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -125,7 +126,7 @@ fun RemoteContentScreen(
                     IconButton(
                         onClick = {
                             scope.launch {
-                                runCatching { RemoteConfigManager.checkStatus() }
+                                runCatching { viewModel.checkStatus() }
                                     .onSuccess { status ->
                                         if (status.showDialog) {
                                             updateDialogStatus = status

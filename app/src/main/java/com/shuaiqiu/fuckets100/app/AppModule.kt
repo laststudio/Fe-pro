@@ -2,6 +2,8 @@ package com.shuaiqiu.fuckets100.app
 
 import android.content.Context
 import com.shuaiqiu.fuckets100.FeAccountAccess
+import com.shuaiqiu.fuckets100.LegalAgreementRepository
+import com.shuaiqiu.fuckets100.RemoteConfigManager
 import com.shuaiqiu.fuckets100.FeAccountManager
 import com.shuaiqiu.fuckets100.ResolverAuthorizer
 import com.shuaiqiu.fuckets100.core.common.AccountAccess
@@ -33,14 +35,28 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideRemoteConfigManager(buildInfo: AppBuildInfo): RemoteConfigManager =
+        RemoteConfigManager(buildInfo)
+
+    @Provides
+    @Singleton
+    fun provideLegalAgreementRepository(
+        @ApplicationContext context: Context,
+        buildInfo: AppBuildInfo,
+    ): LegalAgreementRepository = LegalAgreementRepository(context.applicationContext, buildInfo)
+
+    @Provides
+    @Singleton
     fun provideFeAccountManager(
         @ApplicationContext context: Context,
         buildInfo: AppBuildInfo,
         authCacheInvalidator: AuthCacheInvalidator,
+        remoteConfigManager: RemoteConfigManager,
     ): FeAccountManager = FeAccountManager.create(
         context = context,
         buildInfo = buildInfo,
         authCacheInvalidator = authCacheInvalidator,
+        remoteConfigManager = remoteConfigManager,
     )
 
     @Provides

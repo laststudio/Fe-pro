@@ -10,27 +10,23 @@ import java.net.URL
 import java.net.URLConnection
 
 /**
- * 远程配置管理器
- * 单例模式，使用多线程进行网络请求
- * 网络失败时抛出可恢复异常，由启动门禁展示重试状态。
+ * 远程配置管理器。
+ *
+ * 进程级单例，由 Hilt/AppContainer 创建；不再使用全局可变状态，
+ * 构建信息通过构造函数注入，替代对 app 层 BuildConfig 的直接依赖。
  */
-object RemoteConfigManager {
-    private const val TAG = "RemoteConfigManager"
-    private const val CONFIG_BASE_URL = "https://api.lastudio.cc/software/fe/config"
-    private const val TIMEOUT_MS = 5000L  // 5秒超时喵~
-
-    /**
-     * 由 Application 在启动时注入，替代对 app 层 BuildConfig 的直接依赖。
-     */
-    private var buildInfo: AppBuildInfo? = null
-
-    fun init(buildInfo: AppBuildInfo) {
-        this.buildInfo = buildInfo
+class RemoteConfigManager(
+    private val buildInfo: AppBuildInfo,
+) {
+    private companion object {
+        const val TAG = "RemoteConfigManager"
+        const val CONFIG_BASE_URL = "https://api.lastudio.cc/software/fe/config"
+        const val TIMEOUT_MS = 5000L  // 5秒超时喵~
     }
 
     private val configUrls: List<String>
         get() = listOf(
-            "$CONFIG_BASE_URL?version_code=${buildInfo?.versionCode ?: 0}",
+            "$CONFIG_BASE_URL?version_code=${buildInfo.versionCode}",
         )
 
     @Volatile
@@ -106,8 +102,8 @@ object RemoteConfigManager {
                     requiresVerification = true
                 )
             }
-            latestVersionCode > (buildInfo?.versionCode ?: 0) -> {
-                Log.i(TAG, "📢 发现新版本: $latestVersionCode (当前: ${buildInfo?.versionCode ?: 0})")
+            latestVersionCode > buildInfo.versionCode -> {
+                Log.i(TAG, "📢 发现新版本: $latestVersionCode (当前: ${buildInfo.versionCode})")
                 Log.d(TAG, "📢 updateMessage: '$updateMessage', updateUrl: '$updateUrl'")
                 toUpdateStatus(
                     isKillSwitch = false,
