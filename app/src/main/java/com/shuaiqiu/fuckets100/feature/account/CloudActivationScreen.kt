@@ -64,7 +64,6 @@ import com.shuaiqiu.fuckets100.ChangyanWebLoginActivity
 import com.shuaiqiu.fuckets100.ETS100AuthManager
 import com.shuaiqiu.fuckets100.FeAccountApi
 import com.shuaiqiu.fuckets100.FeAccountManager
-private const val ACCOUNT_CENTER_URL = "https://lastudio.cc/account"
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
