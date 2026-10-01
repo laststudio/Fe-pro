@@ -92,10 +92,10 @@ fun HomeScreen(
     LaunchedEffect(mode, refreshRevision, viewModel) {
         viewModel.onRuntimeInputsChanged(mode, refreshRevision)
     }
-    
+
     // 检查基础权限是否全部获取
     val hasAllBasicPermissions = runtimeStatus.hasFilesPerm
-    
+
     // 判断是否真正激活 - 根据不同模式判断激活条件
     val isTrulyActivated = when {
         mode == ActivationMode.SHIZUKU -> shizukuState.isRunning && shizukuState.permissionGranted && hasAllBasicPermissions
@@ -160,10 +160,10 @@ fun HomeScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 StatusCard(
-                    mode = mode, 
-                    shizukuState = shizukuState, 
+                    mode = mode,
+                    shizukuState = shizukuState,
                     accountState = accountState,
-                    isTrulyActivated = isTrulyActivated, 
+                    isTrulyActivated = isTrulyActivated,
                     cloudLoggedIn = runtimeStatus.cloudLoggedIn,
                     hasFilesPerm = runtimeStatus.hasFilesPerm,
                     hasAllBasicPermissions = hasAllBasicPermissions,
@@ -386,7 +386,7 @@ private data class CoreStatusDisplay(
     val isOk: Boolean,
 )
 
-private object DeviceInfoHelper {
+internal object DeviceInfoHelper {
     fun getDeviceModel(): String {
         return runCatching {
             val systemProperties = Class.forName("android.os.SystemProperties")
@@ -424,7 +424,7 @@ private object DeviceInfoHelper {
     fun getAppVersion(buildVersion: String): String = buildVersion
 }
 
-private fun copyToClipboard(context: android.content.Context, label: String, text: String) {
+internal fun copyToClipboard(context: android.content.Context, label: String, text: String) {
     runCatching {
         val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as ClipboardManager
         val clip = ClipData.newPlainText(label, text)
@@ -432,132 +432,3 @@ private fun copyToClipboard(context: android.content.Context, label: String, tex
         Toast.makeText(context, "$label 已复制到剪贴板", Toast.LENGTH_SHORT).show()
     }
 }
-
-@Composable
-private fun HomeVersionInfoSection(
-    context: android.content.Context,
-    appVersion: String,
-) {
-    val deviceModel = remember { DeviceInfoHelper.getDeviceModel() }
-    val androidVersion = remember { DeviceInfoHelper.getAndroidVersion() }
-
-    SegmentedColumn(
-        title = "版本信息",
-        items = listOf(
-            {
-                ExpressiveSegmentedListItem(
-                    index = 0,
-                    count = 3,
-                    onClick = { copyToClipboard(context, "设备型号", deviceModel) },
-                    headlineContent = { Text("设备") },
-                    supportingContent = {
-                        Text(
-                            deviceModel,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                )
-            },
-            {
-                ExpressiveSegmentedListItem(
-                    index = 1,
-                    count = 3,
-                    onClick = { copyToClipboard(context, "Android 版本", androidVersion) },
-                    headlineContent = { Text("Android 版本") },
-                    supportingContent = {
-                        Text(
-                            androidVersion,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                )
-            },
-            {
-                ExpressiveSegmentedListItem(
-                    index = 2,
-                    count = 3,
-                    onClick = { copyToClipboard(context, "管理器版本", appVersion) },
-                    headlineContent = { Text("管理器版本") },
-                    supportingContent = {
-                        Text(
-                            appVersion,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                )
-            }
-        )
-    )
-}
-
-@Composable
-private fun HomeAnnouncementSection(
-    status: UpdateStatus?,
-    onNavigateToRemoteContent: (UpdateStatus?) -> Unit,
-) {
-    val announcementMessage = status?.announcementMessage.orEmpty()
-    val announcementTitle = status?.announcementTitle?.takeIf { it.isNotBlank() } ?: "公告与动态"
-
-    SegmentedColumn(
-        title = "公告",
-        items = listOf(
-            {
-                ExpressiveSegmentedListItem(
-                    index = 0,
-                    count = 1,
-                    onClick = { onNavigateToRemoteContent(status) },
-                    headlineContent = { Text(announcementTitle) },
-                    supportingContent = {
-                        Text(
-                            announcementMessage.ifBlank { if (status == null) "正在同步远程内容..." else "暂无最新公告" },
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    },
-                    trailingContent = {
-                        Icon(
-                            imageVector = Icons.Default.ChevronRight,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                )
-            }
-        )
-    )
-}
-
-@Composable
-private fun StatusTag(
-    label: String,
-    containerColor: androidx.compose.ui.graphics.Color,
-    contentColor: androidx.compose.ui.graphics.Color,
-) {
-    Surface(
-        color = containerColor,
-        contentColor = contentColor,
-        shape = MaterialTheme.shapes.extraSmall,
-    ) {
-        Text(
-            label,
-            style = MaterialTheme.typography.labelSmallEmphasized,
-            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
-        )
-    }
-}
-
-private val ActivationMode.shortLabel: String
-    get() = when (this) {
-        ActivationMode.DEFAULT -> "未激活"
-        ActivationMode.SHIZUKU -> "Shizuku"
-        ActivationMode.ROOT -> "Root"
-        ActivationMode.DIRECT_READ -> "Direct Read"
-        ActivationMode.CLOUD -> "云端"
-    }
