@@ -43,7 +43,7 @@ import com.shuaiqiu.fuckets100.feature.settings.GeneralSettingsScreen
 import com.shuaiqiu.fuckets100.feature.settings.DonateScreen
 import com.shuaiqiu.fuckets100.feature.settings.AboutScreen
 import com.shuaiqiu.fuckets100.ActivationMode
-import com.shuaiqiu.fuckets100.AnswerScreen
+import com.shuaiqiu.fuckets100.feature.read.AnswerScreen
 import com.shuaiqiu.fuckets100.FeAccountManager
 import com.shuaiqiu.fuckets100.FeApplication
 import com.shuaiqiu.fuckets100.PredictiveBackAnimation

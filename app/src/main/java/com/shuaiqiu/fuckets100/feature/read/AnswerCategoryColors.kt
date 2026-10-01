@@ -1,4 +1,4 @@
-package com.shuaiqiu.fuckets100
+package com.shuaiqiu.fuckets100.feature.read
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable

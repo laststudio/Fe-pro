@@ -54,7 +54,7 @@ def main() -> int:
         "app/src/main/java/com/shuaiqiu/fuckets100/FeSecureSessionStore.kt": [
             '"fe_account_secure"', '"refresh_token"', '"cached_session"', '"fe_account_refresh_v1"',
         ],
-        "app/src/main/java/com/shuaiqiu/fuckets100/ReadPageStateStore.kt": ['"read_page_state"'],
+        "app/src/main/java/com/shuaiqiu/fuckets100/feature/read/ReadPageStateStore.kt": ['"read_page_state"'],
         "app/src/main/java/com/shuaiqiu/fuckets100/LegalAgreementRepository.kt": ['"fe_legal_agreement_cache"'],
     }
     for relative, needles in sources.items():

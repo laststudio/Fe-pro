@@ -1,10 +1,17 @@
-package com.shuaiqiu.fuckets100
+package com.shuaiqiu.fuckets100.feature.read
 
 import android.content.Context
 import androidx.core.content.edit
 import org.json.JSONArray
 import org.json.JSONObject
 
+import com.shuaiqiu.fuckets100.ActivationMode
+import com.shuaiqiu.fuckets100.CloudContent
+import com.shuaiqiu.fuckets100.CloudHomeworkState
+import com.shuaiqiu.fuckets100.ETS100AnswerReader
+import com.shuaiqiu.fuckets100.ETS100ApiClient
+import com.shuaiqiu.fuckets100.ETS100FileReader
+import com.shuaiqiu.fuckets100.PaperSource
 object ReadPageStateStore {
     private const val PREFS_NAME = "read_page_state"
     private const val KEY_LOCAL = "local_snapshot"

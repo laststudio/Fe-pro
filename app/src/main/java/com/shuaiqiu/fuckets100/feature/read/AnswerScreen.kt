@@ -1,4 +1,4 @@
-package com.shuaiqiu.fuckets100
+package com.shuaiqiu.fuckets100.feature.read
 
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -14,6 +14,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 
+import com.shuaiqiu.fuckets100.FeAccountFeatures
+import com.shuaiqiu.fuckets100.FeAccountManager
+import com.shuaiqiu.fuckets100.PaperStore
 @Composable
 fun AnswerScreen(
     paperKey: String,
