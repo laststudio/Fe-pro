@@ -1,6 +1,7 @@
 package com.shuaiqiu.fuckets100
 
 import android.util.Log
+import com.shuaiqiu.fuckets100.core.common.AppBuildInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -15,10 +16,22 @@ import java.net.URLConnection
  */
 object RemoteConfigManager {
     private const val TAG = "RemoteConfigManager"
-    private val CONFIG_URLS = listOf(
-        "https://api.lastudio.cc/software/fe/config?version_code=${BuildConfig.VERSION_CODE}",
-    )
+    private const val CONFIG_BASE_URL = "https://api.lastudio.cc/software/fe/config"
     private const val TIMEOUT_MS = 5000L  // 5秒超时喵~
+
+    /**
+     * 由 Application 在启动时注入，替代对 app 层 BuildConfig 的直接依赖。
+     */
+    private var buildInfo: AppBuildInfo? = null
+
+    fun init(buildInfo: AppBuildInfo) {
+        this.buildInfo = buildInfo
+    }
+
+    private val configUrls: List<String>
+        get() = listOf(
+            "$CONFIG_BASE_URL?version_code=${buildInfo?.versionCode ?: 0}",
+        )
 
     @Volatile
     var cachedConfig: RemoteConfig? = null
@@ -93,8 +106,8 @@ object RemoteConfigManager {
                     requiresVerification = true
                 )
             }
-            latestVersionCode > BuildConfig.VERSION_CODE -> {
-                Log.i(TAG, "📢 发现新版本: $latestVersionCode (当前: ${BuildConfig.VERSION_CODE})")
+            latestVersionCode > (buildInfo?.versionCode ?: 0) -> {
+                Log.i(TAG, "📢 发现新版本: $latestVersionCode (当前: ${buildInfo?.versionCode ?: 0})")
                 Log.d(TAG, "📢 updateMessage: '$updateMessage', updateUrl: '$updateUrl'")
                 toUpdateStatus(
                     isKillSwitch = false,
@@ -133,7 +146,7 @@ object RemoteConfigManager {
     private suspend fun fetchFirstAvailableConfig(): Triple<String, String, Long> {
         val errors = mutableListOf<String>()
 
-        for (configUrl in CONFIG_URLS) {
+        for (configUrl in configUrls) {
             Log.d(TAG, "📡 尝试 URL: $configUrl")
             val startTime = System.currentTimeMillis()
             try {
@@ -206,7 +219,7 @@ object RemoteConfigManager {
                     } else null,
                     configRevision = json.optInt("configRevision", 0),
                     version = json.optString("version", ""),
-                    latestVersionCode = json.optInt("latestVersionCode", BuildConfig.VERSION_CODE),
+                    latestVersionCode = json.optInt("latestVersionCode", buildInfo?.versionCode ?: 0),
                     updateUrl = json.optString("updateUrl", ""),
                     isKillSwitchOn = json.optBoolean("isKillSwitchOn", false),
                     isForce = json.optBoolean("isForce", false),
@@ -250,7 +263,7 @@ object RemoteConfigManager {
                 Log.d(TAG, "   - verificationMessage: ${config.verificationMessage.take(120)}")
                 Log.d(TAG, "   - donateEnabled: ${config.donateEnabled}")
                 Log.d(TAG, "   - integrityCheckEnabled: ${config.integrityCheckEnabled}")
-                Log.d(TAG, "   - 当前版本: ${BuildConfig.VERSION_CODE}")
+                Log.d(TAG, "   - 当前版本: ${buildInfo?.versionCode ?: 0}")
                 Log.d(TAG, "═══════════════════════════════════════════")
                 
                 cachedConfig = config

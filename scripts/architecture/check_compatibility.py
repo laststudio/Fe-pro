@@ -55,7 +55,7 @@ def main() -> int:
             '"fe_account_secure"', '"refresh_token"', '"cached_session"', '"fe_account_refresh_v1"',
         ],
         "app/src/main/java/com/shuaiqiu/fuckets100/feature/read/ReadPageStateStore.kt": ['"read_page_state"'],
-        "app/src/main/java/com/shuaiqiu/fuckets100/LegalAgreementRepository.kt": ['"fe_legal_agreement_cache"'],
+        "data/content/src/main/java/com/shuaiqiu/fuckets100/LegalAgreementRepository.kt": ['"fe_legal_agreement_cache"'],
     }
     for relative, needles in sources.items():
         text = read(root, relative)
@@ -64,7 +64,7 @@ def main() -> int:
                 errors.append(error)
 
     urls = {
-        "app/src/main/java/com/shuaiqiu/fuckets100/RemoteConfigManager.kt": [
+        "data/content/src/main/java/com/shuaiqiu/fuckets100/RemoteConfigManager.kt": [
             "https://api.lastudio.cc/software/fe/config",
         ],
         "app/src/main/java/com/shuaiqiu/fuckets100/FeAccountApi.kt": ['"https://api.lastudio.cc"'],

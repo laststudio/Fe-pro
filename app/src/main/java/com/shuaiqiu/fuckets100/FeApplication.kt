@@ -78,8 +78,11 @@ class FeApplication : Application() {
         // 初始化设置管理器
         SettingsManager.init(this)
         
+        val buildInfo = BuildInfoProvider.get(this)
+        RemoteConfigManager.init(buildInfo)
+
         // 初始化法务协议仓库并静默同步
-        LegalAgreementRepository.init(this)
+        LegalAgreementRepository.init(this, buildInfo)
         applicationScope.launch {
             LegalAgreementRepository.refresh(this@FeApplication)
         }

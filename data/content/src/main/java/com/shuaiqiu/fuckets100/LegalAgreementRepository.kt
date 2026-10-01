@@ -2,6 +2,7 @@ package com.shuaiqiu.fuckets100
 
 import android.content.Context
 import android.util.Log
+import com.shuaiqiu.fuckets100.core.common.AppBuildInfo
 import androidx.core.content.edit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -12,28 +13,6 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
-
-data class LegalAgreement(
-    val title: String,
-    val effectiveDate: String,
-    val version: String,
-    val scope: String,
-    val sections: List<LegalAgreementSection>,
-)
-
-data class LegalAgreementSection(
-    val id: String,
-    val title: String,
-    val badge: String? = null,
-    val warning: Boolean = false,
-    val content: String? = null,
-    val items: List<LegalAgreementItem> = emptyList(),
-)
-
-data class LegalAgreementItem(
-    val title: String,
-    val content: String,
-)
 
 /**
  * 用户协议与法务条款统一仓库
@@ -203,12 +182,14 @@ object LegalAgreementRepository {
     val currentAgreement: StateFlow<LegalAgreement> = _currentAgreement.asStateFlow()
 
     private var appContext: Context? = null
+    private var buildInfo: AppBuildInfo? = null
 
     /**
      * 在 Application 中初始化并载入本地持久化缓存
      */
-    fun init(context: Context) {
+    fun init(context: Context, buildInfo: AppBuildInfo) {
         appContext = context.applicationContext
+        this.buildInfo = buildInfo
         loadCached(context)
     }
 
@@ -293,7 +274,7 @@ object LegalAgreementRepository {
                 conn.readTimeout = TIMEOUT_MS
                 conn.requestMethod = "GET"
                 conn.setRequestProperty("Accept", "application/json")
-                conn.setRequestProperty("User-Agent", "Fe-Android-Client/${BuildConfig.VERSION_NAME}")
+                conn.setRequestProperty("User-Agent", "Fe-Android-Client/${buildInfo?.versionName.orEmpty()}")
 
                 val code = conn.responseCode
                 if (code == 200) {

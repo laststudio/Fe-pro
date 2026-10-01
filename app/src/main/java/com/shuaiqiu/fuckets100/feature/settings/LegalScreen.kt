@@ -239,13 +239,14 @@ private fun LegalSectionCard(section: LegalAgreementSection) {
                         color = titleColor
                     )
                 }
-                if (!section.badge.isNullOrBlank()) {
+                val badgeText = section.badge?.takeIf { it.isNotBlank() }
+                if (badgeText != null) {
                     Surface(
                         color = if (isWarning) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.secondaryContainer,
                         shape = MaterialTheme.shapes.extraSmall
                     ) {
                         Text(
-                            text = section.badge,
+                            text = badgeText,
                             style = MaterialTheme.typography.labelSmall,
                             color = if (isWarning) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSecondaryContainer,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -254,9 +255,10 @@ private fun LegalSectionCard(section: LegalAgreementSection) {
                 }
             }
 
-            if (!section.content.isNullOrBlank()) {
+            val contentText = section.content?.takeIf { it.isNotBlank() }
+            if (contentText != null) {
                 Text(
-                    text = section.content,
+                    text = contentText,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     lineHeight = 18.sp
