@@ -39,7 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.shuaiqiu.fuckets100.ActivationMode
 import com.shuaiqiu.fuckets100.FeAccountGateState
-import com.shuaiqiu.fuckets100.RighteousFont
+import com.shuaiqiu.fuckets100.core.designsystem.RighteousFont
 import com.shuaiqiu.fuckets100.ShizukuState
 import com.shuaiqiu.fuckets100.UpdateStatus
 import com.shuaiqiu.fuckets100.core.designsystem.ExpressiveScaffold

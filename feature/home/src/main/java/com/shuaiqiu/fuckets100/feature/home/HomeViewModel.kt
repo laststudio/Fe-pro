@@ -4,7 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.shuaiqiu.fuckets100.ActivationMode
 import com.shuaiqiu.fuckets100.core.common.AppBuildInfo
-import com.shuaiqiu.fuckets100.FeApplication
+import com.shuaiqiu.fuckets100.AppUpdateStatusRepository
 import com.shuaiqiu.fuckets100.LegalAgreementRepository
 import com.shuaiqiu.fuckets100.UpdateStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -27,6 +27,7 @@ data class HomeUiState(
 class HomeViewModel @Inject constructor(
     private val runtimeStatusRepository: HomeRuntimeStatusRepository,
     private val legalAgreementRepository: LegalAgreementRepository,
+    private val updateStatusRepository: AppUpdateStatusRepository,
     buildInfo: AppBuildInfo,
 ) : ViewModel() {
     private var lastMode: ActivationMode? = null
@@ -40,7 +41,7 @@ class HomeViewModel @Inject constructor(
                 hasDirectReadAvailable = false,
                 cloudLoggedIn = false,
             ),
-            remoteStatus = FeApplication.remoteStatus,
+            remoteStatus = updateStatusRepository.remoteStatus,
             appVersion = "v${buildInfo.versionName} (${buildInfo.versionCode})",
         ),
     )
@@ -48,7 +49,7 @@ class HomeViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            FeApplication.remoteStatusFlow.collect { status ->
+            updateStatusRepository.remoteStatusFlow.collect { status ->
                 _uiState.update { it.copy(remoteStatus = status) }
             }
         }
@@ -70,7 +71,7 @@ class HomeViewModel @Inject constructor(
             try {
                 val status = runtimeStatusRepository.load(force = true)
                 _uiState.update { it.copy(runtimeStatus = status) }
-                FeApplication.syncRemoteStatus()
+                updateStatusRepository.requestRemoteRefresh()
                 legalAgreementRepository.refresh()
                 delay(350)
             } finally {

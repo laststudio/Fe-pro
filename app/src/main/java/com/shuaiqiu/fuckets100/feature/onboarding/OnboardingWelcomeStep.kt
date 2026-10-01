@@ -31,7 +31,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.shuaiqiu.fuckets100.R
-import com.shuaiqiu.fuckets100.RighteousFont
+import com.shuaiqiu.fuckets100.core.designsystem.RighteousFont
 import com.shuaiqiu.fuckets100.feature.settings.LegalContent
 import kotlinx.coroutines.launch
 

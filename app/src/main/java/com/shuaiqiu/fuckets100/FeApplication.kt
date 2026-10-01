@@ -11,9 +11,6 @@ import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import rikka.shizuku.Shizuku
 import rikka.sui.Sui
@@ -28,40 +25,26 @@ class FeApplication : Application() {
     @Inject lateinit var accountAccess: AccountAccess
     @Inject lateinit var remoteConfigManager: RemoteConfigManager
     @Inject lateinit var legalAgreementRepository: LegalAgreementRepository
+    @Inject lateinit var updateStatusRepository: AppUpdateStatusRepository
 
     // 应用范围的协程作用域
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     companion object {
         private const val TAG = "FeApplication"
-        
+
         // Shizuku/Sui 运行时状态改由 platform 层持有，供 core 模块读取。
         val isSui: Boolean get() = ShizukuRuntimeState.isSui
         val isShizukuBinderReceived: Boolean get() = ShizukuRuntimeState.isBinderReceived
         val shizukuUid: Int get() = ShizukuRuntimeState.uid
         val shizukuVersion: Int get() = ShizukuRuntimeState.version
-        
+
         // 应用全局上下文
         lateinit var appCtx: Context
             private set
 
         @Volatile
         private var appInstance: FeApplication? = null
-        
-        // 更新状态，用于在 MainActivity 中显示弹窗
-        // 使用 @Volatile 确保多线程可见性喵~
-        @Volatile
-        var updateStatus: UpdateStatus? = null
-
-        @Volatile
-        var remoteStatus: UpdateStatus? = null
-        
-        // 更新状态 Flow，用于通知 MainActivity 弹窗显示
-        private val _updateStatusFlow = kotlinx.coroutines.flow.MutableStateFlow<UpdateStatus?>(null)
-        val updateStatusFlow: kotlinx.coroutines.flow.StateFlow<UpdateStatus?> = _updateStatusFlow.asStateFlow()
-
-        private val _remoteStatusFlow = MutableStateFlow<UpdateStatus?>(null)
-        val remoteStatusFlow: StateFlow<UpdateStatus?> = _remoteStatusFlow.asStateFlow()
 
         fun refreshRemoteStatusAfterVerification() {
             appInstance?.checkRemoteConfig(ignoreVerification = true)
@@ -71,7 +54,7 @@ class FeApplication : Application() {
             appInstance?.checkRemoteConfig()
         }
     }
-    
+
     override fun onCreate() {
         super.onCreate()
 
@@ -81,30 +64,33 @@ class FeApplication : Application() {
         // 设置应用全局上下文
         appCtx = this.applicationContext
         appInstance = this
-        
+
         // 初始化设置管理器
         SettingsManager.init(this)
-        
+
         ResolverAuthorizer.init(buildInfo, accountAccess)
+        updateStatusRepository.remoteRefreshRequest = { ignoreVerification ->
+            checkRemoteConfig(ignoreVerification)
+        }
 
         // 法务协议仓库由 Hilt 创建并已载入本地缓存，这里静默同步云端版本。
         applicationScope.launch {
             legalAgreementRepository.refresh()
         }
-        
+
         // 初始化Sui (Magisk 模块)
         ShizukuRuntimeState.isSui = Sui.init(BuildConfig.APPLICATION_ID)
         Log.d(TAG, "Sui initialized: $isSui")
-        
+
         // 设置Shizuku监听器
         setupShizukuListeners()
-        
+
         // 检查远程配置
         checkRemoteConfig()
-        
+
         Log.d(TAG, "FeApplication onCreate | isSui: $isSui")
     }
-    
+
 
     /**
      * 清理分享产生的缓存文件（PNG图片）
@@ -141,9 +127,8 @@ class FeApplication : Application() {
                 } else {
                     remoteConfigManager.checkStatus()
                 }
-                remoteStatus = status
-                _remoteStatusFlow.value = status
-                
+                updateStatusRepository.setRemoteStatus(status)
+
                 when {
                     status.isKillSwitch -> {
                         // Account gate owns recoverable blocking UI; never terminate the process.
@@ -151,8 +136,7 @@ class FeApplication : Application() {
                     }
                     status.showDialog -> {
                         // 有新版本，显示更新弹窗，通过 Flow 通知
-                        updateStatus = status
-                        _updateStatusFlow.value = status
+                        updateStatusRepository.setUpdateStatus(status)
                         Log.i(TAG, "保存更新状态: showDialog=${status.showDialog}, message='${status.message}', isForce=${status.isForce}")
                     }
                     status.requiresVerification -> {
@@ -170,18 +154,18 @@ class FeApplication : Application() {
             }
         }
     }
-    
+
     private fun setupShizukuListeners() {
         // 监听Binder接收事件 - 收到binder后调用onShizukuBinderReceived
         Shizuku.addBinderReceivedListenerSticky {
             onShizukuBinderReceived()
         }
-        
+
         Shizuku.addBinderDeadListener {
             onShizukuBinderDead()
         }
     }
-    
+
     private fun onShizukuBinderReceived() {
         ShizukuRuntimeState.isBinderReceived = true
         try {
@@ -192,13 +176,13 @@ class FeApplication : Application() {
             Log.e(TAG, "Error getting Shizuku info", e)
         }
     }
-    
+
     private fun onShizukuBinderDead() {
         ShizukuRuntimeState.isBinderReceived = false
         ShizukuRuntimeState.uid = -1
         Log.d(TAG, "Shizuku disconnected")
     }
-    
+
     /**
      * 检查Shizuku是否可用
      */
@@ -209,7 +193,7 @@ class FeApplication : Application() {
             false
         }
     }
-    
+
     /**
      * 获取Shizuku运行时类型
      */

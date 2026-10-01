@@ -9,6 +9,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
+import com.shuaiqiu.fuckets100.core.designsystem.RighteousFont
 
 /**
  * 搴旂敤椤堕儴瀵艰埅鏍? */

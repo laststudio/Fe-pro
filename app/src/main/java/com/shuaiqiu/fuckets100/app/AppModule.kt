@@ -2,6 +2,7 @@ package com.shuaiqiu.fuckets100.app
 
 import android.content.Context
 import com.shuaiqiu.fuckets100.FeAccountAccess
+import com.shuaiqiu.fuckets100.AppUpdateStatusRepository
 import com.shuaiqiu.fuckets100.LegalAgreementRepository
 import com.shuaiqiu.fuckets100.RemoteConfigManager
 import com.shuaiqiu.fuckets100.FeAccountManager
@@ -32,6 +33,10 @@ object AppModule {
     @Provides
     @Singleton
     fun provideAuthCacheInvalidator(): AuthCacheInvalidator = ResolverAuthorizer
+
+    @Provides
+    @Singleton
+    fun provideAppUpdateStatusRepository(): AppUpdateStatusRepository = AppUpdateStatusRepository()
 
     @Provides
     @Singleton

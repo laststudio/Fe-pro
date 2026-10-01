@@ -34,6 +34,8 @@ sealed class Screen(val route: String, val icon: ImageVector, val label: String)
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     @Inject lateinit var accountManager: FeAccountManager
+    @Inject lateinit var updateStatusRepository: AppUpdateStatusRepository
+
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
@@ -55,7 +57,7 @@ class MainActivity : ComponentActivity() {
         ThemeManager.init(this)
 
         setContent {
-            FeAppMain(accountManager)
+            FeAppMain(accountManager, updateStatusRepository)
         }
     }
 

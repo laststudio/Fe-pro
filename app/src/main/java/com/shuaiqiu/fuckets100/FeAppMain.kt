@@ -60,7 +60,10 @@ private fun handleTargetRoute(
 /**
  * 搴旂敤涓荤晫闈㈢粍鍚堝嚱鏁? */
 @Composable
-fun FeAppMain(accountManager: FeAccountManager) {
+fun FeAppMain(
+    accountManager: FeAccountManager,
+    updateStatusRepository: AppUpdateStatusRepository,
+) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val feAccountState by accountManager.gateState.collectAsState()
@@ -100,13 +103,13 @@ fun FeAppMain(accountManager: FeAccountManager) {
     var showUpdateDialog by remember { mutableStateOf(false) }
     var updateDialogStatus by remember { mutableStateOf<com.shuaiqiu.fuckets100.UpdateStatus?>(null) }
     var verificationDialogStatus by remember { mutableStateOf<com.shuaiqiu.fuckets100.UpdateStatus?>(null) }
-    var remoteStatus by remember { mutableStateOf(FeApplication.remoteStatus) }
+    var remoteStatus by remember { mutableStateOf(updateStatusRepository.remoteStatus) }
     var showOnboarding by remember { mutableStateOf(!SettingsManager.hasCompletedOnboarding()) }
     var showAnnouncementDialog by remember { mutableStateOf(false) }
 
     // 鐩戝惉鏇存柊鐘舵€?Flow锛岀‘淇濇瘡娆￠兘鑳芥敹鍒伴€氱煡鍠祣
     LaunchedEffect(Unit) {
-        FeApplication.updateStatusFlow.collect { status ->
+        updateStatusRepository.updateStatusFlow.collect { status ->
             Log.d("FeAppMain", "updateStatusFlow 鏀跺埌: $status")
             if (status != null && status.showDialog) {
                 updateDialogStatus = status
@@ -116,7 +119,7 @@ fun FeAppMain(accountManager: FeAccountManager) {
     }
 
     LaunchedEffect(Unit) {
-        FeApplication.remoteStatusFlow.collect { status ->
+        updateStatusRepository.remoteStatusFlow.collect { status ->
             remoteStatus = status
             if (status != null && status.requiresVerification) {
                 verificationDialogStatus = status
@@ -315,7 +318,7 @@ fun FeAppMain(accountManager: FeAccountManager) {
                 onDismiss = {
                     showUpdateDialog = false
                     updateDialogStatus = null
-                    FeApplication.updateStatus = null
+                    updateStatusRepository.setUpdateStatus(null)
                 }
             )
         }
@@ -326,8 +329,8 @@ fun FeAppMain(accountManager: FeAccountManager) {
                 status = status,
                 onVerified = {
                     verificationDialogStatus = null
-                    FeApplication.remoteStatus = status.copy(requiresVerification = false)
-                    FeApplication.refreshRemoteStatusAfterVerification()
+                    updateStatusRepository.setRemoteStatus(status.copy(requiresVerification = false))
+                    updateStatusRepository.refreshAfterVerification()
                 }
             )
         }
