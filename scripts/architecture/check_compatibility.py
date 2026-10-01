@@ -81,6 +81,18 @@ def main() -> int:
             if (error := require(text, needle, relative)) is not None:
                 errors.append(error)
 
+    # 发布标识与签名校验字段：改动会直接影响更新检查与签名校验，必须锁定。
+    app_gradle = read(root, "app/build.gradle.kts")
+    for needle in (
+        'applicationId = "com.shuaiqiu.fuckets100"',
+        "versionCode = 21",
+        'versionName = "2.0.3"',
+        'EXPECTED_SIGNATURE_SHA256',
+        'EXPECTED_PACKAGE_NAME',
+    ):
+        if (error := require(app_gradle, needle, "app/build.gradle.kts")) is not None:
+            errors.append(error)
+
     proguard = read(root, "app/proguard-rules.pro")
     for needle in (
         "com.shuaiqiu.fuckets100.ResolverNative",
