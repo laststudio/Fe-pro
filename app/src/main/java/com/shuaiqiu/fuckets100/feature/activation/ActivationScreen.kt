@@ -1,4 +1,4 @@
-package com.shuaiqiu.fuckets100
+package com.shuaiqiu.fuckets100.feature.activation
 
 import android.content.pm.PackageManager
 import android.os.Build
@@ -20,6 +20,7 @@ import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -40,31 +41,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private data class ActivationPageSnapshot(
-    val hasFilesPermission: Boolean,
-    val cloudLoggedIn: Boolean,
-    val cloudPhone: String?,
-    val etsAppInfo: Pair<Boolean, String>?,
-)
-
-private object ActivationPageStateStore {
-    private const val CACHE_TTL_MS = 15_000L
-
-    var snapshot: ActivationPageSnapshot? = null
-        private set
-    private var updatedAt = 0L
-
-    fun getFresh(): ActivationPageSnapshot? {
-        val current = snapshot ?: return null
-        return current.takeIf { SystemClock.elapsedRealtime() - updatedAt < CACHE_TTL_MS }
-    }
-
-    fun update(value: ActivationPageSnapshot) {
-        snapshot = value
-        updatedAt = SystemClock.elapsedRealtime()
-    }
-}
-
+import com.shuaiqiu.fuckets100.ActivationMode
+import com.shuaiqiu.fuckets100.ETS100AuthManager
+import com.shuaiqiu.fuckets100.FeThinDivider
+import com.shuaiqiu.fuckets100.PermissionsHelper
+import com.shuaiqiu.fuckets100.RootManager
+import com.shuaiqiu.fuckets100.ShizukuManager
+import com.shuaiqiu.fuckets100.ShizukuState
+import com.shuaiqiu.fuckets100.ZWCHelper
+import com.shuaiqiu.fuckets100.maskPhoneNumber
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun ActivationSettingsScreen(
@@ -74,37 +59,22 @@ fun ActivationSettingsScreen(
     onModeSelected: (ActivationMode) -> Unit,
     onBack: () -> Unit,
     onNavigateToCloudActivation: () -> Unit,
-    onNavigateToRead: () -> Unit
+    onNavigateToRead: () -> Unit,
+    viewModel: ActivationViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-
-    // 使用短时缓存保留上一次稳定状态，避免每次打开授权页先显示“未授权”再跳成已授权。
-    var pageSnapshot by remember { mutableStateOf(ActivationPageStateStore.getFresh()) }
+    val uiState by viewModel.uiState.collectAsState()
+    val pageSnapshot = uiState.snapshot
     val hasFilesPerm = pageSnapshot?.hasFilesPermission == true
     val cloudLoggedIn = pageSnapshot?.cloudLoggedIn == true
     val cloudPhone = pageSnapshot?.cloudPhone
     val etsAppInfo = pageSnapshot?.etsAppInfo
     var pendingPermissionRequest by remember { mutableStateOf(false) }
-    val refreshScope = rememberCoroutineScope()
-
-    suspend fun refreshPageState(force: Boolean = false) {
-        if (!force && pageSnapshot != null && ActivationPageStateStore.getFresh() != null) return
-        val snapshot = withContext(Dispatchers.IO) {
-            ActivationPageSnapshot(
-                hasFilesPermission = PermissionsHelper.hasAllFilesAccess(),
-                cloudLoggedIn = ETS100AuthManager.isLoggedIn(context),
-                cloudPhone = ETS100AuthManager.getPhone(context),
-                etsAppInfo = getEtsAppInfo(context),
-            )
-        }
-        ActivationPageStateStore.update(snapshot)
-        pageSnapshot = snapshot
-    }
 
     // 首次打开异步读取；已有短时缓存时直接沿用，不重复触发页面闪变。
     LaunchedEffect(cloudAuthRevision) {
-        refreshPageState()
+        viewModel.refresh(force = false)
     }
 
     var hasPaused by remember { mutableStateOf(false) }
@@ -114,9 +84,7 @@ fun ActivationSettingsScreen(
             if (event == Lifecycle.Event.ON_PAUSE) {
                 hasPaused = true
             } else if (event == Lifecycle.Event.ON_RESUME && hasPaused) {
-                refreshScope.launch {
-                    refreshPageState(force = true)
-                }
+                viewModel.refresh(force = true)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -283,7 +251,7 @@ fun ActivationSettingsScreen(
                                                         context = context,
                                                         isLoggedIn = cloudLoggedIn,
                                                         phone = cloudPhone,
-                                                        onCloudAuthChanged = { refreshScope.launch { refreshPageState() } },
+                                                        onCloudAuthChanged = { viewModel.refresh(force = true) },
                                                         onNavigateToCloudActivation = onNavigateToCloudActivation,
                                                         onNavigateToRead = onNavigateToRead,
                                                     )
@@ -312,22 +280,6 @@ fun ActivationSettingsScreen(
             }
             item { Spacer(Modifier.height(80.dp)) }
         }
-    }
-}
-
-private fun getEtsAppInfo(
-    context: android.content.Context,
-    packageName: String = "com.ets100.secondary"
-): Pair<Boolean, String>? {
-    return try {
-        val packageManager = context.packageManager
-        val packageInfo = packageManager.getPackageInfo(packageName, 0)
-        val versionName = packageInfo.versionName ?: "未知"
-        Pair(true, versionName)
-    } catch (e: android.content.pm.PackageManager.NameNotFoundException) {
-        Pair(false, "")
-    } catch (e: Exception) {
-        null
     }
 }
 
@@ -907,7 +859,8 @@ fun FeCloudActivationPanel(
     phone: String?,
     onCloudAuthChanged: () -> Unit,
     onNavigateToCloudActivation: () -> Unit,
-    onNavigateToRead: () -> Unit
+    onNavigateToRead: () -> Unit,
+    viewModel: ActivationViewModel = hiltViewModel(),
 ) {
     val cloudColor = MaterialTheme.colorScheme.tertiary
     val successColor = MaterialTheme.colorScheme.primary

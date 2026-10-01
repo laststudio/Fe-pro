@@ -30,6 +30,7 @@ import androidx.navigationevent.compose.rememberNavigationEventState
 import com.materialkolor.PaletteStyle
 import com.materialkolor.dynamiccolor.ColorSpec
 import com.shuaiqiu.fuckets100.feature.settings.ThemeSettingsScreen
+import com.shuaiqiu.fuckets100.feature.activation.ActivationSettingsScreen
 import com.shuaiqiu.fuckets100.feature.account.FeAccountScreen
 import com.shuaiqiu.fuckets100.feature.account.CloudActivationScreen
 import com.shuaiqiu.fuckets100.feature.account.AccountSessionsPage
@@ -42,7 +43,6 @@ import com.shuaiqiu.fuckets100.feature.settings.GeneralSettingsScreen
 import com.shuaiqiu.fuckets100.feature.settings.DonateScreen
 import com.shuaiqiu.fuckets100.feature.settings.AboutScreen
 import com.shuaiqiu.fuckets100.ActivationMode
-import com.shuaiqiu.fuckets100.ActivationSettingsScreen
 import com.shuaiqiu.fuckets100.AnswerScreen
 import com.shuaiqiu.fuckets100.FeAccountManager
 import com.shuaiqiu.fuckets100.FeApplication
