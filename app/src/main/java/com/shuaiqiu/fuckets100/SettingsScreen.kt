@@ -1,11 +1,7 @@
 package com.shuaiqiu.fuckets100
 
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Help
@@ -15,14 +11,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import android.content.Intent
 import android.net.Uri
 import com.shuaiqiu.fuckets100.component.material.ExpressiveScaffold
@@ -37,13 +30,10 @@ fun SettingsScreen(
     onNavigateGeneralSettings: () -> Unit,
     onNavigateThemeSettings: () -> Unit,
     onNavigateLegal: () -> Unit,
-    onNavigateDonate: () -> Unit,
     onNavigateAccount: () -> Unit,
     accountSession: FeAccountSession?,
-    donateEnabled: Boolean,
 ) {
     val context = LocalContext.current
-    var showAboutDialog by remember { mutableStateOf(false) }
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     ExpressiveScaffold(
@@ -163,7 +153,7 @@ fun SettingsScreen(
                             icon = Icons.Default.Info,
                             title = "关于 Fe",
                             supportingText = "应用信息与致谢",
-                            onClick = { showAboutDialog = true },
+                            onClick = { context.startActivity(Intent(context, AboutActivity::class.java)) },
                         )
                     },
                     {
@@ -200,16 +190,6 @@ fun SettingsScreen(
         }
     }
 
-    if (showAboutDialog) {
-        AboutDialog(
-            onDismiss = { showAboutDialog = false },
-            onNavigateDonate = {
-                showAboutDialog = false
-                onNavigateDonate()
-            },
-            donateEnabled = donateEnabled,
-        )
-    }
 }
 
 @Composable
@@ -244,228 +224,4 @@ private fun SettingsSegmentedItem(
             )
         },
     )
-}
-
-@Composable
-fun AboutDialog(
-    onDismiss: () -> Unit,
-    onNavigateDonate: () -> Unit = {},
-    donateEnabled: Boolean = true,
-) {
-    val context = LocalContext.current
-
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.extraLarge,
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                // 关闭按钮
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "关闭")
-                    }
-                }
-                
-                // 应用图标
-                Image(
-                    painter = painterResource(id = R.drawable.fe_logo),
-                    contentDescription = "应用图标",
-                    modifier = Modifier
-                        .size(80.dp)
-                        .clip(CircleShape)
-                )
-                
-                Spacer(Modifier.height(16.dp))
-                
-                // 应用名称
-                Text(
-                    "Fuck ets100",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                
-                Spacer(Modifier.height(24.dp))
-                
-                // 软件信息
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp)
-                ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.Info,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                "软件信息",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                        Spacer(Modifier.height(12.dp))
-                        Text(
-                            "Fuck ETS100",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            "版本: ${BuildConfig.VERSION_NAME}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            "软件许可: 专有商业软件 · 保留所有权利",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(Modifier.height(12.dp))
-                        if (donateEnabled) FeInfoSurface(
-                            modifier = Modifier
-                                .clickable {
-                                val intent = Intent(
-                                    Intent.ACTION_VIEW,
-                                    Uri.parse("https://github.com/qiuqiqiuqid/Fuck_ets100")
-                                )
-                                context.startActivity(intent)
-                                },
-                            containerColor = MaterialTheme.colorScheme.surfaceContainer
-                        ) {
-                            Icon(
-                                Icons.Default.Code,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(22.dp)
-                            )
-                            Spacer(Modifier.width(12.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    "官方仓库与发布",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    "查看版本动态与更新",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Icon(
-                                Icons.AutoMirrored.Filled.OpenInNew,
-                                contentDescription = "打开项目地址",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                }
-                
-                Spacer(Modifier.height(16.dp))
-                FeThinDivider()
-                Spacer(Modifier.height(16.dp))
-                
-                // 关于作者
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp)
-                ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.Person,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                "关于作者",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Box(modifier = Modifier.size(8.dp).background(MaterialTheme.colorScheme.primary, CircleShape))
-                        }
-                        Spacer(Modifier.height(12.dp))
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Image(
-                                painter = painterResource(id = R.drawable.ic_author),
-                                contentDescription = "作者头像",
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .clip(CircleShape)
-                            )
-                            Spacer(Modifier.width(12.dp))
-                            Text(
-                                "帅丘",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                        Spacer(Modifier.height(12.dp))
-                        FeInfoSurface(
-                            modifier = Modifier
-                                .clickable {
-                                    onNavigateDonate()
-                                },
-                            containerColor = MaterialTheme.colorScheme.surfaceContainer
-                        ) {
-                            Icon(
-                                Icons.Default.Favorite,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(22.dp)
-                            )
-                            Spacer(Modifier.width(12.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    "捐赠支持",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    "感谢你的支持",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Icon(
-                                Icons.Default.ChevronRight,
-                                contentDescription = "进入捐赠页面",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                }
-                
-                Spacer(Modifier.height(24.dp))
-                
-                // 关闭按钮
-                Button(
-                    onClick = onDismiss,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text("关闭")
-                }
-            }
-        }
-    }
 }

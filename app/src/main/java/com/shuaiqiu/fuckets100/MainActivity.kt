@@ -446,10 +446,8 @@ fun FeAppMain() {
                             onNavigateGeneralSettings = { navigator.push(FeRoute.GeneralSettings) },
                             onNavigateThemeSettings = { navigator.push(FeRoute.ThemeSettings) },
                             onNavigateLegal = { navigator.push(FeRoute.Legal) },
-                            onNavigateDonate = { navigator.push(FeRoute.Donate) },
                             onNavigateAccount = { navigator.push(FeRoute.Account) },
                              accountSession = feAccountState.cachedSessionOrNull,
-                            donateEnabled = remoteStatus?.donateEnabled ?: true,
                         )
                     }
                 }
