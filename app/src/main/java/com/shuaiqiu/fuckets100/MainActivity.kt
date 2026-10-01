@@ -178,6 +178,12 @@ fun FeAppMain() {
     val feAccountState by accountManager.gateState.collectAsState()
     val accountOnline = feAccountState is FeAccountGateState.Ready
     val navigator = rememberFeNavigator(FeRoute.Main)
+    // 答题页被弹出时释放对应 Paper，避免 navigation 层直接依赖 PaperStore。
+    LaunchedEffect(navigator) {
+        navigator.onRouteRemoved = { route ->
+            if (route is FeRoute.Answer) PaperStore.remove(route.paperKey)
+        }
+    }
     val initialRootPage = remember { rootPageForRoute(MainActivity.pendingTargetRoute) ?: 0 }
     val pagerState = rememberPagerState(initialPage = initialRootPage, pageCount = { rootTabRoutes.size })
     val mainPagerState = rememberFeMainPagerState(pagerState)

@@ -7,13 +7,18 @@ import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.runtime.staticCompositionLocalOf
-import com.shuaiqiu.fuckets100.PaperStore
 
 /**
  * Simple navigation helper that owns a back stack.
  */
 class FeNavigator(initialRoute: FeRoute) {
     val backStack: SnapshotStateList<FeRoute> = mutableStateListOf(initialRoute)
+
+    /**
+     * 由宿主在弹出路由时清理与该路由关联的资源（例如答题页的 Paper）。
+     * 放在这里而不是直接依赖具体存储，避免 navigation 层反向依赖业务层。
+     */
+    var onRouteRemoved: ((FeRoute) -> Unit)? = null
 
     /**
      * Push a key onto the back stack.
@@ -40,7 +45,7 @@ class FeNavigator(initialRoute: FeRoute) {
 
         if (backStack.size <= 1) return
         val removed = backStack.removeLastOrNull()
-        (removed as? FeRoute.Answer)?.let { PaperStore.remove(it.paperKey) }
+        removed?.let { onRouteRemoved?.invoke(it) }
     }
 
     /**
@@ -49,7 +54,7 @@ class FeNavigator(initialRoute: FeRoute) {
     fun popUntil(predicate: (FeRoute) -> Boolean) {
         while (backStack.isNotEmpty() && !predicate(backStack.last())) {
             val removed = backStack.removeAt(backStack.lastIndex)
-            (removed as? FeRoute.Answer)?.let { PaperStore.remove(it.paperKey) }
+            onRouteRemoved?.invoke(removed)
         }
     }
 

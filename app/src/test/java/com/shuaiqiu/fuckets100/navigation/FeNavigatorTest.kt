@@ -51,7 +51,38 @@ class FeNavigatorTest {
     }
 
     @Test
-    fun popRemovesAnswerPaperFromStore() {
+    fun popInvokesRouteRemovalCallback() {
+        val navigator = FeNavigator(FeRoute.Main)
+        var removed: FeRoute? = null
+        // 宿主（MainActivity）负责在该回调里释放 PaperStore 资源。
+        navigator.onRouteRemoved = { removed = it }
+        navigator.push(FeRoute.Answer("paper-key"))
+
+        navigator.pop()
+
+        assertEquals(FeRoute.Main, navigator.current())
+        assertEquals(FeRoute.Answer("paper-key"), removed)
+    }
+
+    @Test
+    fun popUntilInvokesRouteRemovalCallbackForEachRemovedRoute() {
+        val navigator = FeNavigator(FeRoute.Main)
+        val removed = mutableListOf<FeRoute>()
+        navigator.onRouteRemoved = { removed += it }
+        navigator.push(FeRoute.Answer("k1"))
+        navigator.push(FeRoute.Answer("k2"))
+
+        navigator.popUntil { it is FeRoute.Main }
+
+        assertEquals(FeRoute.Main, navigator.current())
+        assertEquals(
+            listOf(FeRoute.Answer("k2"), FeRoute.Answer("k1")),
+            removed,
+        )
+    }
+
+    @Test
+    fun wiringCallbackToPaperStoreReleasesPaperOnPop() {
         val key = PaperStore.put(
             com.shuaiqiu.fuckets100.ETS100AnswerReader.Paper(
                 paperId = 1L,
@@ -62,6 +93,9 @@ class FeNavigatorTest {
             ),
         )
         val navigator = FeNavigator(FeRoute.Main)
+        navigator.onRouteRemoved = { route ->
+            if (route is FeRoute.Answer) PaperStore.remove(route.paperKey)
+        }
         navigator.push(FeRoute.Answer(key))
 
         navigator.pop()
