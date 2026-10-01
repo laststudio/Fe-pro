@@ -68,6 +68,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -106,8 +108,6 @@ import com.shuaiqiu.fuckets100.component.material.expressiveTopAppBarColors
 import com.shuaiqiu.fuckets100.FeThemeWrapper
 import com.shuaiqiu.fuckets100.PredictiveBackAnimation
 import com.shuaiqiu.fuckets100.PredictiveBackExitDirection
-import com.shuaiqiu.fuckets100.SettingsManager
-import com.shuaiqiu.fuckets100.ThemeManager
 private enum class ThemeDisplayMode {
     SYSTEM,
     LIGHT,
@@ -128,20 +128,18 @@ fun ThemeSettingsScreen(
     onAmoledChanged: ((Boolean) -> Unit)? = null,
     onPredictiveBackChanged: ((PredictiveBackAnimation) -> Unit)? = null,
     onPredictiveBackExitDirectionChanged: ((PredictiveBackExitDirection) -> Unit)? = null,
+    viewModel: ThemeSettingsViewModel = hiltViewModel(),
 ) {
-    var isDarkMode by remember { mutableStateOf(ThemeManager.getSavedDarkMode()) }
-    var isAutoDarkMode by remember { mutableStateOf(ThemeManager.getSavedAutoDarkMode()) }
-    var useDynamicColor by remember { mutableStateOf(ThemeManager.getSavedDynamicColor()) }
-    var keyColor by remember { mutableStateOf(ThemeManager.getSavedKeyColor()) }
-    var paletteStyle by remember { mutableStateOf(ThemeManager.getSavedPaletteStyle()) }
-    var colorSpec by remember { mutableStateOf(ThemeManager.getSavedColorSpec()) }
-    var isAmoled by remember { mutableStateOf(ThemeManager.getSavedAmoled()) }
-    var predictiveBackAnimation by remember {
-        mutableStateOf(SettingsManager.getPredictiveBackAnimation())
-    }
-    var predictiveBackExitDirection by remember {
-        mutableStateOf(SettingsManager.getPredictiveBackExitDirection())
-    }
+    val uiState by viewModel.uiState.collectAsState()
+    val isDarkMode = uiState.isDarkMode
+    val isAutoDarkMode = uiState.isAutoDarkMode
+    val useDynamicColor = uiState.useDynamicColor
+    val keyColor = uiState.keyColor
+    val paletteStyle = uiState.paletteStyle
+    val colorSpec = uiState.colorSpec
+    val isAmoled = uiState.isAmoled
+    val predictiveBackAnimation = uiState.predictiveBackAnimation
+    val predictiveBackExitDirection = uiState.predictiveBackExitDirection
     val dynamicColorAvailable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
     val dynamicColorActive = useDynamicColor && dynamicColorAvailable
     val systemDark = isSystemInDarkTheme()
@@ -167,12 +165,7 @@ fun ThemeSettingsScreen(
             ThemeDisplayMode.AMOLED -> true
             else -> false
         }
-        isAutoDarkMode = autoDark
-        isDarkMode = dark
-        isAmoled = amoled
-        ThemeManager.saveAutoDarkMode(autoDark)
-        ThemeManager.saveDarkMode(dark)
-        ThemeManager.saveAmoled(amoled)
+        viewModel.setDisplayMode(autoDark = autoDark, dark = dark, amoled = amoled)
         onAutoDarkModeChanged?.invoke(autoDark)
         onDarkModeChanged?.invoke(dark)
         onAmoledChanged?.invoke(amoled)
@@ -221,10 +214,10 @@ fun ThemeSettingsScreen(
                         isAmoled = previewAmoled,
                         paletteStyle = paletteStyle,
                         colorSpec = effectiveSpec,
+                        fallbackKeyColor = keyColor,
                         onClick = {
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                                useDynamicColor = true
-                                ThemeManager.saveDynamicColor(true)
+                                viewModel.setDynamicColor(true)
                                 onDynamicColorChanged?.invoke(true)
                             }
                         },
@@ -239,6 +232,7 @@ fun ThemeSettingsScreen(
                             isAmoled = previewAmoled,
                             paletteStyle = paletteStyle,
                             colorSpec = effectiveSpec,
+                            fallbackKeyColor = keyColor,
                             onClick = {},
                         )
                     }
@@ -251,11 +245,9 @@ fun ThemeSettingsScreen(
                         isAmoled = previewAmoled,
                         paletteStyle = paletteStyle,
                         colorSpec = effectiveSpec,
+                        fallbackKeyColor = keyColor,
                         onClick = {
-                            keyColor = color
-                            useDynamicColor = false
-                            ThemeManager.saveKeyColor(color)
-                            ThemeManager.saveDynamicColor(false)
+                            viewModel.setKeyColor(color)
                             onKeyColorChanged?.invoke(color)
                             onDynamicColorChanged?.invoke(false)
                         },
@@ -315,9 +307,9 @@ fun ThemeSettingsScreen(
                                 items = PaletteStyle.entries.map { it.label },
                                 selectedIndex = PaletteStyle.entries.indexOf(paletteStyle).coerceAtLeast(0),
                                 onItemSelected = { index ->
-                                    paletteStyle = PaletteStyle.entries[index]
-                                    ThemeManager.savePaletteStyle(paletteStyle)
-                                    onPaletteStyleChanged?.invoke(paletteStyle)
+                                    val value = PaletteStyle.entries[index]
+                                    viewModel.setPaletteStyle(value)
+                                    onPaletteStyleChanged?.invoke(value)
                                 },
                                 supportingContent = { Text(paletteStyle.description) },
                                 leadingContent = { Icon(Icons.Default.Style, contentDescription = null) },
@@ -331,9 +323,9 @@ fun ThemeSettingsScreen(
                                 items = ColorSpec.SpecVersion.entries.map { it.label },
                                 selectedIndex = ColorSpec.SpecVersion.entries.indexOf(colorSpec).coerceAtLeast(0),
                                 onItemSelected = { index ->
-                                    colorSpec = ColorSpec.SpecVersion.entries[index]
-                                    ThemeManager.saveColorSpec(colorSpec)
-                                    onColorSpecChanged?.invoke(colorSpec)
+                                    val value = ColorSpec.SpecVersion.entries[index]
+                                    viewModel.setColorSpec(value)
+                                    onColorSpecChanged?.invoke(value)
                                 },
                                 supportingContent = {
                                     Text(
@@ -364,9 +356,9 @@ fun ThemeSettingsScreen(
                                 onItemSelected = { index ->
                                     // Only update the animation setting here. Rewriting NavDisplay's
                                     // internal transition state makes the previous scene jump briefly.
-                                    predictiveBackAnimation = PredictiveBackAnimation.entries[index]
-                                    SettingsManager.savePredictiveBackAnimation(predictiveBackAnimation)
-                                    onPredictiveBackChanged?.invoke(predictiveBackAnimation)
+                                    val value = PredictiveBackAnimation.entries[index]
+                                    viewModel.setPredictiveBackAnimation(value)
+                                    onPredictiveBackChanged?.invoke(value)
                                 },
                                 leadingContent = { Icon(Icons.Default.Tune, contentDescription = null) },
                             )
@@ -381,9 +373,9 @@ fun ThemeSettingsScreen(
                                     .indexOf(predictiveBackExitDirection)
                                     .coerceAtLeast(0),
                                 onItemSelected = { index ->
-                                    predictiveBackExitDirection = PredictiveBackExitDirection.entries[index]
-                                    SettingsManager.savePredictiveBackExitDirection(predictiveBackExitDirection)
-                                    onPredictiveBackExitDirectionChanged?.invoke(predictiveBackExitDirection)
+                                    val value = PredictiveBackExitDirection.entries[index]
+                                    viewModel.setPredictiveBackExitDirection(value)
+                                    onPredictiveBackExitDirectionChanged?.invoke(value)
                                 },
                                 leadingContent = { Icon(Icons.Default.SwapHoriz, contentDescription = null) },
                             )
@@ -473,12 +465,13 @@ private fun ColorButton(
     isAmoled: Boolean,
     paletteStyle: PaletteStyle,
     colorSpec: ColorSpec.SpecVersion,
+    fallbackKeyColor: Int,
     onClick: () -> Unit,
 ) {
     val haptic = LocalHapticFeedback.current
     val dynamicAvailable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
     val enabled = color != Color.Unspecified || dynamicAvailable
-    val scheme = previewColorScheme(color, isDark, isAmoled, paletteStyle, colorSpec)
+    val scheme = previewColorScheme(color, isDark, isAmoled, paletteStyle, colorSpec, fallbackKeyColor)
     val colorDescription = if (color == Color.Unspecified) {
         "动态颜色"
     } else {
@@ -551,6 +544,7 @@ private fun previewColorScheme(
     isAmoled: Boolean,
     paletteStyle: PaletteStyle,
     colorSpec: ColorSpec.SpecVersion,
+    fallbackKeyColor: Int,
 ): androidx.compose.material3.ColorScheme {
     val context = LocalContext.current
     val seed = if (color == Color.Unspecified) {
@@ -558,7 +552,7 @@ private fun previewColorScheme(
             if (isDark) androidx.compose.material3.dynamicDarkColorScheme(context).primary
             else androidx.compose.material3.dynamicLightColorScheme(context).primary
         } else {
-            Color(ThemeManager.getSavedKeyColor())
+            Color(fallbackKeyColor)
         }
     } else {
         color
