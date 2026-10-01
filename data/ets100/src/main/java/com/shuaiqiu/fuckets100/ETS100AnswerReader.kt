@@ -242,7 +242,7 @@ object ETS100AnswerReader {
         "st7" to "simple_expression_ufj"
     )
 
-    internal fun cleanAnswerText(text: String): String {
+    fun cleanAnswerText(text: String): String {
         return cleanDisplayText(text, splitPipes = true)
     }
 
@@ -1832,7 +1832,7 @@ object ETS100AnswerReader {
      * 通过 libresolver.so 解析 content.json。Kotlin 只负责把 Native 结果映射为
      * Fe 的 UI 数据模型，不再从 ETS JSON 中提取题目、答案或选项。
      */
-    internal fun parseContentJson(
+    fun parseContentJson(
         json: JSONObject,
         startIndex: Int,
         category: String,

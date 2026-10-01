@@ -47,8 +47,8 @@ def main() -> int:
             '"fe_settings"', '"app_theme"', '"dark_mode"', '"auto_dark_mode"',
             '"dynamic_color"', '"palette_style"', '"color_spec"', '"amoled"', '"key_color"',
         ],
-        "app/src/main/java/com/shuaiqiu/fuckets100/ETS100AuthManager.kt": ['"ets100_auth"'],
-        "app/src/main/java/com/shuaiqiu/fuckets100/ETS100SecureTokenStore.kt": [
+        "data/ets100/src/main/java/com/shuaiqiu/fuckets100/ETS100AuthManager.kt": ['"ets100_auth"'],
+        "data/ets100/src/main/java/com/shuaiqiu/fuckets100/ETS100SecureTokenStore.kt": [
             '"ets100_secure"', '"token"', '"ets100_token_v1"',
         ],
         "app/src/main/java/com/shuaiqiu/fuckets100/FeSecureSessionStore.kt": [

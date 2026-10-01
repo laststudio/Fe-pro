@@ -1,6 +1,7 @@
 package com.shuaiqiu.fuckets100
 
 import android.content.Context
+import com.shuaiqiu.fuckets100.core.common.AuthServices
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -311,7 +312,7 @@ class FeAccountManager private constructor(context: Context) {
             withContext(NonCancellable) {
                 sessionMutex.withLock {
                     val tokenToRevoke = accessToken
-                    ResolverAuthorizer.invalidateAuthCache()
+                    AuthServices.authCacheInvalidator?.invalidateAuthCache()
                     // clear() commits synchronously and may throw; do not navigate or change gate on failure.
                     clearCredentialsLocked()
                     try {

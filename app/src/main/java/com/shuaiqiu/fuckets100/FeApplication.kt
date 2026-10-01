@@ -4,6 +4,7 @@ import android.app.Application
 import dagger.hilt.android.HiltAndroidApp
 import android.content.Context
 import android.util.Log
+import com.shuaiqiu.fuckets100.core.common.AuthServices
 import android.widget.Toast
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -80,6 +81,11 @@ class FeApplication : Application() {
         
         val buildInfo = BuildInfoProvider.get(this)
         RemoteConfigManager.init(buildInfo)
+        ResolverAuthorizer.init(buildInfo)
+
+        // 打破账号模块与授权模块的双向依赖：以契约方式互相引用。
+        AuthServices.accountAccess = FeAccountAccess(FeAccountManager.get(this))
+        AuthServices.authCacheInvalidator = ResolverAuthorizer
 
         // 初始化法务协议仓库并静默同步
         LegalAgreementRepository.init(this, buildInfo)

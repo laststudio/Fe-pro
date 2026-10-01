@@ -1,6 +1,11 @@
 package com.shuaiqiu.fuckets100
 
 import android.content.Context
+import com.shuaiqiu.fuckets100.core.common.AccountAccess
+import com.shuaiqiu.fuckets100.core.common.AccountAccessException
+import com.shuaiqiu.fuckets100.core.common.AppBuildInfo
+import com.shuaiqiu.fuckets100.core.common.AuthCacheInvalidator
+import com.shuaiqiu.fuckets100.core.common.AuthServices
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -14,7 +19,17 @@ import org.json.JSONObject
  *
  * 服务器公钥需与生产后端一致 (可在后台 `软件认证 -> 签名公钥` 查看)。
  */
-internal object ResolverAuthorizer {
+object ResolverAuthorizer : AuthCacheInvalidator {
+
+    /** 由 Application 注入，避免 data 层反向依赖 app 层 BuildConfig。 */
+    @Volatile private var buildInfo: AppBuildInfo? = null
+
+    fun init(buildInfo: AppBuildInfo) {
+        this.buildInfo = buildInfo
+    }
+
+    private fun account(): AccountAccess = AuthServices.accountAccess
+        ?: error("AccountAccess 尚未初始化")
 
     const val BASE_URL = "https://api.lastudio.cc"
     const val SOFTWARE_KEY = "fe"
@@ -29,7 +44,7 @@ internal object ResolverAuthorizer {
     @Volatile private var lastResolverAuthToken: String? = null
     private const val AUTH_CACHE_TTL_MS = 3 * 60 * 1000L // 3 分钟内存缓存，避免频繁点击重复请求网络
 
-    fun invalidateAuthCache() {
+    override fun invalidateAuthCache() {
         lastCloudAuthTime = 0L
         lastCloudAuthToken = null
         lastResolverAuthTime = 0L
@@ -57,7 +72,7 @@ internal object ResolverAuthorizer {
     }
 
     private suspend fun ensureCloudAuthorized(context: Context): String? = withContext(Dispatchers.IO) {
-        val manager = FeAccountManager.get(context)
+        val manager = account()
         val (available, unavailableReason) = manager.isFeatureAvailable("cloud_mode")
         if (!available) {
             invalidateAuthCache()
@@ -105,7 +120,7 @@ internal object ResolverAuthorizer {
      * @return null 表示授权通过; 否则返回阻断原因
      */
     suspend fun ensureAuthorized(context: Context): String? = withContext(Dispatchers.IO) {
-        val manager = FeAccountManager.get(context)
+        val manager = account()
         val (available, unavailableReason) = manager.isFeatureAvailable(FEATURE_KEY)
         if (!available) {
             invalidateAuthCache()
@@ -150,18 +165,18 @@ internal object ResolverAuthorizer {
 
     private suspend fun configureResolver(context: Context): String? = withContext(Dispatchers.IO) {
         try {
-            val manager = FeAccountManager.get(context)
-            if (manager.gateState.value is FeAccountGateState.Checking) {
+            val manager = account()
+            if (manager.isGateChecking) {
                 manager.checkGate()
             }
-            AppIntegrityGuard.ensureResolver(context, BuildInfoProvider.get(context), enabled = manager.isIntegrityCheckEnabled())
+            AppIntegrityGuard.ensureResolver(context, buildInfo ?: return@withContext "授权信息未初始化", enabled = manager.isIntegrityCheckEnabled())
             val token = manager.requireAccessToken()
             val rc = ResolverNative.setAuthConfig(
                 baseUrl = BASE_URL,
                 softwareKey = SOFTWARE_KEY,
                 featureKey = FEATURE_KEY,
                 publicKeyB64 = PUBLIC_KEY_B64,
-                appVersionCode = BuildConfig.VERSION_CODE.toLong(),
+                appVersionCode = (buildInfo?.versionCode ?: 0).toLong(),
             )
             if (rc != 0) {
                 return@withContext "解析器内部授权配置失败 (code=$rc)"
@@ -171,10 +186,8 @@ internal object ResolverAuthorizer {
             null
         } catch (e: AppIntegrityGuard.IntegrityFailure) {
             e.message
-        } catch (e: FeAccountNotAuthenticatedException) {
-            "请先登录 LA Studio 账号"
-        } catch (e: FeAccountApiException) {
-            if (e.error.statusCode == 401) "登录已失效，请重新登录" else e.error.message
+        } catch (e: AccountAccessException) {
+            if (e.notAuthenticated) "请先登录 LA Studio 账号" else e.message
         } catch (e: Exception) {
             "无法连接授权服务，请检查网络后重试"
         }
@@ -182,18 +195,18 @@ internal object ResolverAuthorizer {
 
     private suspend fun configureCloud(context: Context): String? = withContext(Dispatchers.IO) {
         try {
-            val manager = FeAccountManager.get(context)
-            if (manager.gateState.value is FeAccountGateState.Checking) {
+            val manager = account()
+            if (manager.isGateChecking) {
                 manager.checkGate()
             }
-            AppIntegrityGuard.ensureCloud(context, BuildInfoProvider.get(context), enabled = manager.isIntegrityCheckEnabled())
+            AppIntegrityGuard.ensureCloud(context, buildInfo ?: return@withContext "授权信息未初始化", enabled = manager.isIntegrityCheckEnabled())
             val token = manager.requireAccessToken()
             val rc = CloudNative.setAuthConfig(
                 baseUrl = BASE_URL,
                 softwareKey = SOFTWARE_KEY,
                 featureKey = "cloud_mode",
                 publicKeyB64 = PUBLIC_KEY_B64,
-                appVersionCode = BuildConfig.VERSION_CODE.toLong(),
+                appVersionCode = (buildInfo?.versionCode ?: 0).toLong(),
             )
             if (rc != 0) return@withContext "云端库授权配置失败 (code=$rc)"
             CloudNative.setAccessToken(token)
@@ -201,10 +214,8 @@ internal object ResolverAuthorizer {
             null
         } catch (e: AppIntegrityGuard.IntegrityFailure) {
             e.message
-        } catch (e: FeAccountNotAuthenticatedException) {
-            "请先登录 LA Studio 账号"
-        } catch (e: FeAccountApiException) {
-            if (e.error.statusCode == 401) "登录已失效，请重新登录" else e.error.message
+        } catch (e: AccountAccessException) {
+            if (e.notAuthenticated) "请先登录 LA Studio 账号" else e.message
         } catch (e: Exception) {
             "无法连接云端授权服务，请检查网络后重试"
         }
@@ -212,7 +223,5 @@ internal object ResolverAuthorizer {
 }
 
 /** 答案解析功能被后端阻断时抛出。 */
-internal class ResolverAuthorizationDeniedException(message: String) : Exception(message)
+class ResolverAuthorizationDeniedException(message: String) : Exception(message)
 
-/** 尚未登录 (或登录状态已失效) 时抛出。 */
-internal class FeAccountNotAuthenticatedException : Exception("请先登录 LA Studio 账号")

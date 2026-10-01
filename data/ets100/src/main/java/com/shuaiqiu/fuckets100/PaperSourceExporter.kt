@@ -974,7 +974,7 @@ object PaperSourceExporter {
         .filter { (name, contents) -> name.isBlank() || contents.map { it.url }.distinct().size > 1 }
         .keys
 
-    internal fun isUsableZip(file: File): Boolean {
+    fun isUsableZip(file: File): Boolean {
         if (!file.isFile || file.length() < 4) return false
         val hasZipMagic = runCatching {
             FileInputStream(file).use { input ->

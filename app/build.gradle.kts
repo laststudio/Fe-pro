@@ -116,6 +116,7 @@ dependencies {
     implementation(project(":core:platform"))
     implementation(project(":core:navigation"))
     implementation(project(":data:content"))
+    implementation(project(":data:ets100"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
