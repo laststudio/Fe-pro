@@ -4,6 +4,8 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.androidx.baselineprofile)
+    alias(libs.plugins.hilt)
+    alias(libs.plugins.ksp)
     id("kotlin-parcelize")
 }
 
@@ -123,6 +125,9 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.material.kolor)
     implementation(libs.androidx.profileinstaller)
+    implementation(libs.hilt.android)
+    implementation(libs.androidx.hilt.lifecycle.viewmodel.compose)
+    ksp(libs.hilt.compiler)
 
     // Shizuku support allows file access without root where available.
     implementation(libs.shizuku.api)

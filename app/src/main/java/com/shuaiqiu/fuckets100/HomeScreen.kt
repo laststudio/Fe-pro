@@ -3,7 +3,6 @@ package com.shuaiqiu.fuckets100
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.os.Build
-import android.os.SystemClock
 import android.widget.Toast
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ContentTransform
@@ -32,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.text.style.TextOverflow
@@ -42,53 +42,9 @@ import com.shuaiqiu.fuckets100.component.material.ExpressiveSegmentedListItem
 import com.shuaiqiu.fuckets100.component.material.SegmentedColumn
 import com.shuaiqiu.fuckets100.component.material.TonalCard
 import com.shuaiqiu.fuckets100.component.material.expressiveTopAppBarColors
+import com.shuaiqiu.fuckets100.feature.home.HomeViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-
-private data class HomeRuntimeStatus(
-    val hasFilesPerm: Boolean,
-    val hasRootAvailable: Boolean,
-    val hasDirectReadAvailable: Boolean,
-    val cloudLoggedIn: Boolean
-)
-
-private object HomeRuntimeStatusStore {
-    private const val CACHE_TTL_MS = 30_000L
-
-    var cached: HomeRuntimeStatus? = null
-    var hasLoaded = false
-    var lastRefreshTime = 0L
-    var lastMode: ActivationMode? = null
-
-    fun isFresh(): Boolean {
-        return hasLoaded && cached != null && SystemClock.elapsedRealtime() - lastRefreshTime < CACHE_TTL_MS
-    }
-
-    fun getOrInit(context: android.content.Context): HomeRuntimeStatus {
-        cached?.let { return it }
-        val status = HomeRuntimeStatus(
-            hasFilesPerm = PermissionsHelper.hasAllFilesAccess(),
-            hasRootAvailable = RootManager.isRootAvailable(),
-            hasDirectReadAvailable = ZWCHelper.isDirectReadAvailable(),
-            cloudLoggedIn = ETS100AuthManager.isLoggedIn(context)
-        )
-        cached = status
-        hasLoaded = true
-        lastRefreshTime = SystemClock.elapsedRealtime()
-        return status
-    }
-
-    fun update(status: HomeRuntimeStatus, mode: ActivationMode? = lastMode) {
-        cached = status
-        hasLoaded = true
-        lastRefreshTime = SystemClock.elapsedRealtime()
-        lastMode = mode
-    }
-}
 
 /**
  * 首页主屏幕
@@ -101,55 +57,27 @@ fun HomeScreen(
     shizukuState: ShizukuState,
     accountState: FeAccountGateState,
     refreshRevision: Int = 0,
+    viewModel: HomeViewModel = hiltViewModel(),
     onNavigateToActivation: () -> Unit,
     onNavigateToRemoteContent: (UpdateStatus?) -> Unit,
 ) {
     val context = LocalContext.current
-    val appContext = remember(context) { context.applicationContext }
-    val scope = rememberCoroutineScope()
-    val currentModeForRefresh by rememberUpdatedState(mode)
-    
-    var runtimeStatus by remember {
-        mutableStateOf(HomeRuntimeStatusStore.getOrInit(appContext))
-    }
-    var remoteStatus by remember {
-        mutableStateOf(FeApplication.remoteStatus)
-    }
-    
-    // 下拉刷新状态
-    var isRefreshing by remember { mutableStateOf(false) }
+    val uiState by viewModel.uiState.collectAsState()
+    val runtimeStatus = uiState.runtimeStatus
+    val remoteStatus = uiState.remoteStatus
+    val isRefreshing = uiState.isRefreshing
     val pullRefreshState = rememberPullToRefreshState()
 
-    val onRefresh: () -> Unit = {
-        scope.launch {
-            isRefreshing = true
-            try {
-                val status = loadHomeRuntimeStatus(appContext, force = true)
-                HomeRuntimeStatusStore.update(status, currentModeForRefresh)
-                runtimeStatus = status
-                FeApplication.syncRemoteStatus()
-                LegalAgreementRepository.refresh(appContext)
-                delay(350)
-            } finally {
-                isRefreshing = false
-            }
-        }
-    }
+    val onRefresh: () -> Unit = viewModel::refresh
 
     // 返回首页时后台刷新真实权限状态，但保留旧状态直到检测完成，避免先闪成未授权。
     val lifecycleOwner = LocalLifecycleOwner.current
     var hasPaused by remember { mutableStateOf(false) }
-    DisposableEffect(lifecycleOwner, appContext) {
+    DisposableEffect(lifecycleOwner, viewModel) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_PAUSE -> hasPaused = true
-                Lifecycle.Event.ON_RESUME -> if (hasPaused) {
-                    scope.launch {
-                        val status = loadHomeRuntimeStatus(appContext, force = true)
-                        HomeRuntimeStatusStore.update(status, currentModeForRefresh)
-                        runtimeStatus = status
-                    }
-                }
+                Lifecycle.Event.ON_RESUME -> if (hasPaused) viewModel.onResumed()
                 else -> Unit
             }
         }
@@ -157,19 +85,8 @@ fun HomeScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    LaunchedEffect(mode, refreshRevision) {
-        val status = loadHomeRuntimeStatus(
-            context = appContext,
-            force = refreshRevision > 0 || HomeRuntimeStatusStore.lastMode != mode
-        )
-        HomeRuntimeStatusStore.update(status, mode)
-        runtimeStatus = status
-    }
-
-    LaunchedEffect(Unit) {
-        FeApplication.remoteStatusFlow.collect { status ->
-            remoteStatus = status
-        }
+    LaunchedEffect(mode, refreshRevision, viewModel) {
+        viewModel.onRuntimeInputsChanged(mode, refreshRevision)
     }
     
     // 检查基础权限是否全部获取
@@ -261,24 +178,6 @@ fun HomeScreen(
 
             }
         }
-    }
-}
-
-private suspend fun loadHomeRuntimeStatus(
-    context: android.content.Context,
-    force: Boolean
-): HomeRuntimeStatus {
-    if (!force && HomeRuntimeStatusStore.isFresh()) {
-        return HomeRuntimeStatusStore.cached ?: HomeRuntimeStatusStore.getOrInit(context)
-    }
-
-    return withContext(Dispatchers.IO) {
-        HomeRuntimeStatus(
-            hasFilesPerm = PermissionsHelper.hasAllFilesAccess(),
-            hasRootAvailable = RootManager.isRootAvailable(),
-            hasDirectReadAvailable = ZWCHelper.isDirectReadAvailable(),
-            cloudLoggedIn = ETS100AuthManager.isLoggedIn(context)
-        )
     }
 }
 

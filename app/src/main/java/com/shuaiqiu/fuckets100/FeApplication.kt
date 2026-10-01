@@ -1,6 +1,7 @@
 package com.shuaiqiu.fuckets100
 
 import android.app.Application
+import dagger.hilt.android.HiltAndroidApp
 import android.content.Context
 import android.util.Log
 import android.widget.Toast
@@ -18,6 +19,7 @@ import rikka.sui.Sui
  * Fe 应用 Application 类
  * 负责初始化 Sui (Magisk 模块) 和 Shizuku
  */
+@HiltAndroidApp
 class FeApplication : Application() {
     
     // 应用范围的协程作用域

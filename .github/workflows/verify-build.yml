@@ -28,6 +28,11 @@ jobs:
       - name: 授权 Gradle Wrapper
         run: chmod +x ./gradlew
 
+      - name: 校验模块边界与兼容项
+        run: |
+          python3 scripts/architecture/check_module_boundaries.py
+          python3 scripts/architecture/check_compatibility.py
+
       - name: 构建 Debug APK
         run: ./gradlew assembleDebug --console=plain
 

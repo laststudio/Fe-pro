@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import dagger.hilt.android.AndroidEntryPoint
 import com.shuaiqiu.fuckets100.component.material.rememberFeMainPagerState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -116,6 +117,7 @@ sealed class Screen(val route: String, val icon: ImageVector, val label: String)
 // 涓昏娲诲姩绫?- 搴旂敤鍏ュ彛
 // ============================================================================
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
