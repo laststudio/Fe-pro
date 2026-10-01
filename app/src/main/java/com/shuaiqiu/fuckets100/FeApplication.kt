@@ -4,6 +4,7 @@ import android.app.Application
 import dagger.hilt.android.HiltAndroidApp
 import android.content.Context
 import android.util.Log
+import com.shuaiqiu.fuckets100.core.common.AppBuildInfoHolder
 import com.shuaiqiu.fuckets100.core.common.AuthServices
 import android.widget.Toast
 import kotlinx.coroutines.CoroutineScope
@@ -80,6 +81,7 @@ class FeApplication : Application() {
         SettingsManager.init(this)
         
         val buildInfo = BuildInfoProvider.get(this)
+        AppBuildInfoHolder.current = buildInfo
         RemoteConfigManager.init(buildInfo)
         ResolverAuthorizer.init(buildInfo)
 

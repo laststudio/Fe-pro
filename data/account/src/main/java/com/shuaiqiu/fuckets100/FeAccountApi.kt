@@ -1,6 +1,7 @@
 package com.shuaiqiu.fuckets100
 
 import android.content.Context
+import com.shuaiqiu.fuckets100.core.common.AppBuildInfoHolder
 import android.os.Build
 import android.provider.Settings
 import kotlinx.coroutines.Dispatchers
@@ -10,7 +11,7 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
-internal class FeAccountApi(private val context: Context) {
+class FeAccountApi(private val context: Context) {
     private val activeConnections = java.util.Collections.synchronizedSet(
         mutableSetOf<HttpURLConnection>(),
     )
@@ -35,7 +36,7 @@ internal class FeAccountApi(private val context: Context) {
     )
 
     suspend fun softwarePolicy(): SoftwarePolicy {
-        val response = request("GET", "/software/$SOFTWARE_KEY/config?version_code=${BuildConfig.VERSION_CODE}")
+        val response = request("GET", "/software/$SOFTWARE_KEY/config?version_code=${AppBuildInfoHolder.versionCodeOrZero()}")
         val json = JSONObject(response.body)
         val featuresJson = json.optJSONObject("features")
         val features = mutableMapOf<String, Boolean>()
@@ -48,7 +49,7 @@ internal class FeAccountApi(private val context: Context) {
         }
         return SoftwarePolicy(
             killSwitch = json.optBoolean("isKillSwitchOn", false),
-            latestVersionCode = json.optInt("latestVersionCode", BuildConfig.VERSION_CODE),
+            latestVersionCode = json.optInt("latestVersionCode", AppBuildInfoHolder.versionCodeOrZero()),
             forceUpdate = json.optBoolean("isForce", false),
             updateUrl = json.optString("updateUrl", ""),
             message = if (json.optBoolean("isKillSwitchOn", false)) {
@@ -65,9 +66,9 @@ internal class FeAccountApi(private val context: Context) {
         val device = JSONObject()
             .put("installation_id", installationId())
             .put("platform_device_id", platformDeviceId())
-            .put("application_id", BuildConfig.APPLICATION_ID)
+            .put("application_id", AppBuildInfoHolder.applicationIdOrEmpty())
             .put("signing_certificate_sha256", signingCertificateSha256())
-            .put("version_code", BuildConfig.VERSION_CODE)
+            .put("version_code", AppBuildInfoHolder.versionCodeOrZero())
             .put("device_name", "${Build.MANUFACTURER} ${Build.MODEL}".trim())
             .put("platform_version", "Android ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})")
         val body = JSONObject()
@@ -172,7 +173,7 @@ internal class FeAccountApi(private val context: Context) {
         )
     }
 
-    suspend fun fetchPublicFeatures(versionCode: Int = BuildConfig.VERSION_CODE): List<FeFeatureConfig> {
+    suspend fun fetchPublicFeatures(versionCode: Int = AppBuildInfoHolder.versionCodeOrZero()): List<FeFeatureConfig> {
         val response = request("GET", "/software/$SOFTWARE_KEY/features?version_code=$versionCode")
         val array = org.json.JSONArray(response.body)
         return (0 until array.length()).map { i ->
@@ -197,7 +198,7 @@ internal class FeAccountApi(private val context: Context) {
         }
     }
 
-    suspend fun fetchClientFeatures(accessToken: String, versionCode: Int = BuildConfig.VERSION_CODE): List<FeClientFeatureConfig> {
+    suspend fun fetchClientFeatures(accessToken: String, versionCode: Int = AppBuildInfoHolder.versionCodeOrZero()): List<FeClientFeatureConfig> {
         val response = request("GET", "/client-auth/features?version_code=$versionCode", "SoftwareAccess $accessToken")
         val array = org.json.JSONArray(response.body)
         return (0 until array.length()).map { i ->
@@ -241,8 +242,8 @@ internal class FeAccountApi(private val context: Context) {
             connectTimeout = TIMEOUT_MS
             readTimeout = TIMEOUT_MS
             setRequestProperty("Accept", "application/json")
-            setRequestProperty("User-Agent", "Fe/${BuildConfig.VERSION_NAME} Android")
-            setRequestProperty("X-App-Version-Code", BuildConfig.VERSION_CODE.toString())
+            setRequestProperty("User-Agent", "Fe/${AppBuildInfoHolder.versionNameOrEmpty()} Android")
+            setRequestProperty("X-App-Version-Code", AppBuildInfoHolder.versionCodeOrZero().toString())
             if (authorization != null) setRequestProperty("Authorization", authorization)
             if (body != null) {
                 doOutput = true
@@ -284,7 +285,7 @@ internal class FeAccountApi(private val context: Context) {
     private fun platformDeviceId(): String {
         val androidId = Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)
             .orEmpty()
-        return sha256LowerHex("${BuildConfig.APPLICATION_ID}:$androidId")
+        return sha256LowerHex("${AppBuildInfoHolder.applicationIdOrEmpty()}:$androidId")
     }
 
     @Suppress("DEPRECATION")
@@ -318,5 +319,5 @@ internal class FeAccountApi(private val context: Context) {
     }
 }
 
-internal class FeAccountApiException(val error: FeApiError) : Exception(error.message)
-internal class FeAccountNetworkException(message: String) : Exception(message)
+class FeAccountApiException(val error: FeApiError) : Exception(error.message)
+class FeAccountNetworkException(message: String) : Exception(message)

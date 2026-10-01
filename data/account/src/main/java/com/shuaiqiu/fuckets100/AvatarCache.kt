@@ -13,7 +13,7 @@ import java.io.File
  * 头像内容哈希前缀。缓存文件名 = `${userId}_${version}.png`, 版本不变则直接
  * 读缓存 (重启后不再实时下载), 版本变化 (头像被更换) 时才重新下载并替换。
  */
-internal object AvatarCache {
+object AvatarCache {
 
     private const val CACHE_DIR = "avatar_cache"
 

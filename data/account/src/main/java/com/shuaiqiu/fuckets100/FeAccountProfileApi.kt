@@ -14,7 +14,7 @@ import java.net.URL
  * 独立于 [FeAccountApi], 避免与既有改动耦合。调用前通过
  * [FeAccountManager.requireAccessToken] 获取有效 access token。
  */
-internal class FeAccountProfileApi {
+class FeAccountProfileApi {
 
     data class AccountBindings(
         val email: EmailBinding?,

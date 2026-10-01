@@ -14,13 +14,13 @@ import java.util.Base64
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.zip.Inflater
 
-internal data class CapInstrumentationResult(
+data class CapInstrumentationResult(
     val nonce: String,
     val state: Map<String, Int>,
     val timestamp: Long = System.currentTimeMillis(),
 )
 
-internal class FeCapSolver(
+class FeCapSolver(
     private val endpoint: String = DEFAULT_ENDPOINT,
 ) {
     companion object {

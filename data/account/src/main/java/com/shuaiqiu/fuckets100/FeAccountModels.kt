@@ -53,7 +53,7 @@ val FeAccountGateState.cachedSessionOrNull: FeAccountSession?
         is FeAccountGateState.Blocked -> cachedSession
     }
 
-internal data class FeApiError(
+data class FeApiError(
     val statusCode: Int,
     val code: String?,
     val message: String,

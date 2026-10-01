@@ -51,7 +51,7 @@ def main() -> int:
         "data/ets100/src/main/java/com/shuaiqiu/fuckets100/ETS100SecureTokenStore.kt": [
             '"ets100_secure"', '"token"', '"ets100_token_v1"',
         ],
-        "app/src/main/java/com/shuaiqiu/fuckets100/FeSecureSessionStore.kt": [
+        "data/account/src/main/java/com/shuaiqiu/fuckets100/FeSecureSessionStore.kt": [
             '"fe_account_secure"', '"refresh_token"', '"cached_session"', '"fe_account_refresh_v1"',
         ],
         "app/src/main/java/com/shuaiqiu/fuckets100/feature/read/ReadPageStateStore.kt": ['"read_page_state"'],
@@ -67,7 +67,7 @@ def main() -> int:
         "data/content/src/main/java/com/shuaiqiu/fuckets100/RemoteConfigManager.kt": [
             "https://api.lastudio.cc/software/fe/config",
         ],
-        "app/src/main/java/com/shuaiqiu/fuckets100/FeAccountApi.kt": ['"https://api.lastudio.cc"'],
+        "data/account/src/main/java/com/shuaiqiu/fuckets100/FeAccountApi.kt": ['"https://api.lastudio.cc"'],
         "app/src/main/java/com/shuaiqiu/fuckets100/feature/settings/AboutScreen.kt": [
             "https://oplist.lastudio.cc/Fe_android",
         ],

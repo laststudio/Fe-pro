@@ -1,6 +1,7 @@
 package com.shuaiqiu.fuckets100
 
 import android.content.Context
+import com.shuaiqiu.fuckets100.core.common.AppBuildInfoHolder
 import com.shuaiqiu.fuckets100.core.common.AuthServices
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -49,7 +50,7 @@ class FeAccountManager private constructor(context: Context) {
     val features: StateFlow<Map<String, FeFeatureConfig>> = _features.asStateFlow()
 
     @Volatile
-    internal var latestSoftwarePolicy: FeAccountApi.SoftwarePolicy? = null
+    var latestSoftwarePolicy: FeAccountApi.SoftwarePolicy? = null
         private set
 
     fun isIntegrityCheckEnabled(): Boolean =
@@ -104,7 +105,7 @@ class FeAccountManager private constructor(context: Context) {
                     _features.value = list.associateBy { it.featureKey }
                 }
             when (val decision = evaluateFeSoftwarePolicy(
-                currentVersionCode = BuildConfig.VERSION_CODE,
+                currentVersionCode = AppBuildInfoHolder.versionCodeOrZero(),
                 killSwitch = policy.killSwitch,
                 latestVersionCode = policy.latestVersionCode,
                 forceUpdate = policy.forceUpdate,
@@ -221,16 +222,16 @@ class FeAccountManager private constructor(context: Context) {
         }
     }
 
-    internal suspend fun cloudDeviceCode(): String = serializedSessionOperation {
+    suspend fun cloudDeviceCode(): String = serializedSessionOperation {
         api.cloudDeviceCode(requireAccessTokenLocked())
     }
 
-    internal suspend fun cloudSession(preferredAccountId: String): FeAccountApi.CloudSession =
+    suspend fun cloudSession(preferredAccountId: String): FeAccountApi.CloudSession =
         serializedSessionOperation {
             api.cloudSession(requireAccessTokenLocked(), preferredAccountId)
         }
 
-    internal suspend fun bindChangyanAccount(
+    suspend fun bindChangyanAccount(
         login: String,
         userId: String,
         sucUserToken: String,
@@ -247,7 +248,7 @@ class FeAccountManager private constructor(context: Context) {
         session
     }
 
-    internal suspend fun accountBindings(force: Boolean = false): FeAccountProfileApi.AccountBindings =
+    suspend fun accountBindings(force: Boolean = false): FeAccountProfileApi.AccountBindings =
         serializedSessionOperation {
             val cached = cachedBindings
             if (!force && cached != null && now() - cachedBindingsAt < PROFILE_CACHE_TTL_MS) return@serializedSessionOperation cached
@@ -257,7 +258,7 @@ class FeAccountManager private constructor(context: Context) {
             }
         }
 
-    internal suspend fun bindPlatformAccount(phone: String, password: String) =
+    suspend fun bindPlatformAccount(phone: String, password: String) =
         serializedSessionOperation {
             val token = requireAccessTokenLocked()
             val deviceCode = api.cloudDeviceCode(token)
@@ -265,14 +266,14 @@ class FeAccountManager private constructor(context: Context) {
             clearProfileCacheLocked()
         }
 
-    internal suspend fun unbindPlatformAccount() =
+    suspend fun unbindPlatformAccount() =
         serializedSessionOperation {
             val token = requireAccessTokenLocked()
             profileApi.unbindPlatformAccount(token)
             clearProfileCacheLocked()
         }
 
-    internal suspend fun accountDevices(force: Boolean = false): List<org.json.JSONObject> =
+    suspend fun accountDevices(force: Boolean = false): List<org.json.JSONObject> =
         serializedSessionOperation {
             val cached = cachedDevices
             if (!force && cached != null && now() - cachedDevicesAt < PROFILE_CACHE_TTL_MS) return@serializedSessionOperation cached
@@ -282,7 +283,7 @@ class FeAccountManager private constructor(context: Context) {
             }
         }
 
-    internal suspend fun accountSessions(force: Boolean = false): List<org.json.JSONObject> =
+    suspend fun accountSessions(force: Boolean = false): List<org.json.JSONObject> =
         serializedSessionOperation {
             val cached = cachedSessions
             if (!force && cached != null && now() - cachedSessionsAt < PROFILE_CACHE_TTL_MS) return@serializedSessionOperation cached
@@ -301,7 +302,7 @@ class FeAccountManager private constructor(context: Context) {
         cachedSessionsAt = 0L
     }
 
-    internal suspend fun invalidateAccountData() = serializedSessionOperation {
+    suspend fun invalidateAccountData() = serializedSessionOperation {
         clearProfileCacheLocked()
     }
 
