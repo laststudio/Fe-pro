@@ -1,4 +1,4 @@
-package com.shuaiqiu.fuckets100.component.material
+package com.shuaiqiu.fuckets100.core.designsystem
 
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.runtime.Composable

@@ -48,11 +48,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.shuaiqiu.fuckets100.component.material.ExpressiveScaffold
+import com.shuaiqiu.fuckets100.core.designsystem.ExpressiveScaffold
 import com.shuaiqiu.fuckets100.R
 import com.shuaiqiu.fuckets100.BuildConfig
-import com.shuaiqiu.fuckets100.component.material.TopBarBackButton
-import com.shuaiqiu.fuckets100.component.material.expressiveTopAppBarColors
+import com.shuaiqiu.fuckets100.core.designsystem.TopBarBackButton
+import com.shuaiqiu.fuckets100.core.designsystem.expressiveTopAppBarColors
 
 private const val WEBSITE_URL = "https://lastudio.cc"
 private const val CLOUD_DRIVE_URL = "https://oplist.lastudio.cc/Fe_android"

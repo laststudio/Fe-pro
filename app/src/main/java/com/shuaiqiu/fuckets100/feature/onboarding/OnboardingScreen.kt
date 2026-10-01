@@ -60,7 +60,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import com.shuaiqiu.fuckets100.component.material.TonalCard
+import com.shuaiqiu.fuckets100.core.designsystem.TonalCard
 import com.shuaiqiu.fuckets100.R
 import com.shuaiqiu.fuckets100.cachedSessionOrNull
 import com.shuaiqiu.fuckets100.RighteousFont

@@ -42,11 +42,11 @@ import com.shuaiqiu.fuckets100.FeAccountGateState
 import com.shuaiqiu.fuckets100.RighteousFont
 import com.shuaiqiu.fuckets100.ShizukuState
 import com.shuaiqiu.fuckets100.UpdateStatus
-import com.shuaiqiu.fuckets100.component.material.ExpressiveScaffold
-import com.shuaiqiu.fuckets100.component.material.ExpressiveSegmentedListItem
-import com.shuaiqiu.fuckets100.component.material.SegmentedColumn
-import com.shuaiqiu.fuckets100.component.material.TonalCard
-import com.shuaiqiu.fuckets100.component.material.expressiveTopAppBarColors
+import com.shuaiqiu.fuckets100.core.designsystem.ExpressiveScaffold
+import com.shuaiqiu.fuckets100.core.designsystem.ExpressiveSegmentedListItem
+import com.shuaiqiu.fuckets100.core.designsystem.SegmentedColumn
+import com.shuaiqiu.fuckets100.core.designsystem.TonalCard
+import com.shuaiqiu.fuckets100.core.designsystem.expressiveTopAppBarColors
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 

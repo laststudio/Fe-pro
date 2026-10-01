@@ -38,7 +38,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import dagger.hilt.android.AndroidEntryPoint
-import com.shuaiqiu.fuckets100.component.material.rememberFeMainPagerState
+import com.shuaiqiu.fuckets100.core.designsystem.rememberFeMainPagerState
 import com.shuaiqiu.fuckets100.feature.onboarding.OnboardingScreen
 import com.shuaiqiu.fuckets100.feature.account.FeAccountGate
 import com.shuaiqiu.fuckets100.feature.settings.AnnouncementDialog
@@ -209,7 +209,7 @@ private fun UpdateStatus?.toRemoteContentRoute(): FeRoute.RemoteContent = FeRout
 private fun handleTargetRoute(
     route: String,
     navigator: FeNavigator,
-    pagerState: com.shuaiqiu.fuckets100.component.material.FeMainPagerState,
+    pagerState: com.shuaiqiu.fuckets100.core.designsystem.FeMainPagerState,
 ) {
     rootPageForRoute(route)?.let {
         navigator.popUntil { current -> current is FeRoute.Main }

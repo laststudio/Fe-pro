@@ -94,16 +94,16 @@ import androidx.compose.ui.unit.dp
 import com.materialkolor.PaletteStyle
 import com.materialkolor.dynamiccolor.ColorSpec
 import com.materialkolor.rememberDynamicColorScheme
-import com.shuaiqiu.fuckets100.component.material.ExpressiveDialog
+import com.shuaiqiu.fuckets100.core.designsystem.ExpressiveDialog
 import com.shuaiqiu.fuckets100.label
-import com.shuaiqiu.fuckets100.component.material.ExpressiveScaffold
-import com.shuaiqiu.fuckets100.component.material.ExpressiveSegmentedDropdownItem
-import com.shuaiqiu.fuckets100.component.material.ExpressiveSegmentedListItem
-import com.shuaiqiu.fuckets100.component.material.ExpressiveToggleButton
-import com.shuaiqiu.fuckets100.component.material.SegmentedColumn
-import com.shuaiqiu.fuckets100.component.material.TonalCard
-import com.shuaiqiu.fuckets100.component.material.TopBarBackButton
-import com.shuaiqiu.fuckets100.component.material.expressiveTopAppBarColors
+import com.shuaiqiu.fuckets100.core.designsystem.ExpressiveScaffold
+import com.shuaiqiu.fuckets100.core.designsystem.ExpressiveSegmentedDropdownItem
+import com.shuaiqiu.fuckets100.core.designsystem.ExpressiveSegmentedListItem
+import com.shuaiqiu.fuckets100.core.designsystem.ExpressiveToggleButton
+import com.shuaiqiu.fuckets100.core.designsystem.SegmentedColumn
+import com.shuaiqiu.fuckets100.core.designsystem.TonalCard
+import com.shuaiqiu.fuckets100.core.designsystem.TopBarBackButton
+import com.shuaiqiu.fuckets100.core.designsystem.expressiveTopAppBarColors
 
 import com.shuaiqiu.fuckets100.FeThemeWrapper
 import com.shuaiqiu.fuckets100.PredictiveBackAnimation

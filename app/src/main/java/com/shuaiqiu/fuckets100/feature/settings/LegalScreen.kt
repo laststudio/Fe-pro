@@ -19,10 +19,10 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.shuaiqiu.fuckets100.component.material.ExpressiveScaffold
-import com.shuaiqiu.fuckets100.component.material.TonalCard
-import com.shuaiqiu.fuckets100.component.material.TopBarBackButton
-import com.shuaiqiu.fuckets100.component.material.expressiveTopAppBarColors
+import com.shuaiqiu.fuckets100.core.designsystem.ExpressiveScaffold
+import com.shuaiqiu.fuckets100.core.designsystem.TonalCard
+import com.shuaiqiu.fuckets100.core.designsystem.TopBarBackButton
+import com.shuaiqiu.fuckets100.core.designsystem.expressiveTopAppBarColors
 
 import com.shuaiqiu.fuckets100.LegalAgreement
 import com.shuaiqiu.fuckets100.LegalAgreementRepository

@@ -13,11 +13,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
-import com.shuaiqiu.fuckets100.component.material.ExpressiveScaffold
-import com.shuaiqiu.fuckets100.component.material.ExpressiveSegmentedSwitchItem
-import com.shuaiqiu.fuckets100.component.material.SegmentedColumn
-import com.shuaiqiu.fuckets100.component.material.TopBarBackButton
-import com.shuaiqiu.fuckets100.component.material.expressiveTopAppBarColors
+import com.shuaiqiu.fuckets100.core.designsystem.ExpressiveScaffold
+import com.shuaiqiu.fuckets100.core.designsystem.ExpressiveSegmentedSwitchItem
+import com.shuaiqiu.fuckets100.core.designsystem.SegmentedColumn
+import com.shuaiqiu.fuckets100.core.designsystem.TopBarBackButton
+import com.shuaiqiu.fuckets100.core.designsystem.expressiveTopAppBarColors
 
 /**
  * 通用设置页面

@@ -59,10 +59,10 @@ import androidx.compose.ui.window.Dialog
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
-import com.shuaiqiu.fuckets100.component.material.ExpressiveScaffold
-import com.shuaiqiu.fuckets100.component.material.TonalCard
-import com.shuaiqiu.fuckets100.component.material.TopBarBackButton
-import com.shuaiqiu.fuckets100.component.material.expressiveTopAppBarColors
+import com.shuaiqiu.fuckets100.core.designsystem.ExpressiveScaffold
+import com.shuaiqiu.fuckets100.core.designsystem.TonalCard
+import com.shuaiqiu.fuckets100.core.designsystem.TopBarBackButton
+import com.shuaiqiu.fuckets100.core.designsystem.expressiveTopAppBarColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.CancellationException
@@ -86,15 +86,18 @@ import com.shuaiqiu.fuckets100.ETS100AuthManager
 import com.shuaiqiu.fuckets100.ETS100FileReader
 import com.shuaiqiu.fuckets100.FeAccountFeatures
 import com.shuaiqiu.fuckets100.FeAccountManager
-import com.shuaiqiu.fuckets100.FeFilledCard
-import com.shuaiqiu.fuckets100.FeThinDivider
-import com.shuaiqiu.fuckets100.FeTonalIconContainer
+import com.shuaiqiu.fuckets100.core.designsystem.FeFilledCard
+import com.shuaiqiu.fuckets100.core.designsystem.FeThinDivider
+import com.shuaiqiu.fuckets100.core.designsystem.FeTonalIconContainer
 import com.shuaiqiu.fuckets100.PaperSource
 import com.shuaiqiu.fuckets100.PaperSourceExporter
 import com.shuaiqiu.fuckets100.ResolverAuthorizationDeniedException
 import com.shuaiqiu.fuckets100.ResolverAuthorizer
 import com.shuaiqiu.fuckets100.SettingsManager
 import com.shuaiqiu.fuckets100.ZipPasswordGenerator
+import com.shuaiqiu.fuckets100.core.designsystem.FeFilledCard
+import com.shuaiqiu.fuckets100.core.designsystem.FeThinDivider
+import com.shuaiqiu.fuckets100.core.designsystem.FeTonalIconContainer
 private const val TAG = "ReadScreen"
 
 // ============================================================================

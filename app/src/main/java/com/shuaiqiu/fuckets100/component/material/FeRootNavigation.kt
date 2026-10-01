@@ -46,6 +46,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import com.shuaiqiu.fuckets100.Screen
 import kotlinx.coroutines.launch
 
+import com.shuaiqiu.fuckets100.core.designsystem.ExpressiveScaffold
 private data class RootDestination(
     val screen: Screen,
     val selectedIcon: ImageVector,

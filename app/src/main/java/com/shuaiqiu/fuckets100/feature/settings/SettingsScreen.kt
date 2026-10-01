@@ -18,11 +18,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import android.content.Intent
 import android.net.Uri
-import com.shuaiqiu.fuckets100.component.material.ExpressiveScaffold
+import com.shuaiqiu.fuckets100.core.designsystem.ExpressiveScaffold
 import com.shuaiqiu.fuckets100.feature.account.AccountInitialAvatar
-import com.shuaiqiu.fuckets100.component.material.ExpressiveSegmentedListItem
-import com.shuaiqiu.fuckets100.component.material.SegmentedColumn
-import com.shuaiqiu.fuckets100.component.material.expressiveTopAppBarColors
+import com.shuaiqiu.fuckets100.core.designsystem.ExpressiveSegmentedListItem
+import com.shuaiqiu.fuckets100.core.designsystem.SegmentedColumn
+import com.shuaiqiu.fuckets100.core.designsystem.expressiveTopAppBarColors
 
 import com.shuaiqiu.fuckets100.FeAccountSession
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)

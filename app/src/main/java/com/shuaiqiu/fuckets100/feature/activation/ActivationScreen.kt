@@ -31,25 +31,26 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.shuaiqiu.fuckets100.component.material.ExpressiveScaffold
-import com.shuaiqiu.fuckets100.component.material.ExpressiveSegmentedListItem
-import com.shuaiqiu.fuckets100.component.material.SegmentedColumn
-import com.shuaiqiu.fuckets100.component.material.TonalCard
-import com.shuaiqiu.fuckets100.component.material.TopBarBackButton
-import com.shuaiqiu.fuckets100.component.material.expressiveTopAppBarColors
+import com.shuaiqiu.fuckets100.core.designsystem.ExpressiveScaffold
+import com.shuaiqiu.fuckets100.core.designsystem.ExpressiveSegmentedListItem
+import com.shuaiqiu.fuckets100.core.designsystem.SegmentedColumn
+import com.shuaiqiu.fuckets100.core.designsystem.TonalCard
+import com.shuaiqiu.fuckets100.core.designsystem.TopBarBackButton
+import com.shuaiqiu.fuckets100.core.designsystem.expressiveTopAppBarColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 import com.shuaiqiu.fuckets100.ActivationMode
 import com.shuaiqiu.fuckets100.ETS100AuthManager
-import com.shuaiqiu.fuckets100.FeThinDivider
+import com.shuaiqiu.fuckets100.core.designsystem.FeThinDivider
 import com.shuaiqiu.fuckets100.PermissionsHelper
 import com.shuaiqiu.fuckets100.RootManager
 import com.shuaiqiu.fuckets100.ShizukuManager
 import com.shuaiqiu.fuckets100.ShizukuState
 import com.shuaiqiu.fuckets100.ZWCHelper
 import com.shuaiqiu.fuckets100.maskPhoneNumber
+import com.shuaiqiu.fuckets100.core.designsystem.FeThinDivider
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun ActivationSettingsScreen(
