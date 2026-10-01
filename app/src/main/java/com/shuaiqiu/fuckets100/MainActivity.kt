@@ -200,9 +200,21 @@ private fun handleTargetRoute(
     navigator: FeNavigator,
     pagerState: com.shuaiqiu.fuckets100.component.material.FeMainPagerState,
 ) {
-    rootPageForRoute(route)?.let {
-        navigator.popUntil { current -> current is FeRoute.Main }
-        pagerState.handlePageChange(it)
+    when (route) {
+        "donate" -> {
+            navigator.popUntil { current -> current is FeRoute.Main }
+            navigator.push(FeRoute.Donate)
+        }
+
+        "legal" -> {
+            navigator.popUntil { current -> current is FeRoute.Main }
+            navigator.push(FeRoute.Legal)
+        }
+
+        else -> rootPageForRoute(route)?.let {
+            navigator.popUntil { current -> current is FeRoute.Main }
+            pagerState.handlePageChange(it)
+        }
     }
 }
 
@@ -423,8 +435,6 @@ fun FeAppMain() {
                             onNavigateToRemoteContent = { status ->
                                 navigator.push(status.toRemoteContentRoute())
                             },
-                            onNavigateToDonate = { navigator.push(FeRoute.Donate) },
-                            onNavigateToLegal = { navigator.push(FeRoute.Legal) },
                         )
 
                         1 -> ReadScreen(

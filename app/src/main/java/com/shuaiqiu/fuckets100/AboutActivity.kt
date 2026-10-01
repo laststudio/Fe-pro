@@ -1,5 +1,6 @@
 package com.shuaiqiu.fuckets100
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -7,6 +8,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,21 +21,25 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LargeFlexibleTopAppBar
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
@@ -41,6 +47,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -59,30 +66,41 @@ class AboutActivity : ComponentActivity() {
                 AboutScreen(
                     onBack = ::finish,
                     onDonate = {
-                        startActivity(MainActivity.createIntent(this, "donate"))
+                        startActivity(MainActivity.createIntent(this, TARGET_DONATE))
+                    },
+                    onLegal = {
+                        startActivity(MainActivity.createIntent(this, TARGET_LEGAL))
                     },
                 )
             }
         }
     }
+
+    companion object {
+        private const val TARGET_DONATE = "donate"
+        private const val TARGET_LEGAL = "legal"
+    }
 }
+
+private const val WEBSITE_URL = "https://lastudio.cc"
+private const val REPOSITORY_URL = "https://github.com/qiuqiqiuqid/Fuck_ets100"
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun AboutScreen(
     onBack: () -> Unit,
     onDonate: () -> Unit,
+    onLegal: () -> Unit,
 ) {
     val context = LocalContext.current
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     ExpressiveScaffold(
-        modifier = Modifier,
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
         topBar = {
             LargeFlexibleTopAppBar(
                 title = { Text("关于 Fe") },
-                subtitle = { Text("应用信息、作者与开源发布") },
+                subtitle = { Text("应用信息、资源与法律条款") },
                 navigationIcon = { TopBarBackButton(onClick = onBack) },
                 windowInsets = WindowInsets.safeDrawing.only(
                     WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
@@ -101,158 +119,182 @@ private fun AboutScreen(
                 .padding(padding)
                 .padding(horizontal = 16.dp)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.extraLarge,
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                ),
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Image(
-                        painter = painterResource(R.drawable.fe_logo),
-                        contentDescription = "应用图标",
-                        modifier = Modifier.size(88.dp).clip(MaterialTheme.shapes.large),
-                    )
-                    Spacer(Modifier.size(16.dp))
-                    Text(
-                        "Fuck ETS100",
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    )
-                    Spacer(Modifier.size(4.dp))
-                    Text(
-                        "版本 ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    )
-                }
-            }
+            Spacer(Modifier.size(4.dp))
 
-            AboutSectionCard(
-                icon = Icons.Default.Info,
-                title = "软件信息",
-            ) {
-                Text("Fuck ETS100", style = MaterialTheme.typography.titleMedium)
-                Text(
-                    "专有商业软件 · 保留所有权利",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(
-                    "用于本地和云端读取 ETS100 作业答案。",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            AboutHeroCard()
 
-            AboutSectionCard(
-                icon = Icons.Default.Person,
-                title = "关于作者",
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Image(
-                        painter = painterResource(R.drawable.ic_author),
-                        contentDescription = "作者头像",
-                        modifier = Modifier.size(48.dp).clip(CircleShape),
-                    )
-                    Spacer(Modifier.size(12.dp))
-                    Column {
-                        Text("帅丘", style = MaterialTheme.typography.titleMedium)
-                        Text(
-                            "感谢使用 Fe",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            AboutSection(title = "应用信息") {
+                AboutLinkRow(
+                    icon = Icons.Default.Info,
+                    title = "版本与软件说明",
+                    subtitle = "Fe ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE}) · 专有商业软件",
+                    trailingIcon = null,
+                )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                AboutLinkRow(
+                    icon = Icons.Default.Person,
+                    title = "开发者",
+                    subtitle = "帅丘 · 感谢使用 Fe",
+                    trailingIcon = null,
+                    leadingContent = {
+                        Image(
+                            painter = painterResource(R.drawable.ic_author),
+                            contentDescription = null,
+                            modifier = Modifier.size(40.dp).clip(CircleShape),
                         )
-                    }
-                }
+                    },
+                )
             }
 
-            AboutLinkCard(
-                icon = Icons.Default.Code,
-                title = "官方仓库与发布",
-                subtitle = "查看版本动态与更新",
-                onClick = {
-                    context.startActivity(
-                        Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/qiuqiqiuqid/Fuck_ets100")),
-                    )
-                },
+            AboutSection(title = "资源与支持") {
+                AboutLinkRow(
+                    icon = Icons.Default.Public,
+                    title = "官方网站",
+                    subtitle = "lastudio.cc",
+                    trailingIcon = Icons.AutoMirrored.Filled.OpenInNew,
+                    onClick = { context.openExternal(WEBSITE_URL) },
+                )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                AboutLinkRow(
+                    icon = Icons.Default.Code,
+                    title = "官方仓库与发布",
+                    subtitle = "查看版本动态与更新",
+                    trailingIcon = Icons.AutoMirrored.Filled.OpenInNew,
+                    onClick = { context.openExternal(REPOSITORY_URL) },
+                )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                AboutLinkRow(
+                    icon = Icons.Default.Favorite,
+                    title = "捐赠支持",
+                    subtitle = "支持后续开发与维护",
+                    onClick = onDonate,
+                )
+            }
+
+            AboutSection(title = "法律与条款") {
+                AboutLinkRow(
+                    icon = Icons.Default.Gavel,
+                    title = "用户协议、隐私与免责声明",
+                    subtitle = "使用前请阅读并遵守",
+                    onClick = onLegal,
+                )
+            }
+
+            Text(
+                text = "Copyright © 2026 LastStudio. All rights reserved.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
             )
-            AboutLinkCard(
-                icon = Icons.Default.Favorite,
-                title = "捐赠支持",
-                subtitle = "感谢你的支持",
-                onClick = onDonate,
-            )
-            Spacer(Modifier.size(16.dp))
+            Spacer(Modifier.size(8.dp))
         }
     }
 }
 
 @Composable
-private fun AboutSectionCard(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+private fun AboutHeroCard() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.extraLarge,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+        ),
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Image(
+                painter = painterResource(R.drawable.fe_logo),
+                contentDescription = "应用图标",
+                modifier = Modifier.size(88.dp).clip(MaterialTheme.shapes.large),
+            )
+            Spacer(Modifier.size(16.dp))
+            Text(
+                text = "Fe",
+                style = MaterialTheme.typography.headlineLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+            Spacer(Modifier.size(4.dp))
+            Text(
+                text = "读取、整理与导出 ETS100 作业答案",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+            Spacer(Modifier.size(10.dp))
+            Text(
+                text = "版本 ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+        }
+    }
+}
+
+@Composable
+private fun AboutSection(
     title: String,
     content: @Composable () -> Unit,
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-        ),
-    ) {
-        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                Spacer(Modifier.size(8.dp))
-                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            }
-            content()
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(horizontal = 8.dp),
+        )
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.large,
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            ),
+        ) {
+            Column { content() }
         }
     }
 }
 
 @Composable
-private fun AboutLinkCard(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+private fun AboutLinkRow(
+    icon: ImageVector,
     title: String,
     subtitle: String,
-    onClick: () -> Unit,
+    trailingIcon: ImageVector? = null,
+    leadingContent: (@Composable () -> Unit)? = null,
+    onClick: (() -> Unit)? = null,
 ) {
-    Card(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-        ),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.size(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.titleSmall)
-                Text(
-                    subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+    val rowModifier = Modifier
+        .fillMaxWidth()
+        .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+
+    ListItem(
+        modifier = rowModifier,
+        leadingContent = leadingContent ?: {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+            )
+        },
+        supportingContent = { Text(subtitle) },
+        trailingContent = trailingIcon?.let { resolvedIcon ->
+            {
+                Icon(
+                    imageVector = resolvedIcon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Icon(
-                Icons.AutoMirrored.Filled.OpenInNew,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+        },
+    ) {
+        Text(title, style = MaterialTheme.typography.titleMedium)
     }
+}
+
+private fun Context.openExternal(url: String) {
+    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
 }

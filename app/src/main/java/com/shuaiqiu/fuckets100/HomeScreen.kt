@@ -103,8 +103,6 @@ fun HomeScreen(
     refreshRevision: Int = 0,
     onNavigateToActivation: () -> Unit,
     onNavigateToRemoteContent: (UpdateStatus?) -> Unit,
-    onNavigateToDonate: () -> Unit,
-    onNavigateToLegal: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val appContext = remember(context) { context.applicationContext }
@@ -261,13 +259,6 @@ fun HomeScreen(
                     onNavigateToRemoteContent = onNavigateToRemoteContent,
                 )
 
-                // 支持开发
-                HomeSupportSection(onNavigateToDonate = onNavigateToDonate)
-
-                // 了解更多（用户协议）
-                HomeLearnMoreSection(
-                    onNavigateToLegal = onNavigateToLegal,
-                )
             }
         }
     }
@@ -621,70 +612,6 @@ private fun HomeAnnouncementSection(
                             announcementMessage.ifBlank { if (status == null) "正在同步远程内容..." else "暂无最新公告" },
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    },
-                    trailingContent = {
-                        Icon(
-                            imageVector = Icons.Default.ChevronRight,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                )
-            }
-        )
-    )
-}
-
-@Composable
-private fun HomeSupportSection(onNavigateToDonate: () -> Unit) {
-    SegmentedColumn(
-        title = "支持开发",
-        items = listOf(
-            {
-                ExpressiveSegmentedListItem(
-                    index = 0,
-                    count = 1,
-                    onClick = onNavigateToDonate,
-                    headlineContent = { Text("捐赠") },
-                    supportingContent = {
-                        Text(
-                            "向开发者捐赠以表示支持",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    },
-                    trailingContent = {
-                        Icon(
-                            imageVector = Icons.Default.ChevronRight,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                )
-            }
-        )
-    )
-}
-
-@Composable
-private fun HomeLearnMoreSection(
-    onNavigateToLegal: () -> Unit,
-) {
-    SegmentedColumn(
-        title = "了解更多",
-        items = listOf(
-            {
-                ExpressiveSegmentedListItem(
-                    index = 0,
-                    count = 1,
-                    onClick = onNavigateToLegal,
-                    headlineContent = { Text("用户协议与隐私条款") },
-                    supportingContent = {
-                        Text(
-                            "查看 LA Studio 权威用户服务协议与免责声明",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                     },
