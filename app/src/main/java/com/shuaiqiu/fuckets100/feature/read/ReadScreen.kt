@@ -63,6 +63,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.shuaiqiu.fuckets100.core.designsystem.ExpressiveScaffold
 import com.shuaiqiu.fuckets100.core.designsystem.TonalCard
 import com.shuaiqiu.fuckets100.core.designsystem.TopBarBackButton
@@ -147,13 +148,19 @@ fun ReadScreen(
     readAccessIssue: String? = null,
     onNavigateToActivation: () -> Unit,
     onOpenPaperDetail: (ETS100AnswerReader.Paper) -> Unit,
-    compactAnswerDisplay: Boolean = SettingsManager.getCompactAnswerDisplay()
+    compactAnswerDisplay: Boolean = SettingsManager.getCompactAnswerDisplay(),
+    viewModel: ReadViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val cachedLocalSnapshot = remember(currentMode) {
-        ReadPageStateStore.loadLocal(context)?.takeIf { it.mode == currentMode }
-    }
+    val uiState by viewModel.uiState.collectAsState()
+    val dataFiles = uiState.dataFiles
+    val resourceFiles = uiState.resourceFiles
+    val readerInfo = uiState.readerInfo
+    val papers = uiState.papers
+    val isLoading = uiState.isLoading
+    val isParsingLocalAnswers = uiState.isParsingLocalAnswers
+    val errorMessage = uiState.errorMessage
     val cachedCloudSnapshot = remember {
         ReadPageStateStore.loadCloud(context)?.also { snapshot ->
             if (CloudHomeworkState.homeworkListsByStatus.isEmpty() &&
@@ -190,39 +197,18 @@ fun ReadScreen(
         android.widget.Toast.makeText(context, "已复制答案到剪贴板", android.widget.Toast.LENGTH_SHORT).show()
     }
     
-    // 文件列表状态
-    var dataFiles by remember {
-        mutableStateOf(if (currentMode != ActivationMode.CLOUD) cachedLocalSnapshot?.dataFiles.orEmpty() else emptyList())
-    }
-    var resourceFiles by remember {
-        mutableStateOf(if (currentMode != ActivationMode.CLOUD) cachedLocalSnapshot?.resourceFiles.orEmpty() else emptyList())
-    }
-    var readerInfo by remember {
-        mutableStateOf(if (currentMode != ActivationMode.CLOUD) cachedLocalSnapshot?.readerInfo.orEmpty() else "")
-    }
-    
-    // 试卷和题目状态
-    var papers by remember {
-        mutableStateOf(if (currentMode != ActivationMode.CLOUD) cachedLocalSnapshot?.papers.orEmpty() else emptyList())
-    }
     var selectedPaper by remember { mutableStateOf<ETS100AnswerReader.Paper?>(null) }
     var selectedSectionIndex by remember { mutableIntStateOf(-1) }
     var selectedQuestionIndex by remember { mutableIntStateOf(-1) }
-    
+
     // 二级页面导航状态 - 宝贝用于切换试卷详情页面喵~
     var showPaperDetail by remember { mutableStateOf(false) }
-    
-    // 加载状态
-    var isLoading by remember {
-        mutableStateOf(currentMode != ActivationMode.CLOUD && cachedLocalSnapshot == null)
-    }
-    var isParsingLocalAnswers by remember { mutableStateOf(false) }
+
+    // 页面级交互状态
     var isDeleting by remember { mutableStateOf(false) }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
     var sourceExportPaper by remember { mutableStateOf<ETS100AnswerReader.Paper?>(null) }
     var showLocalDirectoryExport by remember { mutableStateOf(false) }
     var showCloudDirectoryExport by remember { mutableStateOf(false) }
-    var reloadTrigger by remember { mutableIntStateOf(0) }  // 宝贝添加了重新加载触发器喵~
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }  // 宝贝添加了删除确认对话框状态喵~
     
     // 展开状态 - 宝贝现在使用 PaperListItem，不需要这些展开状态了喵~
@@ -642,7 +628,7 @@ fun ReadScreen(
                 cloudDownloadingHomeworks = emptySet()
                 cloudDownloadProgress = emptyMap()
                 failedCloudHomeworks = emptySet()
-                papers = emptyList()
+                viewModel.clearPapers()
                 homeworkListsByStatus = emptyMap()
                 selectedCloudCategory = CloudHomeworkState.CATEGORY_CURRENT
                 selectedCloudHomeworkStatus = CloudHomeworkState.STATUS_CURRENT
@@ -1177,262 +1163,13 @@ fun ReadScreen(
         }
     }
 
-    // 初始化加载 - 使用 rememberUpdatedState 确保最新的 currentMode
-    // 宝贝添加了 reloadTrigger 依赖，这样点击读取按钮时就可以重新加载喵~
-    val currentModeRef = remember { mutableStateOf(currentMode) }
-    LaunchedEffect(currentMode) {
-        if (currentMode != ActivationMode.CLOUD) return@LaunchedEffect
-        while (true) {
-            cloudDownloadingHomeworks = CloudHomeworkState.cloudDownloadingHomeworks
-            cloudDownloadProgress = CloudHomeworkState.cloudDownloadProgress
-            downloadedPapers = CloudHomeworkState.downloadedPapers
-            downloadedHomeworkNames = CloudHomeworkState.downloadedHomeworkNames
-            failedCloudHomeworks = CloudHomeworkState.failedCloudHomeworks
-            delay(500)
-        }
-    }
-
-    LaunchedEffect(currentMode, reloadTrigger, accountOnline, readAccessChecking, readAccessIssue) {
-        currentModeRef.value = currentMode
-        isParsingLocalAnswers = false
-
-        if (readAccessChecking || readAccessIssue != null) {
-            isLoading = false
-            isParsingLocalAnswers = false
-            errorMessage = null
-            return@LaunchedEffect
-        }
-
-        if (reloadTrigger == 0 &&
-            currentMode != ActivationMode.CLOUD &&
-            (LocalReadProgressState.phase == LocalParsePhase.SCANNING ||
-                LocalReadProgressState.phase == LocalParsePhase.PARSING)
-        ) {
-            isLoading = false
-            isParsingLocalAnswers = true
-            addLog(LogLevel.INFO, LogCategory.SYSTEM, "已恢复正在进行的本地答案解析进度")
-            return@LaunchedEffect
-        }
-        
-        // 云端模式不执行本地加载，等待用户点击读取按钮喵~
-        if (currentMode == ActivationMode.CLOUD) {
-            addLog(LogLevel.INFO, LogCategory.SYSTEM, "☁️ 云端模式，等待用户点击读取按钮加载作业列表")
-            isLoading = false
-            isParsingLocalAnswers = false
-            return@LaunchedEffect
-        }
-
-        if (reloadTrigger == 0 && cachedLocalSnapshot != null) {
-            readerInfo = cachedLocalSnapshot.readerInfo
-            dataFiles = cachedLocalSnapshot.dataFiles
-            resourceFiles = cachedLocalSnapshot.resourceFiles
-            papers = cachedLocalSnapshot.papers
-            errorMessage = null
-            isLoading = false
-            isParsingLocalAnswers = false
-            addLog(LogLevel.INFO, LogCategory.SYSTEM, "已恢复上次读取的本地试卷内容")
-            return@LaunchedEffect
-        }
-
-        if (!accountOnline) {
-            isLoading = false
-            isParsingLocalAnswers = false
-            errorMessage = if (papers.isEmpty()) "已离线" else null
-            return@LaunchedEffect
-        }
-
-        LocalReadProgressState.reset()
-        
-        isLoading = true
-        errorMessage = null
-        LocalReadProgressState.phase = LocalParsePhase.SCANNING
-        LocalReadProgressState.message = "正在扫描试卷列表"
-        
-        addLog(LogLevel.INIT, LogCategory.SYSTEM, "=".repeat(50))
-        addLog(LogLevel.INIT, LogCategory.SYSTEM, "🚀 开始初始化 ETS 100 数据加载")
-        addLog(LogLevel.INIT, LogCategory.SYSTEM, "当前激活模式: ${currentMode.name} (${currentMode.title})")
-        addLog(LogLevel.INIT, LogCategory.SYSTEM, "=".repeat(50))
-        
-        try {
-            addLog(LogLevel.DEBUG, LogCategory.SYSTEM, "检查模式可用性...")
-            if (!ETS100FileReader.isModeAvailable(currentMode, context)) {
-                addLog(LogLevel.ERROR, LogCategory.SYSTEM, "当前模式不可用: $currentMode")
-                errorMessage = "当前模式不可用: $currentMode"
-                isLoading = false
-                return@LaunchedEffect
-            }
-            addLog(LogLevel.SUCCESS, LogCategory.SYSTEM, "✓ 模式检查通过")
-            
-            // 在 IO 线程执行文件扫描，先把试卷列表显示出来
-            addLog(LogLevel.INFO, LogCategory.SYSTEM, "开始扫描试卷列表...")
-            val summaryStartMs = System.currentTimeMillis()
-            addLog(LogLevel.DEBUG, LogCategory.FILE, "获取文件阅读器...")
-            if (currentMode == ActivationMode.DIRECT_READ) {
-                addLog(LogLevel.INFO, LogCategory.FILE, "扫描 data/resource 目录...")
-            } else {
-                addLog(LogLevel.INFO, LogCategory.FILE, "Root/Shizuku 列表阶段跳过目录明细扫描")
-            }
-            addLog(LogLevel.INFO, LogCategory.PAPER, "=".repeat(40))
-            addLog(LogLevel.INFO, LogCategory.PAPER, "📚 开始读取试卷列表...")
-            val summaryResult = ReadLocalLoader.scan(context, currentMode)
-            val summaryCostMs = System.currentTimeMillis() - summaryStartMs
-            
-            addLog(LogLevel.INFO, LogCategory.SYSTEM, "处理试卷列表扫描结果...")
-            when (summaryResult) {
-                is LocalReadResult.Success -> {
-                    val snapshot = summaryResult.value
-                    readerInfo = snapshot.readerInfo
-                    dataFiles = snapshot.dataFiles
-                    resourceFiles = snapshot.resourceFiles
-                    papers = snapshot.papers
-                    errorMessage = null
-                    isLoading = false
-                    LocalReadProgressState.totalCount = snapshot.papers.size
-                    addLog(LogLevel.SUCCESS, LogCategory.FILE, "✓ 阅读器创建成功: ${snapshot.readerInfo.substringAfterLast('.')}")
-                    addLog(LogLevel.SUCCESS, LogCategory.FILE, "✓ 数据文件 ${snapshot.dataFiles.size} 个，资源文件 ${snapshot.resourceFiles.size} 个")
-                    snapshot.dataFiles.firstOrNull()?.let { file ->
-                        addLog(LogLevel.DEBUG, LogCategory.FILE, "  最新文件: ${file.name} (${formatFileSize(file.size)})")
-                    }
-                    addLog(LogLevel.SUCCESS, LogCategory.PAPER, "✓ 成功扫描到 ${snapshot.papers.size} 份试卷")
-                    LocalReadProgressState.doneCount = 0
-                    LocalReadProgressState.parsedGroupIndexes = emptySet()
-                    LocalReadProgressState.message = "列表扫描耗时 ${summaryCostMs}ms，正在后台解析答案"
-                    addLog(
-                        LogLevel.SUCCESS,
-                        LogCategory.SYSTEM,
-                        "✓ 已显示 ${snapshot.papers.size} 份试卷，列表扫描耗时 ${summaryCostMs}ms，开始后台解析答案"
-                    )
-
-                    if (snapshot.papers.isNotEmpty()) {
-                        isParsingLocalAnswers = true
-                        LocalReadProgressState.phase = LocalParsePhase.PARSING
-                        LocalReadProgressState.message = "列表扫描耗时 ${summaryCostMs}ms，正在后台解析答案"
-                        LocalReadProgressState.parseJob = AppCoroutineScope.scope.launch {
-                            delay(32)
-                            val parseStartMs = System.currentTimeMillis()
-                            val fullResult = ReadLocalLoader.parse(
-                                context = context,
-                                mode = currentMode,
-                                onGroupStarted = { groupIndex, totalGroups ->
-                                    withContext(Dispatchers.Main) {
-                                        LocalReadProgressState.totalGroupCount = totalGroups
-                                        LocalReadProgressState.activeGroupIndex = groupIndex
-                                        LocalReadProgressState.message = "正在解析第 ${groupIndex + 1}/$totalGroups 组"
-                                    }
-                                },
-                                onGroupParsed = { groupIndex, parsedGroupPapers ->
-                                    withContext(Dispatchers.Main) {
-                                        LocalReadProgressState.parsedGroupIndexes =
-                                            LocalReadProgressState.parsedGroupIndexes + groupIndex
-                                        LocalReadProgressState.doneCount =
-                                            LocalReadProgressState.parsedGroupIndexes.size
-                                        LocalReadProgressState.completedGroupCount =
-                                            LocalReadProgressState.parsedGroupIndexes.size
-                                        if (parsedGroupPapers.isNotEmpty()) {
-                                            papers = papers.toMutableList().also { currentPapers ->
-                                                parsedGroupPapers.forEachIndexed { offset, parsedPaper ->
-                                                    val existingIndex = currentPapers.indexOfFirst {
-                                                        it.paperId == parsedPaper.paperId
-                                                    }
-                                                    if (existingIndex >= 0) {
-                                                        currentPapers[existingIndex] = parsedPaper
-                                                    } else {
-                                                        val insertIndex = (groupIndex + offset)
-                                                            .coerceIn(0, currentPapers.size)
-                                                        currentPapers.add(insertIndex, parsedPaper)
-                                                    }
-                                                }
-                                            }
-                                            LocalReadProgressState.sectionCount = papers.totalSectionCount()
-                                            LocalReadProgressState.questionCount = papers.totalQuestionCount()
-                                            addLog(
-                                                LogLevel.SUCCESS,
-                                                LogCategory.PAPER,
-                                                "✓ 已解析第 ${groupIndex + 1} 份试卷 " +
-                                                    "(${LocalReadProgressState.doneCount}/${LocalReadProgressState.totalCount})，" +
-                                                    "累计 ${LocalReadProgressState.sectionCount} 个分区、${LocalReadProgressState.questionCount} 道题"
-                                            )
-                                        }
-                                    }
-                                },
-                            )
-
-                            try {
-                                when (fullResult) {
-                                    is LocalReadResult.Success -> {
-                                        val parsedPapers = fullResult.value
-                                        if (parsedPapers.isNotEmpty()) {
-                                            papers = parsedPapers
-                                            ReadPageStateStore.saveLocal(
-                                                context,
-                                                ReadPageStateStore.LocalSnapshot(
-                                                    mode = currentMode,
-                                                    readerInfo = snapshot.readerInfo,
-                                                    dataFiles = snapshot.dataFiles,
-                                                    resourceFiles = snapshot.resourceFiles,
-                                                    papers = parsedPapers
-                                                )
-                                            )
-
-                                            addLog(LogLevel.INIT, LogCategory.PAPER, "📊 试卷统计:")
-                                            addLog(LogLevel.INIT, LogCategory.PAPER, "   总试卷数: ${parsedPapers.size}")
-                                            val totalSections = parsedPapers.sumOf { it.sections.size }
-                                            val totalQuestions = parsedPapers.sumOf { it.sections.sumOf { s -> s.questions.size } }
-                                            val answeredQuestions = parsedPapers.sumOf { it.sections.sumOf { s -> s.questions.count { q -> q.answer.isNotEmpty() } } }
-                                            val answeredPercent = if (totalQuestions > 0) {
-                                                (answeredQuestions * 100.0 / totalQuestions).toInt()
-                                            } else {
-                                                0
-                                            }
-                                            addLog(LogLevel.INIT, LogCategory.SECTION, "   总分区数: $totalSections")
-                                            addLog(LogLevel.INIT, LogCategory.QUESTION, "   总题目数: $totalQuestions")
-                                            addLog(LogLevel.SUCCESS, LogCategory.ANSWER, "   已答题目: $answeredQuestions ($answeredPercent%)")
-                                            val parseCostMs = System.currentTimeMillis() - parseStartMs
-                                            addLog(LogLevel.SUCCESS, LogCategory.SYSTEM, "✓ 答案后台解析完成，耗时 ${parseCostMs}ms")
-                                            LocalReadProgressState.doneCount = LocalReadProgressState.totalCount
-                                            LocalReadProgressState.sectionCount = totalSections
-                                            LocalReadProgressState.questionCount = totalQuestions
-                                            LocalReadProgressState.phase = LocalParsePhase.COMPLETED
-                                            LocalReadProgressState.message = "共 ${parsedPapers.size} 份试卷、$totalSections 个分区、$totalQuestions 道题"
-                                        } else {
-                                            addLog(LogLevel.WARN, LogCategory.SYSTEM, "后台解析未返回完整试卷，保留当前试卷列表")
-                                            LocalReadProgressState.phase = LocalParsePhase.FAILED
-                                            LocalReadProgressState.message = "后台解析未返回完整试卷"
-                                        }
-                                    }
-                                    is LocalReadResult.Error -> {
-                                        addLog(LogLevel.ERROR, LogCategory.SYSTEM, "✗ 后台解析答案失败: ${fullResult.message}")
-                                        LocalReadProgressState.phase = LocalParsePhase.FAILED
-                                        LocalReadProgressState.message = "后台解析答案失败: ${fullResult.message}"
-                                    }
-                                }
-                            } finally {
-                                isParsingLocalAnswers = false
-                                LocalReadProgressState.parseJob = null
-                            }
-                        }
-                    } else {
-                        addLog(LogLevel.WARN, LogCategory.SYSTEM, "未扫描到试卷，跳过后台答案解析")
-                        LocalReadProgressState.phase = LocalParsePhase.COMPLETED
-                        LocalReadProgressState.message = "未扫描到试卷"
-                    }
-                }
-                is LocalReadResult.Error -> {
-                    addLog(LogLevel.ERROR, LogCategory.SYSTEM, "✗ 加载失败: ${summaryResult.message}")
-                    errorMessage = "加载失败: ${summaryResult.message}"
-                    LocalReadProgressState.phase = LocalParsePhase.FAILED
-                    LocalReadProgressState.message = summaryResult.message
-                }
-            }
-        } catch (e: Exception) {
-            addLog(LogLevel.ERROR, LogCategory.SYSTEM, "✗ 初始化异常: ${e.message}")
-            errorMessage = "初始化异常: ${e.message}"
-            LocalReadProgressState.phase = LocalParsePhase.FAILED
-            LocalReadProgressState.message = e.message ?: "未知错误"
-        } finally {
-            isLoading = false
-            addLog(LogLevel.INIT, LogCategory.SYSTEM, "初始化流程结束喵~")
-        }
+    LaunchedEffect(currentMode, uiState.reloadTrigger, accountOnline, readAccessChecking, readAccessIssue, viewModel) {
+        viewModel.loadLocal(
+            mode = currentMode,
+            accountOnline = accountOnline,
+            readAccessChecking = readAccessChecking,
+            readAccessIssue = readAccessIssue,
+        )
     }
     
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -1462,9 +1199,7 @@ fun ReadScreen(
             scope.launch {
                 isRefreshing = true
                 try {
-                    ETS100AnswerReader.clearResourceScanCache(currentMode)
-                    ReadPageStateStore.clearLocal(context)
-                    reloadTrigger++
+                    viewModel.reloadLocalWithClearedCache(currentMode)
                     delay(400)
                 } finally {
                     isRefreshing = false
@@ -1551,9 +1286,7 @@ fun ReadScreen(
                     if (currentMode == ActivationMode.CLOUD) {
                         showCloudReadConfirmDialog = true
                     } else {
-                        ETS100AnswerReader.clearResourceScanCache(currentMode)
-                        ReadPageStateStore.clearLocal(context)
-                        reloadTrigger++
+                        viewModel.reloadLocalWithClearedCache(currentMode)
                     }
                 },
                 icon = { Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null) },
@@ -1649,7 +1382,7 @@ fun ReadScreen(
                             val loadingTitle = if (currentMode == ActivationMode.CLOUD) {
                                 "正在加载云端作业..."
                             } else {
-                                when (LocalReadProgressState.phase) {
+                                when (uiState.localProgress.phase) {
                                     LocalParsePhase.SCANNING -> "正在扫描试卷列表..."
                                     LocalParsePhase.PARSING -> "正在解析答案..."
                                     else -> "正在加载试卷..."
@@ -1928,18 +1661,18 @@ fun ReadScreen(
                                 contentPadding = PaddingValues(16.dp),
                                 verticalArrangement = Arrangement.spacedBy(13.dp)
                             ) {
-                                if (LocalReadProgressState.phase != LocalParsePhase.IDLE) {
+                                if (uiState.localProgress.phase != LocalParsePhase.IDLE) {
                                     item {
                                         LocalAnswerParsingCard(
-                                            phase = LocalReadProgressState.phase,
-                                            doneCount = LocalReadProgressState.doneCount,
-                                            totalCount = LocalReadProgressState.totalCount,
-                                            sectionCount = LocalReadProgressState.sectionCount,
-                                            questionCount = LocalReadProgressState.questionCount,
-                                            completedGroupCount = LocalReadProgressState.completedGroupCount,
-                                            totalGroupCount = LocalReadProgressState.totalGroupCount,
-                                            activeGroupIndex = LocalReadProgressState.activeGroupIndex,
-                                            message = LocalReadProgressState.message
+                                            phase = uiState.localProgress.phase,
+                                            doneCount = uiState.localProgress.doneCount,
+                                            totalCount = uiState.localProgress.totalCount,
+                                            sectionCount = uiState.localProgress.sectionCount,
+                                            questionCount = uiState.localProgress.questionCount,
+                                            completedGroupCount = uiState.localProgress.completedGroupCount,
+                                            totalGroupCount = uiState.localProgress.totalGroupCount,
+                                            activeGroupIndex = uiState.localProgress.activeGroupIndex,
+                                            message = uiState.localProgress.message
                                         )
                                     }
                                 }
@@ -2009,13 +1742,12 @@ fun ReadScreen(
                                         addLog(LogLevel.ERROR, LogCategory.FILE, "❌ resource 目录删除失败")
                                     }
 
-                                    ReadPageStateStore.clearLocal(context)
-                                    papers = emptyList()
+                                    viewModel.clearLocalReadState()
                                     selectedPaper = null
                                     showPaperDetail = false
 
                                     // 刷新页面重新读取
-                                    reloadTrigger++
+                                    viewModel.requestReload()
                                 } catch (e: Exception) {
                                     addLog(LogLevel.ERROR, LogCategory.FILE, "❌ 删除失败: ${e.message}")
                                     Toast.makeText(context, "删除失败: ${e.message}", Toast.LENGTH_LONG).show()
