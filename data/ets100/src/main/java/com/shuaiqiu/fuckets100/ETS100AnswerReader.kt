@@ -1478,31 +1478,6 @@ object ETS100AnswerReader {
      * 解析 sectionData → fileName → content.json
      * 跳过 Step 4 中已处理的 content.json（去重）
      */
-    private fun parseNormalPapersFromData(
-        reader: ETS100FileReader.Reader,
-        processedPaths: MutableSet<String>
-    ): List<Paper> {
-        val dataDirPath = ETS100FileReader.Path.getDataDir()
-        val dataFiles = reader.listFiles(dataDirPath)
-            .filter { !it.isDirectory && it.size > ETS100FileReader.Path.MIN_FILE_SIZE }
-            .sortedByDescending { it.lastModified }
-
-        Log.d(TAG, "parseNormalPapersFromData: 找到 ${dataFiles.size} 个 data 文件")
-
-        val papers = mutableListOf<Paper>()
-        for (file in dataFiles) {
-            try {
-                val paper = parsePaper(reader, file, processedPaths)
-                if (paper != null) {
-                    papers.add(paper)
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "parseNormalPapersFromData: Failed to parse paper: ${file.name}", e)
-            }
-        }
-
-        return papers
-    }
 
     /**
      * 解析单个试卷的JSON数据
