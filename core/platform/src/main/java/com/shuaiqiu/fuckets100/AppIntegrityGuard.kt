@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
+import com.shuaiqiu.fuckets100.core.common.AppBuildInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -17,7 +18,7 @@ import java.security.MessageDigest
  * 2. 当 CI 注入了期望签名证书 sha256（正式版）时，运行时签名必须与之一致（防换签名/重打包）。
  * 3. resolver/cloud 两个 so 分别自校验（防调试注入、so 被替换或内存段被篡改）。
  */
-internal object AppIntegrityGuard {
+object AppIntegrityGuard {
     private const val TAG = "AppIntegrityGuard"
 
     /**
@@ -60,42 +61,37 @@ internal object AppIntegrityGuard {
         return sha256LowerHex(bytes).also { cachedCertSha256 = it }
     }
 
-    suspend fun ensureResolver(context: Context, enabled: Boolean? = null) {
-        val shouldCheck = enabled ?: runCatching {
-            FeAccountManager.get(context).isIntegrityCheckEnabled()
-        }.getOrDefault(true)
-        if (!shouldCheck) {
+    suspend fun ensureResolver(context: Context, buildInfo: AppBuildInfo, enabled: Boolean? = null) {
+        if (enabled == false) {
             Log.w(TAG, "服务器端已关闭软件校验，跳过解析器完整性检查")
             return
         }
-        ensure(context, "解析器", ResolverNative::selfIntegrityCheck)
+        ensure(context, buildInfo, "解析器", ResolverNative::selfIntegrityCheck)
     }
 
-    suspend fun ensureCloud(context: Context, enabled: Boolean? = null) {
-        val shouldCheck = enabled ?: runCatching {
-            FeAccountManager.get(context).isIntegrityCheckEnabled()
-        }.getOrDefault(true)
-        if (!shouldCheck) {
+    suspend fun ensureCloud(context: Context, buildInfo: AppBuildInfo, enabled: Boolean? = null) {
+        if (enabled == false) {
             Log.w(TAG, "服务器端已关闭软件校验，跳过云端库完整性检查")
             return
         }
-        ensure(context, "云端库", CloudNative::selfIntegrityCheck)
+        ensure(context, buildInfo, "云端库", CloudNative::selfIntegrityCheck)
     }
 
     private suspend fun ensure(
         context: Context,
+        buildInfo: AppBuildInfo,
         libraryName: String,
         nativeCheck: () -> String,
     ) {
         val failures = withContext(Dispatchers.IO) {
             buildList {
                 // 1) 包名
-                val expectedPackage = BuildConfig.EXPECTED_PACKAGE_NAME
+                val expectedPackage = buildInfo.expectedPackageName
                 if (expectedPackage.isNotBlank() && context.packageName != expectedPackage) {
                     add("包名不匹配")
                 }
                 // 2) 签名（仅 CI 注入了期望值才强制，正式分发生效）
-                val expectedSignature = BuildConfig.EXPECTED_SIGNATURE_SHA256
+                val expectedSignature = buildInfo.expectedSignatureSha256
                 if (expectedSignature.isNotBlank()) {
                     val actual = runCatching { currentSigningCertSha256(context) }.getOrNull()
                     if (actual == null || !actual.equals(expectedSignature, ignoreCase = true)) {

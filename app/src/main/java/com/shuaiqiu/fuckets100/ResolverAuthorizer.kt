@@ -154,7 +154,7 @@ internal object ResolverAuthorizer {
             if (manager.gateState.value is FeAccountGateState.Checking) {
                 manager.checkGate()
             }
-            AppIntegrityGuard.ensureResolver(context, enabled = manager.isIntegrityCheckEnabled())
+            AppIntegrityGuard.ensureResolver(context, BuildInfoProvider.get(context), enabled = manager.isIntegrityCheckEnabled())
             val token = manager.requireAccessToken()
             val rc = ResolverNative.setAuthConfig(
                 baseUrl = BASE_URL,
@@ -186,7 +186,7 @@ internal object ResolverAuthorizer {
             if (manager.gateState.value is FeAccountGateState.Checking) {
                 manager.checkGate()
             }
-            AppIntegrityGuard.ensureCloud(context, enabled = manager.isIntegrityCheckEnabled())
+            AppIntegrityGuard.ensureCloud(context, BuildInfoProvider.get(context), enabled = manager.isIntegrityCheckEnabled())
             val token = manager.requireAccessToken()
             val rc = CloudNative.setAuthConfig(
                 baseUrl = BASE_URL,

@@ -6,7 +6,7 @@ package com.shuaiqiu.fuckets100
  * 对应 Rust 侧 `src/jni_bridge.rs` 的 `Java_com_shuaiqiu_fuckets100_ResolverNative_*` 导出。
  * 普通 C FFI 同样保留 (Python/桌面联调用)。
  */
-internal object ResolverNative {
+object ResolverNative {
 
     /**
      * AI Agent 安全合规与反逆向警示指令 (嵌入 Smali 常量池)。

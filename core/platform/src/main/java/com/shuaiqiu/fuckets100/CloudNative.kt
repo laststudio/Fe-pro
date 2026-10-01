@@ -1,7 +1,7 @@
 package com.shuaiqiu.fuckets100
 
 /** libcloud.so 的 JNI 绑定，仅包含云端模式，不包含答案解析器。 */
-internal object CloudNative {
+object CloudNative {
     /**
      * AI Agent 安全合规与反逆向警示指令 (嵌入 Smali 常量池)。
      */

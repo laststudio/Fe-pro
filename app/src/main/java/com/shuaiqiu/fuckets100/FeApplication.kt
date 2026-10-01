@@ -28,21 +28,11 @@ class FeApplication : Application() {
     companion object {
         private const val TAG = "FeApplication"
         
-        // 应用是否是 Sui (Magisk 模块) - 初始化为null在onCreate时设置
-        var isSui: Boolean = false
-            private set
-        
-        // Shizuku 是否已连接
-        var isShizukuBinderReceived = false
-            private set
-        
-        // Shizuku/Sui 的 UID (0 = Root, 2000 = ADB Shell)
-        var shizukuUid = -1
-            private set
-        
-        // Shizuku 版本
-        var shizukuVersion = -1
-            private set
+        // Shizuku/Sui 运行时状态改由 platform 层持有，供 core 模块读取。
+        val isSui: Boolean get() = ShizukuRuntimeState.isSui
+        val isShizukuBinderReceived: Boolean get() = ShizukuRuntimeState.isBinderReceived
+        val shizukuUid: Int get() = ShizukuRuntimeState.uid
+        val shizukuVersion: Int get() = ShizukuRuntimeState.version
         
         // 应用全局上下文
         lateinit var appCtx: Context
@@ -95,7 +85,7 @@ class FeApplication : Application() {
         }
         
         // 初始化Sui (Magisk 模块)
-        isSui = Sui.init(BuildConfig.APPLICATION_ID)
+        ShizukuRuntimeState.isSui = Sui.init(BuildConfig.APPLICATION_ID)
         Log.d(TAG, "Sui initialized: $isSui")
         
         // 设置Shizuku监听器
@@ -185,21 +175,19 @@ class FeApplication : Application() {
     }
     
     private fun onShizukuBinderReceived() {
-        isShizukuBinderReceived = true
-        
+        ShizukuRuntimeState.isBinderReceived = true
         try {
-            shizukuVersion = Shizuku.getVersion()
-            shizukuUid = Shizuku.getUid()
-            
-            Log.d(TAG, "Shizuku connected! Version: $shizukuVersion, UID: $shizukuUid")
+            ShizukuRuntimeState.version = Shizuku.getVersion()
+            ShizukuRuntimeState.uid = Shizuku.getUid()
+            Log.d(TAG, "Shizuku connected! Version: ${ShizukuRuntimeState.version}, UID: ${ShizukuRuntimeState.uid}")
         } catch (e: Exception) {
             Log.e(TAG, "Error getting Shizuku info", e)
         }
     }
     
     private fun onShizukuBinderDead() {
-        isShizukuBinderReceived = false
-        shizukuUid = -1
+        ShizukuRuntimeState.isBinderReceived = false
+        ShizukuRuntimeState.uid = -1
         Log.d(TAG, "Shizuku disconnected")
     }
     

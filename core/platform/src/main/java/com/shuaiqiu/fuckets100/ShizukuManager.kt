@@ -62,7 +62,7 @@ object ShizukuManager {
     /**
      * 检查是否为 Sui (Magisk 模块)
      */
-    fun isSui(): Boolean = FeApplication.isSui
+    fun isSui(): Boolean = ShizukuRuntimeState.isSui
     
     /**
      * 获取运行时类型描述
@@ -83,12 +83,12 @@ object ShizukuManager {
      * 获取 Shizuku/Sui 的 UID
      * 0 = Root, 2000 = ADB Shell
      */
-    fun getUid(): Int = FeApplication.shizukuUid
+    fun getUid(): Int = ShizukuRuntimeState.uid
     
     /**
      * 获取 Shizuku 版本号
      */
-    fun getVersion(): Int = FeApplication.shizukuVersion
+    fun getVersion(): Int = ShizukuRuntimeState.version
     
     /**
      * 检查 Shizuku 版本是否低于 11
