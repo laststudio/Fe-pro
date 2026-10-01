@@ -51,9 +51,6 @@ import com.shuaiqiu.fuckets100.core.designsystem.expressiveTopAppBarColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.net.URL
-import java.net.URLConnection
-import java.security.MessageDigest
 
 import com.shuaiqiu.fuckets100.UpdateStatus
 data class RemoteContent(
@@ -97,7 +94,7 @@ fun RemoteContentScreen(
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     LaunchedEffect(content) {
-        val announcementResult = fetchRemoteTextOrNull(context, content.announcementUrl)
+        val announcementResult = viewModel.fetchTextOrNull(content.announcementUrl)
         var successCount = 0
         if (!announcementResult.isNullOrBlank()) {
             announcementBody = parseRemoteContent(announcementResult)
@@ -234,41 +231,6 @@ private fun RemoteContentSection(
         }
     }
 }
-
-private suspend fun fetchRemoteTextOrNull(context: Context, url: String): String? {
-    if (url.isBlank()) return null
-    return withContext(Dispatchers.IO) {
-        val cacheFile = runCatching {
-            java.io.File(context.cacheDir, "remote_content/${sha256(url)}.txt")
-        }.getOrNull()
-        val cached = cacheFile?.takeIf { it.isFile }?.let { file ->
-            val age = System.currentTimeMillis() - file.lastModified()
-            if (age in 0..REMOTE_CONTENT_CACHE_TTL_MS) file.readText() else null
-        }
-        if (!cached.isNullOrBlank()) return@withContext cached
-
-        val fetched = runCatching {
-            val connection = URL(url).openConnection() as URLConnection
-            connection.connectTimeout = 5000
-            connection.readTimeout = 5000
-            connection.connect()
-            connection.inputStream.bufferedReader().use { it.readText() }
-        }.getOrNull()
-        if (!fetched.isNullOrBlank()) {
-            runCatching {
-                cacheFile?.parentFile?.mkdirs()
-                cacheFile?.writeText(fetched)
-            }
-        }
-        fetched ?: cacheFile?.takeIf { it.isFile }?.let { it.readText() }
-    }
-}
-
-private fun sha256(value: String): String = MessageDigest.getInstance("SHA-256")
-    .digest(value.toByteArray(Charsets.UTF_8))
-    .joinToString("") { "%02x".format(it) }
-
-private const val REMOTE_CONTENT_CACHE_TTL_MS = 5 * 60 * 1000L
 
 private fun parseRemoteContent(raw: String): String {
     return raw

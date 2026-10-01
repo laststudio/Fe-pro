@@ -1,9 +1,11 @@
 package com.shuaiqiu.fuckets100.app
 
 import android.content.Context
+import com.shuaiqiu.fuckets100.AvatarRepository
 import com.shuaiqiu.fuckets100.FeAccountAccess
 import com.shuaiqiu.fuckets100.AppUpdateStatusRepository
 import com.shuaiqiu.fuckets100.LegalAgreementRepository
+import com.shuaiqiu.fuckets100.RemoteContentRepository
 import com.shuaiqiu.fuckets100.RemoteConfigManager
 import com.shuaiqiu.fuckets100.FeAccountManager
 import com.shuaiqiu.fuckets100.ResolverAuthorizer
@@ -37,6 +39,18 @@ object AppModule {
     @Provides
     @Singleton
     fun provideAppUpdateStatusRepository(): AppUpdateStatusRepository = AppUpdateStatusRepository()
+
+    @Provides
+    @Singleton
+    fun provideAvatarRepository(
+        @ApplicationContext context: Context,
+    ): AvatarRepository = AvatarRepository(context.applicationContext)
+
+    @Provides
+    @Singleton
+    fun provideRemoteContentRepository(
+        @ApplicationContext context: Context,
+    ): RemoteContentRepository = RemoteContentRepository(context.applicationContext)
 
     @Provides
     @Singleton
