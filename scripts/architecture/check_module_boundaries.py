@@ -81,6 +81,30 @@ def violations(graph: dict[str, set[str]]) -> list[str]:
     return errors
 
 
+MAX_PRODUCTION_LINES = 800
+MAX_SCREEN_LINES = 500
+
+
+def check_file_sizes(root: Path) -> list[str]:
+    """Largest production Kotlin files must stay within the size budget."""
+    errors: list[str] = []
+    search_roots = ["app/src", "core", "data", "feature"]
+    for relative_root in search_roots:
+        base = root / relative_root
+        if not base.exists():
+            continue
+        for path in base.rglob("*.kt"):
+            if "/build/" in path.as_posix():
+                continue
+            lines = len(path.read_text(encoding="utf-8").splitlines())
+            rel = path.relative_to(root).as_posix()
+            if lines > MAX_PRODUCTION_LINES:
+                errors.append(f"{rel} has {lines} lines (limit {MAX_PRODUCTION_LINES})")
+            if path.name.endswith("Screen.kt") and lines > MAX_SCREEN_LINES:
+                errors.append(f"{rel} has {lines} lines (UI limit {MAX_SCREEN_LINES})")
+    return errors
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path, default=Path.cwd())
@@ -89,10 +113,11 @@ def main() -> int:
 
     modules = parse_modules(root)
     graph = parse_dependencies(root, modules)
-    errors = violations(graph) + [
-        "dependency cycle: " + " -> ".join(cycle)
-        for cycle in find_cycles(graph)
-    ]
+    errors = (
+        violations(graph)
+        + ["dependency cycle: " + " -> ".join(cycle) for cycle in find_cycles(graph)]
+        + check_file_sizes(root)
+    )
 
     print("Architecture modules:")
     for module in modules:
