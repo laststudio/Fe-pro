@@ -14,7 +14,7 @@ import java.security.MessageDigest
 /**
  * ETS100 API 客户端
  * 负责所有网络请求和签名生成喵~
- * 
+ *
  * API 文档参考: ets读取/API_DOC.md
  */
 object ETS100ApiClient {
@@ -24,7 +24,7 @@ object ETS100ApiClient {
     // ============================================================================
     // API 配置
     // ============================================================================
-    
+
     object Config {
         const val API_BASE_URL = "https://api.ets100.com"
         const val CDN_BASE_URL = "https://cdn.subject.ets100.com"
@@ -36,7 +36,7 @@ object ETS100ApiClient {
     // ============================================================================
     // API 端点
     // ============================================================================
-    
+
     object Endpoints {
         const val LOGIN = "/user/login"
         const val LOGIN_ZT = "/user/login-zt"
@@ -53,7 +53,7 @@ object ETS100ApiClient {
     // ============================================================================
     // 请求配置常量
     // ============================================================================
-    
+
     object RequestConfig {
         const val DEFAULT_SN = "test"
         const val DEFAULT_VERSION = "3"
@@ -68,7 +68,7 @@ object ETS100ApiClient {
     // ============================================================================
     // 签名生成
     // ============================================================================
-    
+
     /**
      * 生成 API 签名
      * sign_string = PID + timestamp + content + SECRET_KEY
@@ -91,26 +91,26 @@ object ETS100ApiClient {
     // ============================================================================
     // HTTP 请求
     // ============================================================================
-    
+
     /**
      * 发送 POST 请求
      * @param endpoint API 端点
      * @param bodyData 请求体数据（Map）
      * @return 响应 JSON 字符串
      */
-    private suspend fun postRequest(endpoint: String, bodyData: Map<String, Any>): Result<String> = withContext(Dispatchers.IO) {
+    internal suspend fun postRequest(endpoint: String, bodyData: Map<String, Any>): Result<String> = withContext(Dispatchers.IO) {
         try {
             val fullUrl = Config.API_BASE_URL + endpoint
             Log.d(TAG, "===== 网络请求信息 =====")
             Log.d(TAG, "URL: $fullUrl")
-            
+
             val url = URL(fullUrl)
             Log.d(TAG, "协议: ${url.protocol}")
             Log.d(TAG, "主机: ${url.host}")
             Log.d(TAG, "路径: ${url.path}")
-            
+
             val connection = url.openConnection() as HttpURLConnection
-            
+
             connection.apply {
                 requestMethod = "POST"
                 connectTimeout = Config.TIMEOUT_MS
@@ -145,7 +145,7 @@ object ETS100ApiClient {
             // 读取响应
             val responseCode = connection.responseCode
             Log.d(TAG, "HTTP Response Code: $responseCode")
-            
+
             // 根据响应码决定从哪个流读取
             val responseBody = if (responseCode in 200..299) {
                 // 成功响应，从 inputStream 读取
@@ -167,7 +167,7 @@ object ETS100ApiClient {
             }
 
             Log.d(TAG, "POST $endpoint -> $responseCode")
-            
+
             if (responseCode == HttpURLConnection.HTTP_OK) {
                 Result.success(responseBody)
             } else {
@@ -204,639 +204,9 @@ object ETS100ApiClient {
     class InvalidVerificationCodeException : Exception("验证码错误，请重新输入")
 
     // ============================================================================
-    // API 方法
-    // ============================================================================
-
-    /**
-     * 发送设备绑定短信验证码
-     * POST /code/send-user-exist
-     */
-    suspend fun sendDeviceBindingCode(phone: String): Result<Unit> {
-        val bodyData = mapOf(
-            "r" to "code/send-user-exist",
-            "params" to mapOf(
-                "sn" to RequestConfig.DEFAULT_SN,
-                "phone" to phone,
-                "email" to "",
-                "class_id" to "1",
-                "use" to "3",
-                "system" to RequestConfig.DEFAULT_SYSTEM,
-                "global_client_version" to "",
-                "sign_response" to 1
-            )
-        )
-
-        return postRequest(Endpoints.SEND_USER_EXIST, bodyData).mapCatching { responseBody ->
-            val json = responseBody.parseJson()
-            val code = json.optInt("code", -999)
-            if (code != 0) {
-                val message = json.optString("msg").ifBlank { "发送验证码失败，错误码: $code" }
-                throw Exception(message)
-            }
-        }
-    }
-
-    /**
-     * 设备绑定（自动绑定当前设备或使用短信验证码绑定）
-     * POST /user/rebind-code
-     *
-     * 喵~ 当登录返回 code=30014 时调用此接口进行设备绑定
-     * 绑定成功后服务器会返回 token，设备自动绑定到账户喵！
-     *
-     * @param phone 手机号
-     * @param password 密码（明文）
-     * @param deviceCode 机器码
-     * @param verificationCode 短信验证码；无需短信验证时使用默认值 "0"
-     * @return 绑定结果，包含 token
-     */
-    suspend fun bindDevice(
-        phone: String,
-        password: String,
-        deviceCode: String,
-        verificationCode: String = "0"
-    ): Result<LoginResponse> {
-        Log.d(TAG, "bindDevice: 开始绑定设备")
-
-        val bodyData = mapOf(
-            "r" to "user/rebind-code",
-            "params" to mapOf(
-                "sn" to RequestConfig.DEFAULT_SN,
-                "phone" to phone,
-                "email" to "",            // 空邮箱
-                "password" to password,
-                "code" to verificationCode,
-                "version" to RequestConfig.DEFAULT_REBIND_VERSION,  // "2"
-                "device_name" to RequestConfig.DEFAULT_REBIND_DEVICE_NAME,  // "1337"
-                "device_code" to deviceCode,
-                "local_ip" to RequestConfig.DEFAULT_LOCAL_IP,
-                "system" to RequestConfig.DEFAULT_SYSTEM,
-                "global_client_version" to RequestConfig.DEFAULT_GLOBAL_CLIENT_VERSION,
-                "sign_response" to 1
-            )
-        )
-
-        return postRequest(Endpoints.REBIND_CODE, bodyData).mapCatching { responseBody ->
-            val json = responseBody.parseJson()
-            val code = json.optInt("code", -999)
-
-            if (code != 0) {
-                val msg = json.optString("msg", "设备绑定失败")
-                Log.e(TAG, "绑定失败! code=$code, msg=$msg")
-                if (code == 60001) {
-                    throw InvalidVerificationCodeException()
-                }
-                throw Exception("设备绑定失败: $msg")
-            }
-
-            val bodyObj = json.optJSONObject("body")
-            val token = bodyObj?.optString("token") ?: ""
-
-            if (token.isEmpty()) {
-                Log.e(TAG, "❌ 绑定成功但 token 为空！")
-                throw Exception("设备绑定失败：未获取到 token")
-            }
-
-            Log.i(TAG, "✓ 设备绑定成功！token 长度: ${token.length}")
-            LoginResponse(token = token)
-        }
-    }
-
-    /**
-     * 刷新 Token
-     * POST /user/rebind-code
-     * 
-     * 宝贝这个方法用于在 token 过期时自动刷新喵~
-     * 
-     * @param oldToken 旧 token
-     * @return 新 token，失败返回 null
-     */
-    suspend fun refreshToken(oldToken: String): String? = withContext(Dispatchers.IO) {
-        try {
-            Log.d(TAG, "refreshToken: 尝试刷新 token...")
-            
-            val bodyData = mapOf(
-                "r" to "user/rebind-code",
-                "params" to mapOf(
-                    "token" to oldToken,
-                    "version" to RequestConfig.DEFAULT_REBIND_VERSION,
-                    "system" to RequestConfig.DEFAULT_SYSTEM
-                )
-            )
-            
-            postRequest(Endpoints.REBIND_CODE, bodyData).mapCatching { responseBody ->
-                val json = responseBody.parseJson()
-                val bodyObj = json.optJSONObject("body")
-                bodyObj?.optString("token") ?: throw Exception("刷新 token 失败")
-            }.getOrNull()
-        } catch (e: Exception) {
-            Log.e(TAG, "refreshToken 失败: ${e.message}")
-            null
-        }
-    }
-
-    /**
-     * 用户登录
-     * POST /user/login
-     *
-     * @param phone 手机号
-     * @param password 密码（明文）
-     * @param deviceCode 机器码
-     * @return 登录结果，包含 token
-     */
-    suspend fun login(phone: String, password: String, deviceCode: String): Result<LoginResponse> {
-        Log.d(TAG, "login: 开始账号登录")
-        
-        val bodyData = mapOf(
-            "r" to "user/login",
-            "params" to mapOf(
-                "sn" to RequestConfig.DEFAULT_SN,
-                "phone" to phone,
-                "password" to password,
-                "device_code" to deviceCode,
-                "device_name" to RequestConfig.DEFAULT_DEVICE_NAME,
-                "version" to RequestConfig.DEFAULT_VERSION,
-                "local_ip" to RequestConfig.DEFAULT_LOCAL_IP,
-                "system" to RequestConfig.DEFAULT_SYSTEM,
-                "global_client_version" to RequestConfig.DEFAULT_GLOBAL_CLIENT_VERSION,
-                "sign_response" to 1
-            )
-        )
-
-        return postRequest(Endpoints.LOGIN, bodyData).mapCatching { responseBody ->
-            // 喵~ 按照 Python 版本的逻辑：response[0]["body"]["token"]
-            val json = responseBody.parseJson()
-            val bodyObj = json.optJSONObject("body")
-            
-            // 喵~ Python 版本没有 code 检查，直接读取 token 喵！
-            // 但为了兼容性，我们检查 code（如果存在且非0才报错）
-            val code = json.optInt("code", -999)  // 使用特殊默认值表示字段不存在
-            if (code != -999 && code != 0) {
-                // 只有当 code 字段存在且非0时才报错
-                val msg = json.optString("msg", "")
-                Log.e(TAG, "登录失败! code=$code, msg=$msg")
-                when (code) {
-                    30008 -> throw SmsVerificationRequiredException(phone, password, deviceCode)
-                    30014 -> throw DeviceBindRequiredException(phone, password, deviceCode)
-                }
-                val errorMsg = msg.ifEmpty { "登录失败，错误码: $code" }
-                throw Exception(errorMsg)
-            }
-            
-            // 喵~ 直接从 body 读取 token，与 Python 版本一致喵！
-            val token = bodyObj?.optString("token") ?: ""
-            if (token.isEmpty()) {
-                Log.e(TAG, "登录成功响应中 token 为空")
-                throw Exception("登录失败：未获取到 token")
-            }
-            
-            Log.i(TAG, "✓ 登录成功！token 长度: ${token.length}")
-            LoginResponse(token = token)
-        }
-    }
-
-    /**
-     * 讯飞网页登录
-     * POST /user/login-zt
-     *
-     * @param login 手机号（从 checkLogin 请求参数 i 获取）
-     * @param userId 畅言用户 ID（从 checkLogin 响应 uid 获取）
-     * @param sucUserToken 验证 token（从 checkLogin 响应 captchaResult 获取）
-     * @param deviceCode 机器码
-     * @return 登录结果，包含 token
-     */
-    suspend fun loginZt(
-        login: String,
-        userId: String,
-        sucUserToken: String,
-        deviceCode: String
-    ): Result<LoginResponse> {
-        Log.d(TAG, "loginZt: 开始讯飞网页登录")
-
-        val bodyData = mapOf(
-            "r" to "user/login-zt",
-            "params" to mapOf(
-                "sn" to RequestConfig.DEFAULT_SN,
-                "login" to login,
-                "user_id" to userId,
-                "device_name" to "Android",
-                "device_code" to deviceCode,
-                "suc_user_token" to sucUserToken,
-                "suc_device_name" to "Other",
-                "os_type" to "android",
-                "system" to RequestConfig.DEFAULT_SYSTEM,
-                "global_client_version" to "",
-                "sign_response" to 1
-            )
-        )
-
-        return postRequest(Endpoints.LOGIN_ZT, bodyData).mapCatching { responseBody ->
-            val json = responseBody.parseJson()
-            val code = json.optInt("code", -999)
-            Log.d(TAG, "login-zt 响应 code=$code, bodyKeys=${json.optJSONObject("body")?.keys()?.asSequence()?.toList().orEmpty()}")
-            if (code != -999 && code != 0) {
-                val msg = json.optString("msg", "")
-                Log.e(TAG, "login-zt 返回失败: code=$code, msg=$msg")
-                throw Exception(msg.ifEmpty { "讯飞登录失败，错误码: $code" })
-            }
-
-            val bodyObj = json.optJSONObject("body")
-            val token = bodyObj?.optString("token") ?: ""
-            if (token.isEmpty()) {
-                throw Exception("讯飞登录失败：未获取到 token")
-            }
-
-            Log.i(TAG, "✓ 讯飞网页登录成功！token 长度: ${token.length}")
-            LoginResponse(
-                token = token,
-                recentAccountId = bodyObj?.optString("recent_account_id")?.takeIf { it.isNotBlank() }
-            )
-        }
-    }
-
-    /**
-     * 获取父账户ID列表
-     * POST /m/ecard/list
-     * 
-     * @param token 登录返回的 token
-     * @return 父账户 ID
-     */
-    suspend fun getEcardList(token: String, preferredAccountId: String? = null): Result<String> {
-        return getEcardSelection(token, preferredAccountId).map { it.parentAccountId }
-    }
-
-    suspend fun getEcardSelection(
-        token: String,
-        preferredAccountId: String? = null
-    ): Result<EcardSelectionResult> {
-        Log.d(TAG, "getEcardList: preferredAccountId=$preferredAccountId")
-        
-        val bodyData = mapOf(
-            "r" to "m/ecard/list",
-            "params" to mapOf(
-                "sn" to RequestConfig.DEFAULT_SN,
-                "token" to token,
-                "version" to RequestConfig.DEFAULT_VERSION,
-                "system" to RequestConfig.DEFAULT_SYSTEM,
-                "global_client_version" to RequestConfig.DEFAULT_GLOBAL_CLIENT_VERSION,
-                "sign_response" to 1
-            )
-        )
-
-        return postRequest(Endpoints.ECARD_LIST, bodyData).mapCatching { responseBody ->
-            Log.d(TAG, "===== 父账户 API 响应 =====")
-            Log.d(TAG, "原始响应: $responseBody")
-            
-            // 喵~ 按照 Python 版本：response[0]["body"]["0"]["parent_id"]
-            val json = responseBody.parseJson()
-            val bodyObj = json.optJSONObject("body")
-            
-            Log.d(TAG, "body 对象: $bodyObj")
-            
-            // 喵~ body 格式: {"0": {"parent_id": "123456"}}
-            if (bodyObj != null && bodyObj.length() > 0) {
-                Log.i(TAG, "ecard/list 返回账户条目数: ${bodyObj.length()}")
-                val diagnosticKeys = bodyObj.keys()
-                while (diagnosticKeys.hasNext()) {
-                    val key = diagnosticKeys.next()
-                    val account = bodyObj.optJSONObject(key)
-                    Log.i(
-                        TAG,
-                        "ecard[$key]: id=${account?.optString("id")}, " +
-                            "parent_id=${account?.optString("parent_id")}, " +
-                            "user_account_id=${account?.optString("user_account_id")}, " +
-                            "name=${account?.optString("name")}, " +
-                            "grade=${account?.optString("grade")}, " +
-                            "status=${account?.optString("status")}, " +
-                            "mobile_status=${account?.optString("mobile_status")}, " +
-                            "out_of_date=${account?.optString("out_of_date")}, " +
-                            "class_id=${account?.optString("class_id")}, " +
-                            "class_name=${account?.optString("class_name")}, " +
-                            "machine_code_status=${account?.optString("machine_code_status")}"
-                    )
-                }
-
-                val ecardAccounts = parseEcardAccounts(bodyObj)
-                val selectedAccount = selectEcardAccount(ecardAccounts, preferredAccountId)
-                val firstKey = selectedAccount?.key
-                
-                if (firstKey == null) {
-                    Log.e(TAG, "body 没有任何字段")
-                    throw Exception("未找到账户信息")
-                }
-                
-                Log.d(TAG, "使用账户 key: $firstKey")
-                
-                val parentId = selectedAccount.parentId
-                
-                if (parentId.isEmpty()) {
-                    Log.e(TAG, "parent_id 为空！打印账户内容: $selectedAccount")
-                    throw Exception("未找到账户信息")
-                }
-                
-                Log.i(TAG, "✓ 获取父账户ID成功: $parentId")
-                EcardSelectionResult(
-                    parentAccountId = parentId,
-                    selectedAccount = selectedAccount,
-                    validAccounts = ecardAccounts.filter { it.isValid }
-                )
-            } else {
-                Log.e(TAG, "bodyObj 为空或长度为0")
-                throw Exception("未找到账户信息")
-            }
-        }
-    }
-
-    /**
-     * 获取历史作业列表
-     * POST /g/homework/list
-     *
-     * @param token 登录返回的 token
-     * @param parentAccountId 父账户 ID
-     * @return 历史作业列表响应（status=2 获取历史作业喵~）
-     */
-    suspend fun getHomeworkList(
-        token: String,
-        parentAccountId: String,
-        status: String = CloudHomeworkState.STATUS_CURRENT
-    ): Result<HomeworkListResponse> {
-        Log.d(TAG, "getHomeworkList: parentAccountId=$parentAccountId, status=$status")
-        Log.i(
-            TAG,
-            "准备请求 homework/list: parent_account_id=$parentAccountId, " +
-                "status=$status, token=${maskSensitiveToken(token)}, tokenLength=${token.length}"
-        )
-
-        val bodyData = mapOf(
-            "r" to "g/homework/list",
-            "params" to mapOf(
-                "sn" to RequestConfig.DEFAULT_SN,
-                "token" to token,
-                "parent_account_id" to parentAccountId,
-                "limit" to "0",
-                "status" to status,
-                "offset" to "0",
-                "max_end_time" to "",
-                "max_homework_id" to "",
-                "min_end_time" to "",
-                "min_homework_id" to "",
-                "get_to_do_count" to 1,
-                "show_old_homework" to 1,
-                "parent_homework_id" to "",
-                "get_all_count" to 1,
-                "check_pass" to 1,
-                "get_to_overtime_count" to 1,
-                "version" to RequestConfig.DEFAULT_VERSION,
-                "system" to RequestConfig.DEFAULT_SYSTEM,
-                "global_client_version" to RequestConfig.DEFAULT_GLOBAL_CLIENT_VERSION,
-                "sign_response" to 1
-            )
-        )
-
-        return postRequest(Endpoints.HOMEWORK_LIST, bodyData).mapCatching { responseBody ->
-            Log.d(TAG, "homework_list response: $responseBody")
-            
-            val json = responseBody.parseJson()
-            val code = json.optInt("code", -999)
-            if (code != -999 && code != 0) {
-                Log.e(
-                    TAG,
-                    "homework/list 返回业务错误: code=$code, msg=${json.optString("msg")}, " +
-                        "parent_account_id=$parentAccountId, status=$status, token=${maskSensitiveToken(token)}"
-                )
-            }
-            val bodyObj = json.optJSONObject("body")
-            
-            if (bodyObj == null) {
-                throw Exception("作业列表获取失败")
-            }
-            
-            val baseUrl = bodyObj.optString("base_url", Config.CDN_BASE_URL)
-            val dataArray = bodyObj.optJSONArray("data") ?: org.json.JSONArray()
-            Log.i(TAG, "homework_list parsed: baseUrl=$baseUrl, dataCount=${dataArray.length()}")
-            
-            val homeworks = mutableListOf<HomeworkInfo>()
-            for (i in 0 until dataArray.length()) {
-                val item = dataArray.getJSONObject(i)
-                val homeworkId = item.optString("id", "")
-                val name = item.optString("name", "未知作业")
-                val setType = item.optInt("set_type", 0)
-                val pk = item.optInt("pk", 0)
-                val resourceId = item.optString("resource_id", "")
-                
-                // 解析 struct.contents 获取作业详情
-                val struct = item.optJSONObject("struct")
-                val contentsArray = struct?.optJSONArray("contents") ?: org.json.JSONArray()
-                Log.i(
-                    TAG,
-                    "homework[$i]: id=$homeworkId, name=$name, set_type=$setType, pk=$pk, resource_id=$resourceId, " +
-                        "structKeys=${struct?.keys()?.asSequence()?.toList().orEmpty()}, " +
-                        "contentsCount=${contentsArray.length()}"
-                )
-                
-                val contents = mutableListOf<HomeworkContent>()
-                for (j in 0 until contentsArray.length()) {
-                    val content = contentsArray.getJSONObject(j)
-                    val groupName = content.optString("group_name", "")
-                    val url = content.optString("url", "")
-                    Log.i(TAG, "homework[$i].content[$j]: groupName=$groupName, url=$url")
-                    contents.add(HomeworkContent(
-                        groupName = groupName,
-                        url = url
-                    ))
-                }
-                
-                homeworks.add(HomeworkInfo(
-                    id = homeworkId,
-                    name = name,
-                    contents = contents,
-                    setType = setType,
-                    pk = pk,
-                    resourceId = resourceId
-                ))
-            }
-            
-            HomeworkListResponse(
-                baseUrl = baseUrl,
-                homeworks = homeworks
-            )
-        }
-    }
-
-    /**
-     * 获取 PK / 在线作业详情
-     * POST /g/homework/pk-info
-     *
-     * @param token 登录返回的 token
-     * @param homeworkId 作业 ID
-     * @param parentAccountId 父账户 ID
-     */
-    suspend fun getPkInfo(
-        token: String,
-        homeworkId: String,
-        parentAccountId: String = ""
-    ): Result<org.json.JSONObject> {
-        Log.d(TAG, "getPkInfo: homeworkId=$homeworkId, parentAccountId=$parentAccountId")
-        val hwIdVal: Any = homeworkId.toIntOrNull() ?: homeworkId
-        val params = mutableMapOf<String, Any>(
-            "sn" to RequestConfig.DEFAULT_SN,
-            "token" to token,
-            "homework_id" to hwIdVal,
-            "version" to RequestConfig.DEFAULT_VERSION,
-            "system" to RequestConfig.DEFAULT_SYSTEM,
-            "global_client_version" to RequestConfig.DEFAULT_GLOBAL_CLIENT_VERSION,
-            "sign_response" to 1
-        )
-        if (parentAccountId.isNotBlank()) {
-            params["parent_account_id"] = parentAccountId
-        }
-
-        val bodyData = mapOf(
-            "r" to "g/homework/pk-info",
-            "params" to params
-        )
-
-        return postRequest(Endpoints.HOMEWORK_PK_INFO, bodyData).mapCatching { responseBody ->
-            val json = responseBody.parseJson()
-            val code = json.optInt("code", -999)
-            if (code != -999 && code != 0) {
-                val msg = json.optString("msg", "")
-                throw Exception("pk-info 失败: $msg ($code)")
-            }
-            extractBody(json)
-        }
-    }
-
-    /**
-     * 获取作业结构 (在线作业 / 词汇等)
-     * POST /g/homework/struct
-     *
-     * @param token 登录返回的 token
-     * @param homeworkId 作业 ID
-     * @param resourceId 资源 ID (可选)
-     * @param parentAccountId 父账户 ID (可选)
-     */
-    suspend fun getHomeworkStruct(
-        token: String,
-        homeworkId: String,
-        resourceId: String = "",
-        parentAccountId: String = ""
-    ): Result<org.json.JSONObject> {
-        Log.d(TAG, "getHomeworkStruct: homeworkId=$homeworkId, resourceId=$resourceId, parentAccountId=$parentAccountId")
-        val params = mutableMapOf<String, Any>(
-            "sn" to RequestConfig.DEFAULT_SN,
-            "token" to token,
-            "id" to homeworkId,
-            "version" to RequestConfig.DEFAULT_VERSION,
-            "system" to RequestConfig.DEFAULT_SYSTEM,
-            "global_client_version" to RequestConfig.DEFAULT_GLOBAL_CLIENT_VERSION,
-            "sign_response" to 1
-        )
-        if (resourceId.isNotBlank()) {
-            params["resource_id"] = resourceId
-        }
-        if (parentAccountId.isNotBlank()) {
-            params["parent_account_id"] = parentAccountId
-        }
-
-        val bodyData = mapOf(
-            "r" to "g/homework/struct",
-            "params" to params
-        )
-
-        return postRequest(Endpoints.HOMEWORK_STRUCT, bodyData).mapCatching { responseBody ->
-            val json = responseBody.parseJson()
-            val code = json.optInt("code", -999)
-            if (code != -999 && code != 0) {
-                val msg = json.optString("msg", "")
-                throw Exception("homework/struct 失败: $msg ($code)")
-            }
-            extractBody(json)
-        }
-    }
-
-    /**
-     * 获取已完成作业得分与单词详情 (逆向历史作业)
-     * POST /g/homework/score-detail
-     */
-    suspend fun getScoreDetail(
-        token: String,
-        homeworkId: String,
-        resourceId: String = "",
-        parentAccountId: String = ""
-    ): Result<org.json.JSONObject> {
-        Log.d(TAG, "getScoreDetail: homeworkId=$homeworkId, resourceId=$resourceId, parentAccountId=$parentAccountId")
-        val hwIdVal: Any = homeworkId.toIntOrNull() ?: homeworkId
-        val params = mutableMapOf<String, Any>(
-            "sn" to RequestConfig.DEFAULT_SN,
-            "token" to token,
-            "homework_id" to hwIdVal,
-            "version" to RequestConfig.DEFAULT_VERSION,
-            "system" to RequestConfig.DEFAULT_SYSTEM,
-            "global_client_version" to RequestConfig.DEFAULT_GLOBAL_CLIENT_VERSION,
-            "sign_response" to 1
-        )
-        if (resourceId.isNotBlank()) {
-            params["resource_id"] = resourceId
-        }
-        if (parentAccountId.isNotBlank()) {
-            params["parent_account_id"] = parentAccountId
-        }
-
-        val bodyData = mapOf(
-            "r" to "g/homework/score-detail",
-            "params" to params
-        )
-
-        return postRequest(Endpoints.HOMEWORK_SCORE_DETAIL, bodyData).mapCatching { responseBody ->
-            val json = responseBody.parseJson()
-            val code = json.optInt("code", -999)
-            if (code != -999 && code != 0) {
-                val msg = json.optString("msg", "")
-                throw Exception("score-detail 失败: $msg ($code)")
-            }
-            extractBody(json)
-        }
-    }
-
-    /**
-     * 批量获取单词与题目定义结构
-     * POST /g/word/struct
-     */
-    suspend fun getWordStruct(
-        token: String,
-        wordIds: List<Int>
-    ): Result<org.json.JSONObject> {
-        Log.d(TAG, "getWordStruct: count=${wordIds.size}")
-        val params = mutableMapOf<String, Any>(
-            "sn" to RequestConfig.DEFAULT_SN,
-            "token" to token,
-            "word_ids" to wordIds,
-            "version" to RequestConfig.DEFAULT_VERSION,
-            "system" to RequestConfig.DEFAULT_SYSTEM,
-            "global_client_version" to RequestConfig.DEFAULT_GLOBAL_CLIENT_VERSION,
-            "sign_response" to 1
-        )
-
-        val bodyData = mapOf(
-            "r" to "g/word/struct",
-            "params" to params
-        )
-
-        return postRequest(Endpoints.WORD_STRUCT, bodyData).mapCatching { responseBody ->
-            val json = responseBody.parseJson()
-            val code = json.optInt("code", -999)
-            if (code != -999 && code != 0) {
-                val msg = json.optString("msg", "")
-                throw Exception("word/struct 失败: $msg ($code)")
-            }
-            extractBody(json)
-        }
-    }
-
-    // ============================================================================
     // 数据类
     // ============================================================================
-    
+
     data class LoginResponse(
         val token: String,
         val recentAccountId: String? = null
@@ -868,12 +238,12 @@ object ETS100ApiClient {
                 classId.isNotBlank() &&
                 mobileStatus == "1"
     }
-    
+
     data class HomeworkListResponse(
         val baseUrl: String,
         val homeworks: List<HomeworkInfo>
     )
-    
+
     data class HomeworkInfo(
         val id: String,
         val name: String,
@@ -882,277 +252,86 @@ object ETS100ApiClient {
         val pk: Int = 0,
         val resourceId: String = ""
     )
-    
+
     data class HomeworkContent(
         val groupName: String,
         val url: String
     )
 
-    // ============================================================================
-    // JSON 解析工具
-    // ============================================================================
-    
-    /**
-     * 简化 JSON 字符串解析
-     * 喵~ 支持 JSON 对象和数组喵！
-     * 如果响应是数组（如 [{...}]），返回数组第一个元素作为 JSONObject
-     */
-    private fun String.parseJson(): org.json.JSONObject {
-        val trimmed = this.trim()
-        return if (trimmed.startsWith("[")) {
-            // 响应是数组，取第一个元素
-            val array = org.json.JSONArray(trimmed)
-            if (array.length() > 0) {
-                array.getJSONObject(0)
-            } else {
-                org.json.JSONObject()
-            }
-        } else {
-            org.json.JSONObject(this)
-        }
-    }
-    
-    private fun extractBody(json: org.json.JSONObject): org.json.JSONObject {
-        val bodyObj = json.optJSONObject("body")
-        if (bodyObj != null) return bodyObj
-        val bodyStr = json.optString("body", "")
-        if (bodyStr.isNotBlank()) {
-            try {
-                val decodedBytes = android.util.Base64.decode(bodyStr, android.util.Base64.DEFAULT)
-                val decodedStr = String(decodedBytes, Charsets.UTF_8).trim()
-                if (decodedStr.startsWith("{")) {
-                    return org.json.JSONObject(decodedStr)
-                } else if (decodedStr.startsWith("[")) {
-                    val arr = org.json.JSONArray(decodedStr)
-                    val wrapper = org.json.JSONObject()
-                    wrapper.put("data", arr)
-                    return wrapper
-                }
-            } catch (_: Exception) {}
-            try {
-                val trimmed = bodyStr.trim()
-                if (trimmed.startsWith("{")) {
-                    return org.json.JSONObject(trimmed)
-                } else if (trimmed.startsWith("[")) {
-                    val arr = org.json.JSONArray(trimmed)
-                    val wrapper = org.json.JSONObject()
-                    wrapper.put("data", arr)
-                    return wrapper
-                }
-            } catch (_: Exception) {}
-        }
-        return org.json.JSONObject()
-    }
-    
-    /**
-     * 检查响应是否为数组格式
-     */
-    private fun String.isJsonArray(): Boolean {
-        return this.trim().startsWith("[")
-    }
-    
-    /**
-     * Map 转 JSON 字符串
-     */
-    private fun Map<String, Any>.toJson(): String = toJsonObject()
+
+
 
     /**
-     * Serializes nested request maps without unchecked casts. The API request
-     * payloads are assembled from maps at several call sites, so preserving
-     * arbitrary key types here is safer than assuming every nested map is
-     * exactly Map<String, Any>.
-     */
-    private fun Map<*, *>.toJsonObject(): String = buildString {
-        append('{')
-        entries.forEachIndexed { index, (key, value) ->
-            if (index > 0) append(',')
-            append('\"')
-            append(key?.toString().orEmpty().escapeJson())
-            append("\":")
-            append(value.toJsonValue())
-        }
-        append('}')
-    }
-
-    private fun Any?.toJsonValue(): String = when (this) {
-        null -> "null"
-        is String -> "\"${escapeJson()}\""
-        is Number, is Boolean -> toString()
-        is Map<*, *> -> toJsonObject()
-        is Iterable<*> -> joinToString(prefix = "[", postfix = "]") { it.toJsonValue() }
-        else -> "\"${toString().escapeJson()}\""
-    }
-    
-    /**
-     * JSON 字符串转 Map
-     */
-    private fun String.toMapJson(): String {
-        return "{$this}"
-    }
-    
-/**
-     * 下载文件到指定路径
-     * 宝贝用于下载云端作业的 ZIP 文件喵~
+     * 下载文件到指定路径。
      *
-     * @param url 文件 URL
-     * @param destFile 目标文件
-     * @return 下载结果
+     * 实现位于 [ets100DownloadFile]，这里保留原有公开入口以兼容调用方。
      */
     suspend fun downloadFile(
         url: String,
         destFile: File,
         onProgress: suspend (downloadedBytes: Long, totalBytes: Long) -> Unit = { _, _ -> }
-    ): Result<Unit> = withContext(Dispatchers.IO) {
-        try {
-            Log.d(TAG, "downloadFile: 开始下载 $url")
-            val urlObj = URL(url)
-            val connection = urlObj.openConnection() as HttpURLConnection
+    ): Result<Unit> = ets100DownloadFile(url, destFile, onProgress)
 
-            // 宝贝如果是 HTTPS URL，需要处理 SSL 证书验证问题喵~
-            // 因为 CDN 的 SSL 证书配置有问题（证书是发给 default.chinanetcenter.com 的）
-            if (connection is javax.net.ssl.HttpsURLConnection) {
-                // 创建一个信任所有证书的 TrustManager喵~
-                val trustAllCerts = arrayOf(object : javax.net.ssl.X509TrustManager {
-                    override fun checkClientTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {}
-                    override fun checkServerTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {}
-                    override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> = arrayOf()
-                })
-                val sslContext = javax.net.ssl.SSLContext.getInstance("TLS")
-                sslContext.init(null, trustAllCerts, java.security.SecureRandom())
-                connection.sslSocketFactory = sslContext.socketFactory
-                // 宝贝也忽略主机名验证喵~
-                connection.hostnameVerifier = javax.net.ssl.HostnameVerifier { _, _ -> true }
-            }
+    // ============================================================================
+    // 公开 API（实现位于 ETS100Api.kt）
+    // ============================================================================
 
-            connection.connectTimeout = Config.TIMEOUT_MS
-            connection.readTimeout = Config.TIMEOUT_MS
+    suspend fun sendDeviceBindingCode(phone: String): Result<Unit> = ets100SendDeviceBindingCode(phone)
 
-            // 设置 CDN 请求头（参考 release.py）
-            val host = if (url.contains("cdn.subject.ets100.com")) "cdn.subject.ets100.com" else "api.ets100.com"
-            connection.setRequestProperty("Host", host)
-            connection.setRequestProperty("User-Agent", "libcurl-agent/1.0")
-            connection.setRequestProperty("Accept", "*/*")
+    suspend fun bindDevice(
+        phone: String,
+        password: String,
+        deviceCode: String,
+        verificationCode: String = "0",
+    ): Result<LoginResponse> = ets100BindDevice(phone, password, deviceCode, verificationCode)
 
-            connection.connect()
+    suspend fun refreshToken(oldToken: String): String? = ets100RefreshToken(oldToken)
 
-            val responseCode = connection.responseCode
-            Log.d(TAG, "downloadFile: HTTP Response = $responseCode")
+    suspend fun login(phone: String, password: String, deviceCode: String): Result<LoginResponse> =
+        ets100Login(phone, password, deviceCode)
 
-            if (responseCode == HttpURLConnection.HTTP_OK) {
-                // 使用缓冲流提高下载效率
-                val buffer = ByteArray(8192)
-                var bytesRead: Int
-                var totalBytesRead = 0L
-                val totalBytes = connection.contentLengthLong
+    suspend fun loginZt(
+        login: String,
+        userId: String,
+        sucUserToken: String,
+        deviceCode: String,
+    ): Result<LoginResponse> = ets100LoginZt(login, userId, sucUserToken, deviceCode)
 
-                connection.inputStream.use { input ->
-                    destFile.outputStream().use { output ->
-                        while (input.read(buffer).also { bytesRead = it } != -1) {
-                            output.write(buffer, 0, bytesRead)
-                            totalBytesRead += bytesRead
-                            onProgress(totalBytesRead, totalBytes)
-                        }
-                    }
-                }
+    suspend fun getEcardList(token: String, preferredAccountId: String? = null): Result<String> =
+        ets100GetEcardList(token, preferredAccountId)
 
-                Log.d(TAG, "downloadFile: 下载完成 ${destFile.absolutePath}, 大小=$totalBytesRead bytes")
-                Result.success(Unit)
-            } else {
-                // 读取错误信息
-                val errorStream = connection.errorStream
-                val errorMsg = if (errorStream != null) {
-                    errorStream.bufferedReader().readText()
-                } else {
-                    "HTTP $responseCode"
-                }
-                Log.e(TAG, "downloadFile: 下载失败 $errorMsg")
-                Result.failure(Exception("下载失败: $errorMsg"))
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "downloadFile: 下载异常 ${e.message}")
-            Result.failure(e)
-        }
-    }
+    suspend fun getEcardSelection(
+        token: String,
+        preferredAccountId: String? = null,
+    ): Result<EcardSelectionResult> = ets100GetEcardSelection(token, preferredAccountId)
 
-    /**
-     * 转义 JSON 字符串
-     * 喵~ 用于安全地处理字符串喵！
-     */
-    private fun String.escapeJson(): String {
-        return this
-            .replace("\\", "\\\\")
-            .replace("\"", "\\\"")
-            .replace("\n", "\\n")
-            .replace("\r", "\\r")
-            .replace("\t", "\\t")
-    }
+    suspend fun getHomeworkList(
+        token: String,
+        parentAccountId: String,
+        status: String = CloudHomeworkState.STATUS_CURRENT,
+    ): Result<HomeworkListResponse> = ets100GetHomeworkList(token, parentAccountId, status)
 
-    private fun maskSensitiveToken(token: String): String {
-        if (token.isBlank()) return "(empty)"
-        if (token.length <= 12) return "${token.take(3)}***${token.takeLast(3)}"
-        return "${token.take(6)}***${token.takeLast(6)}"
-    }
+    suspend fun getPkInfo(
+        token: String,
+        homeworkId: String,
+        parentAccountId: String = "",
+    ): Result<org.json.JSONObject> = ets100GetPkInfo(token, homeworkId, parentAccountId)
 
-    private fun parseEcardAccounts(bodyObj: org.json.JSONObject): List<EcardAccount> {
-        val accounts = mutableListOf<EcardAccount>()
-        val keys = bodyObj.keys()
-        while (keys.hasNext()) {
-            val key = keys.next()
-            val account = bodyObj.optJSONObject(key) ?: continue
-            accounts += EcardAccount(
-                key = key,
-                id = account.optString("id"),
-                parentId = account.optString("parent_id"),
-                userAccountId = account.optString("user_account_id"),
-                name = account.optString("name"),
-                grade = account.optString("grade"),
-                status = account.optString("status"),
-                mobileStatus = account.optString("mobile_status"),
-                outOfDate = account.optString("out_of_date"),
-                classId = account.optString("class_id"),
-                className = account.optString("class_name"),
-                machineCodeStatus = account.optString("machine_code_status")
-            )
-        }
-        return accounts
-    }
+    suspend fun getHomeworkStruct(
+        token: String,
+        homeworkId: String,
+        resourceId: String = "",
+        parentAccountId: String = "",
+    ): Result<org.json.JSONObject> = ets100GetHomeworkStruct(token, homeworkId, resourceId, parentAccountId)
 
-    private fun selectEcardAccount(
-        accounts: List<EcardAccount>,
-        preferredAccountId: String?
-    ): EcardAccount? {
-        if (!preferredAccountId.isNullOrBlank()) {
-            accounts.firstOrNull { account ->
-                account.id == preferredAccountId && account.isValid
-            }?.let { selected ->
-                Log.i(
-                    TAG,
-                    "按保存/推荐 ecard_id 选择有效账户: key=${selected.key}, " +
-                        "id=${selected.id}, parent_id=${selected.parentId}, name=${selected.name}"
-                )
-                return selected
-            }
-            Log.w(TAG, "preferredAccountId=$preferredAccountId 未匹配到有效账户")
-        }
+    suspend fun getScoreDetail(
+        token: String,
+        homeworkId: String,
+        resourceId: String = "",
+        parentAccountId: String = "",
+    ): Result<org.json.JSONObject> = ets100GetScoreDetail(token, homeworkId, resourceId, parentAccountId)
 
-        accounts.firstOrNull { it.isValid }?.let { selected ->
-            Log.i(
-                TAG,
-                "按有效班级选择账户: key=${selected.key}, " +
-                    "id=${selected.id}, parent_id=${selected.parentId}, name=${selected.name}"
-            )
-            return selected
-        }
+    suspend fun getWordStruct(token: String, wordIds: List<Int>): Result<org.json.JSONObject> =
+        ets100GetWordStruct(token, wordIds)
 
-        accounts.firstOrNull()?.let { selected ->
-            Log.w(
-                TAG,
-                "未找到有效班级账户，回退第一个账户: key=${selected.key}, " +
-                    "id=${selected.id}, parent_id=${selected.parentId}, name=${selected.name}"
-            )
-            return selected
-        }
-
-        return null
-    }
 }

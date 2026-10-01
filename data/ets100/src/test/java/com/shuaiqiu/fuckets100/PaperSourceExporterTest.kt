@@ -17,9 +17,9 @@ import kotlin.io.path.createTempDirectory
 class PaperSourceExporterTest {
     @Test
     fun directorySizeKibParserReturnsBytesAndRejectsInvalidOutput() {
-        assertEquals(1536L * 1024L, ETS100FileReader.parseDirectorySizeKib("1536\t/resource\n"))
-        assertEquals(0L, ETS100FileReader.parseDirectorySizeKib("not-a-size"))
-        assertEquals(0L, ETS100FileReader.parseDirectorySizeKib(null))
+        assertEquals(1536L * 1024L, parseDirectorySizeKib("1536\t/resource\n"))
+        assertEquals(0L, parseDirectorySizeKib("not-a-size"))
+        assertEquals(0L, parseDirectorySizeKib(null))
     }
 
     @Test
