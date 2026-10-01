@@ -17,7 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 import com.shuaiqiu.fuckets100.ETS100AuthManager
-import com.shuaiqiu.fuckets100.maskPhoneNumber
+import com.shuaiqiu.fuckets100.core.common.maskPhoneNumber
 /**
  * 云端模式激活面板
  * 喵~ 用于显示登录状态和跳转到登录页面喵！

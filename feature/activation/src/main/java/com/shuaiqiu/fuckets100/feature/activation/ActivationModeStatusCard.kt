@@ -23,7 +23,7 @@ import com.shuaiqiu.fuckets100.RootManager
 import com.shuaiqiu.fuckets100.ShizukuManager
 import com.shuaiqiu.fuckets100.ShizukuState
 import com.shuaiqiu.fuckets100.ZWCHelper
-import com.shuaiqiu.fuckets100.maskPhoneNumber
+import com.shuaiqiu.fuckets100.core.common.maskPhoneNumber
 @Composable
 internal fun FeModeStatusCard(
     currentMode: ActivationMode,

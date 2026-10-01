@@ -1,4 +1,4 @@
-package com.shuaiqiu.fuckets100
+package com.shuaiqiu.fuckets100.core.common
 
 fun maskPhoneNumber(phone: String?): String {
     val normalized = phone?.trim().orEmpty()
