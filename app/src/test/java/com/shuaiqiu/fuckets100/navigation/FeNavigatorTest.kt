@@ -29,6 +29,28 @@ class FeNavigatorTest {
     }
 
     @Test
+    fun legalBackReturnsToAbout() {
+        val navigator = FeNavigator(FeRoute.Main)
+        navigator.push(FeRoute.About)
+        navigator.push(FeRoute.Legal)
+
+        navigator.pop()
+
+        assertEquals(FeRoute.About, navigator.current())
+    }
+
+    @Test
+    fun donateBackReturnsToAbout() {
+        val navigator = FeNavigator(FeRoute.Main)
+        navigator.push(FeRoute.About)
+        navigator.push(FeRoute.Donate)
+
+        navigator.pop()
+
+        assertEquals(FeRoute.About, navigator.current())
+    }
+
+    @Test
     fun popRemovesAnswerPaperFromStore() {
         val key = PaperStore.put(
             com.shuaiqiu.fuckets100.ETS100AnswerReader.Paper(

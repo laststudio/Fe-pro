@@ -3,10 +3,6 @@ package com.shuaiqiu.fuckets100
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -56,34 +52,12 @@ import com.shuaiqiu.fuckets100.component.material.ExpressiveScaffold
 import com.shuaiqiu.fuckets100.component.material.TopBarBackButton
 import com.shuaiqiu.fuckets100.component.material.expressiveTopAppBarColors
 
-class AboutActivity : ComponentActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        ThemeManager.init(this)
-        setContent {
-            FeTheme {
-                AboutScreen(
-                    onBack = ::finish,
-                    onDonate = {
-                        startActivity(Intent(this, DonateActivity::class.java))
-                    },
-                    onLegal = {
-                        startActivity(Intent(this, LegalActivity::class.java))
-                    },
-                )
-            }
-        }
-    }
-
-}
-
 private const val WEBSITE_URL = "https://lastudio.cc"
 private const val CLOUD_DRIVE_URL = "https://oplist.lastudio.cc/Fe_android"
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun AboutScreen(
+internal fun AboutScreen(
     onBack: () -> Unit,
     onDonate: () -> Unit,
     onLegal: () -> Unit,

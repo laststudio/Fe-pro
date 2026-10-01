@@ -30,6 +30,9 @@ sealed interface FeRoute : NavKey, Parcelable {
     data object ThemeSettings : FeRoute
 
     @Parcelize
+    data object About : FeRoute
+
+    @Parcelize
     data object Legal : FeRoute
 
     @Parcelize

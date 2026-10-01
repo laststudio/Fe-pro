@@ -29,6 +29,7 @@ fun SettingsScreen(
     onNavigateActivation: () -> Unit,
     onNavigateGeneralSettings: () -> Unit,
     onNavigateThemeSettings: () -> Unit,
+    onNavigateAbout: () -> Unit,
     onNavigateAccount: () -> Unit,
     accountSession: FeAccountSession?,
 ) {
@@ -152,7 +153,7 @@ fun SettingsScreen(
                             icon = Icons.Default.Info,
                             title = "关于 Fe",
                             supportingText = "应用信息与致谢",
-                            onClick = { context.startActivity(Intent(context, AboutActivity::class.java)) },
+                            onClick = onNavigateAbout,
                         )
                     },
                     {

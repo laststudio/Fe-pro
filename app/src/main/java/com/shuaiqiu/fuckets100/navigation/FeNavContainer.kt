@@ -29,6 +29,7 @@ import androidx.navigationevent.compose.NavigationEventState
 import androidx.navigationevent.compose.rememberNavigationEventState
 import com.materialkolor.PaletteStyle
 import com.materialkolor.dynamiccolor.ColorSpec
+import com.shuaiqiu.fuckets100.AboutScreen
 import com.shuaiqiu.fuckets100.ActivationMode
 import com.shuaiqiu.fuckets100.ActivationSettingsScreen
 import com.shuaiqiu.fuckets100.AccountDevicesPage
@@ -210,6 +211,13 @@ fun FeNavContainer(
                         onAmoledChanged = onAmoledChanged,
                         onPredictiveBackChanged = onPredictiveBackChanged,
                         onPredictiveBackExitDirectionChanged = onPredictiveBackExitDirectionChanged,
+                    )
+                }
+                entry<FeRoute.About> {
+                    AboutScreen(
+                        onBack = navigator::pop,
+                        onDonate = { navigator.push(FeRoute.Donate) },
+                        onLegal = { navigator.push(FeRoute.Legal) },
                     )
                 }
                 entry<FeRoute.Legal> { LegalScreen(onBack = navigator::pop) }
