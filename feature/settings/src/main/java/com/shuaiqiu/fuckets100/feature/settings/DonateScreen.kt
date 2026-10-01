@@ -53,8 +53,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.shuaiqiu.fuckets100.core.designsystem.ExpressiveScaffold
-import com.shuaiqiu.fuckets100.R
-import com.shuaiqiu.fuckets100.BuildConfig
+import com.shuaiqiu.fuckets100.feature.settings.R
+import com.shuaiqiu.fuckets100.core.common.AppBuildInfo
 import com.shuaiqiu.fuckets100.core.designsystem.TonalCard
 import com.shuaiqiu.fuckets100.core.designsystem.TopBarBackButton
 import com.shuaiqiu.fuckets100.core.designsystem.expressiveTopAppBarColors

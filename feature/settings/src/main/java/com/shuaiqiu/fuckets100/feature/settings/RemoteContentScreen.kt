@@ -44,7 +44,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.shuaiqiu.fuckets100.core.designsystem.ExpressiveScaffold
-import com.shuaiqiu.fuckets100.BuildConfig
+import com.shuaiqiu.fuckets100.core.common.AppBuildInfo
 import com.shuaiqiu.fuckets100.core.designsystem.TonalCard
 import com.shuaiqiu.fuckets100.core.designsystem.TopBarBackButton
 import com.shuaiqiu.fuckets100.core.designsystem.expressiveTopAppBarColors
@@ -73,6 +73,7 @@ fun RemoteContentScreen(
     onBack: () -> Unit,
     viewModel: RemoteContentViewModel = hiltViewModel(),
 ) {
+    val appVersionName = viewModel.appVersionName
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var announcementBody by remember(content) {
@@ -103,7 +104,7 @@ fun RemoteContentScreen(
             successCount++
         }
         if (content.changelogContent.isNotBlank()) {
-            changelogBody = parseCurrentVersionChangelog(content.changelogContent, BuildConfig.VERSION_NAME)
+            changelogBody = parseCurrentVersionChangelog(content.changelogContent, appVersionName)
                 .ifBlank { parseRemoteContent(content.changelogContent) }
             successCount++
         }

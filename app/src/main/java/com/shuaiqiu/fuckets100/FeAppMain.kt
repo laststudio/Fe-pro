@@ -25,6 +25,7 @@ import com.shuaiqiu.fuckets100.feature.settings.RemoteContent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.shuaiqiu.fuckets100.feature.home.HomeScreen
+import com.shuaiqiu.fuckets100.feature.account.AccountInitialAvatar
 import com.shuaiqiu.fuckets100.feature.read.ReadScreen
 import com.shuaiqiu.fuckets100.navigation.FeNavContainer
 import com.shuaiqiu.fuckets100.navigation.FeNavigator
@@ -304,7 +305,14 @@ fun FeAppMain(
                             onNavigateThemeSettings = { navigator.push(FeRoute.ThemeSettings) },
                             onNavigateAbout = { navigator.push(FeRoute.About) },
                             onNavigateAccount = { navigator.push(FeRoute.Account) },
-                             accountSession = feAccountState.cachedSessionOrNull,
+                            accountSession = feAccountState.cachedSessionOrNull,
+                            avatar = {
+                                AccountInitialAvatar(
+                                    username = feAccountState.cachedSessionOrNull?.user?.username.orEmpty(),
+                                    avatarUrl = feAccountState.cachedSessionOrNull?.user?.avatarUrl,
+                                    userId = feAccountState.cachedSessionOrNull?.user?.id,
+                                )
+                            },
                         )
                     }
                 }

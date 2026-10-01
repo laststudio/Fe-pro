@@ -119,6 +119,7 @@ dependencies {
     implementation(project(":data:account"))
     implementation(project(":data:ets100"))
     implementation(project(":feature:home"))
+    implementation(project(":feature:settings"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)

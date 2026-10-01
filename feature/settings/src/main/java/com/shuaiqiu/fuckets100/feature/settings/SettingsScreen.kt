@@ -19,7 +19,6 @@ import androidx.compose.ui.unit.dp
 import android.content.Intent
 import android.net.Uri
 import com.shuaiqiu.fuckets100.core.designsystem.ExpressiveScaffold
-import com.shuaiqiu.fuckets100.feature.account.AccountInitialAvatar
 import com.shuaiqiu.fuckets100.core.designsystem.ExpressiveSegmentedListItem
 import com.shuaiqiu.fuckets100.core.designsystem.SegmentedColumn
 import com.shuaiqiu.fuckets100.core.designsystem.expressiveTopAppBarColors
@@ -34,6 +33,7 @@ fun SettingsScreen(
     onNavigateAbout: () -> Unit,
     onNavigateAccount: () -> Unit,
     accountSession: FeAccountSession?,
+    avatar: @Composable () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -77,11 +77,7 @@ fun SettingsScreen(
                     Modifier.fillMaxWidth().padding(20.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    AccountInitialAvatar(
-                        username = accountSession?.user?.username.orEmpty(),
-                        avatarUrl = accountSession?.user?.avatarUrl,
-                        userId = accountSession?.user?.id,
-                    )
+                    avatar()
                     Spacer(Modifier.width(16.dp))
                     Column(Modifier.weight(1f)) {
                         Text(

@@ -48,9 +48,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.shuaiqiu.fuckets100.core.designsystem.ExpressiveScaffold
-import com.shuaiqiu.fuckets100.R
-import com.shuaiqiu.fuckets100.BuildConfig
+import com.shuaiqiu.fuckets100.feature.settings.R
+import com.shuaiqiu.fuckets100.core.common.AppBuildInfo
 import com.shuaiqiu.fuckets100.core.designsystem.TopBarBackButton
 import com.shuaiqiu.fuckets100.core.designsystem.expressiveTopAppBarColors
 
@@ -59,11 +60,13 @@ private const val CLOUD_DRIVE_URL = "https://oplist.lastudio.cc/Fe_android"
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-internal fun AboutScreen(
+fun AboutScreen(
     onBack: () -> Unit,
     onDonate: () -> Unit,
     onLegal: () -> Unit,
+    viewModel: AboutViewModel = hiltViewModel(),
 ) {
+    val buildInfo = viewModel.buildInfo
     val context = LocalContext.current
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
@@ -95,13 +98,13 @@ internal fun AboutScreen(
         ) {
             Spacer(Modifier.size(4.dp))
 
-            AboutHeroCard()
+            AboutHeroCard(buildInfo)
 
             AboutSection(title = "应用信息") {
                 AboutLinkRow(
                     icon = Icons.Default.Info,
                     title = "版本与软件说明",
-                    subtitle = "Fe ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE}) · 专有商业软件",
+                    subtitle = "Fe ${buildInfo.versionName} (${buildInfo.versionCode}) · 专有商业软件",
                     trailingIcon = null,
                 )
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -166,7 +169,7 @@ internal fun AboutScreen(
 }
 
 @Composable
-private fun AboutHeroCard() {
+private fun AboutHeroCard(buildInfo: AppBuildInfo) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.extraLarge,
@@ -198,7 +201,7 @@ private fun AboutHeroCard() {
             )
             Spacer(Modifier.size(10.dp))
             Text(
-                text = "版本 ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                text = "版本 ${buildInfo.versionName} (${buildInfo.versionCode})",
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
             )

@@ -105,7 +105,6 @@ import com.shuaiqiu.fuckets100.core.designsystem.TonalCard
 import com.shuaiqiu.fuckets100.core.designsystem.TopBarBackButton
 import com.shuaiqiu.fuckets100.core.designsystem.expressiveTopAppBarColors
 
-import com.shuaiqiu.fuckets100.FeThemeWrapper
 import com.shuaiqiu.fuckets100.PredictiveBackAnimation
 import com.shuaiqiu.fuckets100.PredictiveBackExitDirection
 private enum class ThemeDisplayMode {
