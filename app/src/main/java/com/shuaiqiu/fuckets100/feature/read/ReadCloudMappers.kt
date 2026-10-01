@@ -152,3 +152,19 @@ internal fun normalizeCloudParsedSections(
     return normalizedSections
 }
 
+
+/** 云端分类 -> 请求状态映射。 */
+internal fun cloudStatusForCategory(category: String): String =
+    if (category == CloudHomeworkState.CATEGORY_HISTORY) {
+        CloudHomeworkState.STATUS_HISTORY
+    } else {
+        CloudHomeworkState.STATUS_CURRENT
+    }
+
+/** 请求状态 -> 云端分类映射。 */
+internal fun cloudCategoryForStatus(status: String): String =
+    if (status == CloudHomeworkState.STATUS_HISTORY) {
+        CloudHomeworkState.CATEGORY_HISTORY
+    } else {
+        CloudHomeworkState.CATEGORY_CURRENT
+    }

@@ -5,33 +5,30 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.shuaiqiu.fuckets100.ActivationMode
+import com.shuaiqiu.fuckets100.CloudHomeworkState
 import com.shuaiqiu.fuckets100.ETS100AnswerReader
+import com.shuaiqiu.fuckets100.ETS100ApiClient
 import com.shuaiqiu.fuckets100.ETS100FileReader
 import com.shuaiqiu.fuckets100.FeAccountManager
+import com.shuaiqiu.fuckets100.PaperSource
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.updateAndGet
 import kotlinx.coroutines.launch
-
-data class ReadUiState(
-    val readerInfo: String = "",
-    val dataFiles: List<ETS100FileReader.FileItem> = emptyList(),
-    val resourceFiles: List<ETS100FileReader.FileItem> = emptyList(),
-    val papers: List<ETS100AnswerReader.Paper> = emptyList(),
-    val isLoading: Boolean = false,
-    val isParsingLocalAnswers: Boolean = false,
-    val errorMessage: String? = null,
-    val reloadTrigger: Int = 0,
-    val localProgress: LocalReadProgress = LocalReadProgress(),
-)
+import kotlinx.coroutines.withContext
+import java.io.File
 
 @HiltViewModel
 class ReadViewModel @Inject constructor(
@@ -41,10 +38,17 @@ class ReadViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(ReadUiState())
     val uiState: StateFlow<ReadUiState> = _uiState.asStateFlow()
 
+    private val _effects = Channel<ReadEffect>(Channel.BUFFERED)
+    val effects: Flow<ReadEffect> = _effects.receiveAsFlow()
+
     private var activeMode: ActivationMode? = null
     private var cachedLocalSnapshot: ReadPageStateStore.LocalSnapshot? = null
     private var loadJob: Job? = null
     private var parseJob: Job? = null
+
+    init {
+        restoreCloudSnapshotIfNeeded()
+    }
 
     fun loadLocal(
         mode: ActivationMode,
@@ -242,29 +246,429 @@ class ReadViewModel @Inject constructor(
         requestReload()
     }
 
-    fun clearPapers() {
-        _uiState.update { it.copy(papers = emptyList()) }
-    }
 
-    fun clearLocalReadState() {
-        loadJob?.cancel()
-        parseJob?.cancel()
-        loadJob = null
-        parseJob = null
-        ReadPageStateStore.clearLocal(context)
+    // ==================== 云端模式 ====================
+
+    fun selectCloudCategory(category: String) {
+        val state = _uiState.value
+        if (category == state.selectedCloudCategory) return
+
+        val targetStatus = cloudStatusForCategory(category)
+        CloudHomeworkState.selectedCategory = category
+        CloudHomeworkState.selectedStatus = targetStatus
+        CloudHomeworkState.error = null
         _uiState.update {
             it.copy(
-                readerInfo = "",
-                dataFiles = emptyList(),
-                resourceFiles = emptyList(),
-                papers = emptyList(),
-                isLoading = false,
-                isParsingLocalAnswers = false,
-                errorMessage = null,
-                localProgress = LocalReadProgress(),
+                selectedCloudCategory = category,
+                selectedCloudHomeworkStatus = targetStatus,
+                cloudHomeworkError = null,
+            )
+        }
+        // 分类切换只切换当前视图，不自动发起网络读取；由用户点击“读取作业”主动加载。
+        _effects.trySend(ReadEffect.ClearPaperSelection)
+        saveCloudReadState()
+    }
+
+    fun selectCloudHomeworkStatus(status: String) {
+        selectCloudCategory(cloudCategoryForStatus(status))
+    }
+
+    fun restoreCloudSnapshotIfNeeded() {
+        if (cloudSnapshotRestored) return
+        cloudSnapshotRestored = true
+        val snapshot = ReadPageStateStore.loadCloud(context) ?: return
+        if (CloudHomeworkState.homeworkListsByStatus.isNotEmpty() ||
+            CloudHomeworkState.downloadedPapers.isNotEmpty()
+        ) {
+            return
+        }
+        val (validDownloadedPapers, validHomeworkNames) = ReadDerivedState.sanitizeDownloadedPapers(
+            downloadedPapers = snapshot.downloadedPapers,
+            downloadedHomeworkNames = snapshot.downloadedHomeworkNames,
+        )
+        CloudHomeworkState.selectedStatus = snapshot.selectedStatus
+        CloudHomeworkState.selectedCategory = snapshot.selectedCategory
+        CloudHomeworkState.homeworkListsByStatus = snapshot.homeworkListsByStatus
+        CloudHomeworkState.cloudBaseUrl = snapshot.cloudBaseUrl
+        CloudHomeworkState.downloadedPapers = validDownloadedPapers
+        CloudHomeworkState.downloadedHomeworkNames = validHomeworkNames
+        CloudHomeworkState.failedCloudHomeworks = snapshot.failedCloudHomeworks
+        _uiState.update {
+            it.copy(
+                selectedCloudCategory = snapshot.selectedCategory,
+                selectedCloudHomeworkStatus = snapshot.selectedStatus,
+                homeworkListsByStatus = snapshot.homeworkListsByStatus,
+                cloudBaseUrl = snapshot.cloudBaseUrl,
+                downloadedPapers = validDownloadedPapers,
+                downloadedHomeworkNames = validHomeworkNames,
+                failedCloudHomeworks = snapshot.failedCloudHomeworks,
             )
         }
     }
+
+    fun saveCloudReadState() {
+        val state = _uiState.value
+        ReadPageStateStore.saveCloud(
+            context,
+            ReadPageStateStore.CloudSnapshot(
+                selectedStatus = state.selectedCloudHomeworkStatus,
+                homeworkListsByStatus = state.homeworkListsByStatus,
+                cloudBaseUrl = state.cloudBaseUrl,
+                downloadedPapers = state.downloadedPapers,
+                downloadedHomeworkNames = state.downloadedHomeworkNames,
+                failedCloudHomeworks = state.failedCloudHomeworks,
+                selectedCategory = state.selectedCloudCategory,
+            )
+        )
+    }
+
+    fun updateCloudDownloadProgress(
+        cacheKey: String,
+        progress: CloudHomeworkState.DownloadProgress?,
+    ) {
+        _uiState.update { state ->
+            val next = if (progress == null) {
+                state.cloudDownloadProgress - cacheKey
+            } else {
+                state.cloudDownloadProgress + (cacheKey to progress)
+            }
+            CloudHomeworkState.cloudDownloadProgress = next
+            state.copy(cloudDownloadProgress = next)
+        }
+    }
+
+    suspend fun loadCloudHomeworkList(
+        status: String = _uiState.value.selectedCloudHomeworkStatus,
+        accountOnline: Boolean,
+    ) {
+        if (_uiState.value.isLoadingCloudHomework) return
+
+        // 先进入加载态，再执行授权校验和账号获取，避免点击后网络操作期间页面像卡死。
+        CloudHomeworkState.isLoading = true
+        CloudHomeworkState.error = null
+        _uiState.update {
+            it.copy(
+                isLoadingCloudHomework = true,
+                cloudHomeworkError = null,
+                changyanTokenExpired = false,
+                selectedCloudHomeworkStatus = status,
+            )
+        }
+        CloudHomeworkState.selectedStatus = status
+
+        val result = loadCloudHomeworkListResult(
+            context = context,
+            status = status,
+            accountOnline = accountOnline,
+            accountManager = accountManager,
+        )
+
+        when (result) {
+            is CloudHomeworkListResult.Success -> {
+                val state = _uiState.value
+                val nextLists = state.homeworkListsByStatus + (status to result.homeworks)
+                val nextBaseUrl = result.baseUrl.ifBlank { state.cloudBaseUrl }
+                CloudHomeworkState.homeworkListsByStatus = nextLists
+                CloudHomeworkState.cloudBaseUrl = nextBaseUrl
+                CloudHomeworkState.error = null
+                CloudHomeworkState.isLoading = false
+                _uiState.update {
+                    it.copy(
+                        homeworkListsByStatus = nextLists,
+                        cloudBaseUrl = nextBaseUrl,
+                        isLoadingCloudHomework = false,
+                        cloudHomeworkError = null,
+                        changyanTokenExpired = false,
+                    )
+                }
+                saveCloudReadState()
+            }
+
+            is CloudHomeworkListResult.ChangyanExpired -> {
+                CloudHomeworkState.error = result.message
+                CloudHomeworkState.isLoading = false
+                _uiState.update {
+                    it.copy(
+                        isLoadingCloudHomework = false,
+                        cloudHomeworkError = result.message,
+                        changyanTokenExpired = true,
+                    )
+                }
+            }
+
+            is CloudHomeworkListResult.Failure -> {
+                CloudHomeworkState.error = result.message
+                CloudHomeworkState.isLoading = false
+                _uiState.update {
+                    it.copy(
+                        isLoadingCloudHomework = false,
+                        cloudHomeworkError = result.message,
+                    )
+                }
+            }
+        }
+    }
+
+    /** 由界面触发下载；协程生命周期跟随 ViewModel。 */
+    fun requestHomeworkDownload(
+        homeworkInfo: ETS100ApiClient.HomeworkInfo,
+        status: String,
+        accountOnline: Boolean,
+    ) {
+        viewModelScope.launch {
+            downloadAndParseHomework(
+                homeworkInfo = homeworkInfo,
+                status = status,
+                accountOnline = accountOnline,
+            )
+        }
+    }
+
+    suspend fun downloadAndParseHomework(
+        homeworkInfo: ETS100ApiClient.HomeworkInfo,
+        status: String = _uiState.value.selectedCloudHomeworkStatus,
+        accountOnline: Boolean,
+    ) {
+        val state = _uiState.value
+        val cacheKey = cloudHomeworkCacheKey(status, homeworkInfo)
+        val currentKey = cloudHomeworkCacheKey(CloudHomeworkState.STATUS_CURRENT, homeworkInfo)
+        val historyKey = cloudHomeworkCacheKey(CloudHomeworkState.STATUS_HISTORY, homeworkInfo)
+        val targetIdentity = cloudHomeworkIdentity(homeworkInfo)
+
+        // 1. 命中已解析缓存则直接打开
+        val existingPaper = state.downloadedPapers[cacheKey]?.firstOrNull { it.sections.isNotEmpty() }
+            ?: state.downloadedPapers[currentKey]?.firstOrNull { it.sections.isNotEmpty() }
+            ?: state.downloadedPapers[historyKey]?.firstOrNull { it.sections.isNotEmpty() }
+            ?: state.downloadedPapers.entries.firstOrNull { (k, list) ->
+                (k.endsWith(":$targetIdentity") ||
+                    list.firstOrNull()?.source.let { it is PaperSource.Cloud && it.homeworkIdentity == targetIdentity }) &&
+                    list.firstOrNull()?.sections?.isNotEmpty() == true
+            }?.value?.firstOrNull()
+
+        if (existingPaper != null) {
+            ReadCloudLog.info("📁 缓存命中，作业已解析喵: ${homeworkInfo.name}")
+            val clearedDownloading = state.cloudDownloadingHomeworks - cacheKey - currentKey - historyKey
+            val clearedProgress = state.cloudDownloadProgress - cacheKey - currentKey - historyKey
+            val nextNames = state.downloadedHomeworkNames + cacheKey
+            CloudHomeworkState.cloudDownloadingHomeworks = clearedDownloading
+            CloudHomeworkState.cloudDownloadProgress = clearedProgress
+            CloudHomeworkState.downloadedHomeworkNames = nextNames
+            _uiState.update {
+                it.copy(
+                    cloudDownloadingHomeworks = clearedDownloading,
+                    cloudDownloadProgress = clearedProgress,
+                    downloadedHomeworkNames = nextNames,
+                )
+            }
+            _effects.trySend(ReadEffect.OpenPaperDetail(existingPaper))
+            return
+        }
+
+        if (!accountOnline) {
+            val cleared = state.cloudDownloadingHomeworks - cacheKey
+            CloudHomeworkState.cloudDownloadingHomeworks = cleared
+            _uiState.update { it.copy(cloudDownloadingHomeworks = cleared) }
+            _effects.trySend(ReadEffect.ShowToast("已离线"))
+            return
+        }
+
+        // 进入下载中状态并显示授权校验进度
+        val downloading = state.cloudDownloadingHomeworks + cacheKey
+        val failed = state.failedCloudHomeworks - cacheKey
+        val papersWithoutKey = state.downloadedPapers - cacheKey
+        CloudHomeworkState.cloudDownloadingHomeworks = downloading
+        CloudHomeworkState.failedCloudHomeworks = failed
+        CloudHomeworkState.downloadedPapers = papersWithoutKey
+        _uiState.update {
+            it.copy(
+                cloudDownloadingHomeworks = downloading,
+                failedCloudHomeworks = failed,
+                downloadedPapers = papersWithoutKey,
+            )
+        }
+        updateCloudDownloadProgress(
+            cacheKey,
+            CloudHomeworkState.DownloadProgress(currentFileName = "正在校验授权..."),
+        )
+
+        val result = downloadAndParseCloudPaper(
+            context = context,
+            homeworkInfo = homeworkInfo,
+            status = status,
+            cloudBaseUrl = state.cloudBaseUrl,
+            onProgress = { progress ->
+                // 下载回调运行在 IO 线程；进度状态保持在主线程更新。
+                withContext(Dispatchers.Main) {
+                    updateCloudDownloadProgress(cacheKey, progress)
+                }
+            },
+        )
+
+        try {
+            when (result) {
+                is CloudPaperResult.Success -> {
+                    val current = _uiState.value
+                    val nextPapers = current.downloadedPapers + (cacheKey to listOf(result.paper))
+                    val nextNames = current.downloadedHomeworkNames + cacheKey
+                    val nextDownloading = current.cloudDownloadingHomeworks - cacheKey
+                    val nextProgress = current.cloudDownloadProgress - cacheKey
+                    val nextFailed = current.failedCloudHomeworks - cacheKey
+                    CloudHomeworkState.downloadedPapers = nextPapers
+                    CloudHomeworkState.downloadedHomeworkNames = nextNames
+                    CloudHomeworkState.cloudDownloadingHomeworks = nextDownloading
+                    CloudHomeworkState.cloudDownloadProgress = nextProgress
+                    CloudHomeworkState.failedCloudHomeworks = nextFailed
+                    _uiState.update {
+                        it.copy(
+                            downloadedPapers = nextPapers,
+                            downloadedHomeworkNames = nextNames,
+                            cloudDownloadingHomeworks = nextDownloading,
+                            cloudDownloadProgress = nextProgress,
+                            failedCloudHomeworks = nextFailed,
+                        )
+                    }
+                    saveCloudReadState()
+                    // 下载成功后不再切换页面，只标记已下载，停留作业列表喵~
+                    _effects.trySend(ReadEffect.ShowToast("下载并解析成功！"))
+                }
+
+                is CloudPaperResult.AuthDenied -> {
+                    val current = _uiState.value
+                    val nextDownloading = current.cloudDownloadingHomeworks - cacheKey
+                    val nextProgress = current.cloudDownloadProgress - cacheKey
+                    CloudHomeworkState.cloudDownloadingHomeworks = nextDownloading
+                    CloudHomeworkState.cloudDownloadProgress = nextProgress
+                    _uiState.update {
+                        it.copy(
+                            cloudDownloadingHomeworks = nextDownloading,
+                            cloudDownloadProgress = nextProgress,
+                        )
+                    }
+                    ReadCloudLog.error("✗ ${result.message}")
+                    _effects.trySend(ReadEffect.ShowToast(result.message, long = result.longToast))
+                }
+
+                is CloudPaperResult.Failure -> {
+                    val current = _uiState.value
+                    val nextDownloading = current.cloudDownloadingHomeworks - cacheKey
+                    val nextProgress = current.cloudDownloadProgress - cacheKey
+                    val nextFailed = current.failedCloudHomeworks + cacheKey
+                    val nextPapers = result.sourceOnlyPaper?.let { current.downloadedPapers + (cacheKey to listOf(it)) }
+                        ?: current.downloadedPapers
+                    CloudHomeworkState.cloudDownloadingHomeworks = nextDownloading
+                    CloudHomeworkState.cloudDownloadProgress = nextProgress
+                    CloudHomeworkState.failedCloudHomeworks = nextFailed
+                    CloudHomeworkState.downloadedPapers = nextPapers
+                    _uiState.update {
+                        it.copy(
+                            downloadedPapers = nextPapers,
+                            cloudDownloadingHomeworks = nextDownloading,
+                            cloudDownloadProgress = nextProgress,
+                            failedCloudHomeworks = nextFailed,
+                        )
+                    }
+                    saveCloudReadState()
+                    _effects.trySend(ReadEffect.ShowToast("下载或解析失败: ${result.message}", long = true))
+                }
+            }
+        } finally {
+            val current = _uiState.value
+            if (current.cloudDownloadingHomeworks.contains(cacheKey)) {
+                val nextDownloading = current.cloudDownloadingHomeworks - cacheKey
+                CloudHomeworkState.cloudDownloadingHomeworks = nextDownloading
+                _uiState.update { it.copy(cloudDownloadingHomeworks = nextDownloading) }
+            }
+        }
+    }
+
+    fun clearCloudHomeworkCache() {
+        if (_uiState.value.isDeleting) return
+        _uiState.update { it.copy(isDeleting = true) }
+        viewModelScope.launch {
+            try {
+                ReadCloudLog.info("🗑️ 开始后台清除云端缓存")
+                withContext(Dispatchers.IO) {
+                    val cacheDir = File(context.cacheDir, "cloud_homework")
+                    if (cacheDir.exists()) {
+                        cacheDir.deleteRecursively()
+                    }
+                }
+                ReadCloudLog.info("🗑️ 已删除云端缓存目录")
+                CloudHomeworkState.clear()
+                ReadPageStateStore.clearCloud(context)
+                _uiState.update {
+                    it.copy(
+                        downloadedPapers = emptyMap(),
+                        downloadedHomeworkNames = emptySet(),
+                        cloudDownloadingHomeworks = emptySet(),
+                        cloudDownloadProgress = emptyMap(),
+                        failedCloudHomeworks = emptySet(),
+                        papers = emptyList(),
+                        homeworkListsByStatus = emptyMap(),
+                        selectedCloudCategory = CloudHomeworkState.CATEGORY_CURRENT,
+                        selectedCloudHomeworkStatus = CloudHomeworkState.STATUS_CURRENT,
+                    )
+                }
+                _effects.trySend(ReadEffect.ShowToast("已清除所有云端缓存"))
+            } catch (e: Exception) {
+                ReadCloudLog.error("✗ 清除云端缓存失败: ${e.message}")
+                _effects.trySend(ReadEffect.ShowToast("删除失败: ${e.message}", long = true))
+            } finally {
+                _uiState.update { it.copy(isDeleting = false) }
+            }
+        }
+    }
+
+    /** 本地模式：删除 data/resource 目录并重新读取。 */
+    fun deleteLocalReadDirectories(mode: ActivationMode) {
+        if (_uiState.value.isDeleting) return
+        _uiState.update { it.copy(isDeleting = true) }
+        viewModelScope.launch {
+            try {
+                ReadCloudLog.warn("🗑️ 开始后台删除 data 和 resource 目录...")
+                val (dataDeleted, resourceDeleted) = withContext(Dispatchers.IO) {
+                    val dataPath = ETS100FileReader.Path.getDataDir()
+                    val resourcePath = ETS100FileReader.Path.getResourceDir()
+                    ETS100FileReader.deleteDirectory(mode, dataPath, context) to
+                        ETS100FileReader.deleteDirectory(mode, resourcePath, context)
+                }
+                if (dataDeleted) ReadCloudLog.success("✅ data 目录删除成功") else ReadCloudLog.error("❌ data 目录删除失败")
+                if (resourceDeleted) {
+                    ReadCloudLog.success("✅ resource 目录删除成功")
+                } else {
+                    ReadCloudLog.error("❌ resource 目录删除失败")
+                }
+
+                loadJob?.cancel()
+                parseJob?.cancel()
+                loadJob = null
+                parseJob = null
+                ReadPageStateStore.clearLocal(context)
+                cachedLocalSnapshot = null
+                _uiState.update {
+                    it.copy(
+                        readerInfo = "",
+                        dataFiles = emptyList(),
+                        resourceFiles = emptyList(),
+                        papers = emptyList(),
+                        isLoading = false,
+                        isParsingLocalAnswers = false,
+                        errorMessage = null,
+                        localProgress = LocalReadProgress(),
+                    )
+                }
+                _effects.trySend(ReadEffect.ClearPaperSelection)
+                requestReload()
+            } catch (e: Exception) {
+                ReadCloudLog.error("❌ 删除失败: ${e.message}")
+                _effects.trySend(ReadEffect.ShowToast("删除失败: ${e.message}", long = true))
+            } finally {
+                _uiState.update { it.copy(isDeleting = false) }
+            }
+        }
+    }
+
+    private var cloudSnapshotRestored = false
 
     private fun prepareMode(mode: ActivationMode) {
         if (activeMode == mode) return
