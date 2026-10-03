@@ -270,7 +270,7 @@ class FeAccountApi(
             } catch (e: FeAccountApiException) {
                 Result.failure(e)
             } catch (e: Exception) {
-                Result.failure(FeAccountNetworkException(e.message ?: "无法连接 LA Studio 服务"))
+                Result.failure(FeAccountNetworkException(e.message ?: "无法连接 LastStudio 服务"))
             } finally {
                 activeConnections -= connection
                 connection.disconnect()

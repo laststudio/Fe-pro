@@ -168,7 +168,7 @@ class FeAccountManager private constructor(
 
     private suspend fun requireAccessTokenLocked(): String {
         if (_gateState.value !is FeAccountGateState.Ready) {
-            throw FeAccountNetworkException("LA Studio 尚未连接")
+            throw FeAccountNetworkException("LastStudio 尚未连接")
         }
         val session = loadVerifiedSessionLocked()
         if (session == null) {

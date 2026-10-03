@@ -82,7 +82,7 @@ object ResolverAuthorizer : AuthCacheInvalidator {
         val token = runCatching { manager.requireAccessToken() }.getOrNull()
         if (token.isNullOrBlank()) {
             invalidateAuthCache()
-            return@withContext "请先登录 LA Studio 账号"
+            return@withContext "请先登录 LastStudio 账号"
         }
         val now = System.currentTimeMillis()
         if (now - lastCloudAuthTime < AUTH_CACHE_TTL_MS && lastCloudAuthToken == token) {
@@ -130,7 +130,7 @@ object ResolverAuthorizer : AuthCacheInvalidator {
         val token = runCatching { manager.requireAccessToken() }.getOrNull()
         if (token.isNullOrBlank()) {
             invalidateAuthCache()
-            return@withContext "请先登录 LA Studio 账号"
+            return@withContext "请先登录 LastStudio 账号"
         }
         val now = System.currentTimeMillis()
         if (now - lastResolverAuthTime < AUTH_CACHE_TTL_MS && lastResolverAuthToken == token) {
@@ -188,7 +188,7 @@ object ResolverAuthorizer : AuthCacheInvalidator {
         } catch (e: AppIntegrityGuard.IntegrityFailure) {
             e.message
         } catch (e: AccountAccessException) {
-            if (e.notAuthenticated) "请先登录 LA Studio 账号" else e.message
+            if (e.notAuthenticated) "请先登录 LastStudio 账号" else e.message
         } catch (e: Exception) {
             "无法连接授权服务，请检查网络后重试"
         }
@@ -216,7 +216,7 @@ object ResolverAuthorizer : AuthCacheInvalidator {
         } catch (e: AppIntegrityGuard.IntegrityFailure) {
             e.message
         } catch (e: AccountAccessException) {
-            if (e.notAuthenticated) "请先登录 LA Studio 账号" else e.message
+            if (e.notAuthenticated) "请先登录 LastStudio 账号" else e.message
         } catch (e: Exception) {
             "无法连接云端授权服务，请检查网络后重试"
         }

@@ -67,7 +67,7 @@ internal suspend fun loadCloudHomeworkListResult(
             candidateAccounts = cloudSession.validAccounts
         } catch (e: Exception) {
             ReadCloudLog.error("✗ 后端绑定账号不可用: ${e.message}")
-            return CloudHomeworkListResult.Failure(e.message ?: "无法读取 LA Studio 绑定账号")
+            return CloudHomeworkListResult.Failure(e.message ?: "无法读取 LastStudio 绑定账号")
         }
     }
 
@@ -152,7 +152,7 @@ internal suspend fun loadCloudHomeworkListResult(
                 persistBoundSession(context, cloudSession)
                 parentId = cloudSession.parentAccountId
                 candidateAccounts = cloudSession.validAccounts
-                ReadCloudLog.info("✓ 已从 LA Studio 后端刷新绑定账号会话")
+                ReadCloudLog.info("✓ 已从 LastStudio 后端刷新绑定账号会话")
                 responses = requestHomeworkLists(cloudSession.token)
             } catch (e: Exception) {
                 lastError = e

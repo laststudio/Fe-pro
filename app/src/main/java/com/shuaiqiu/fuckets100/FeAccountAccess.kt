@@ -18,7 +18,7 @@ internal class FeAccountAccess(private val manager: FeAccountManager) : AccountA
         throw AccountAccessException(
             statusCode = 401,
             notAuthenticated = true,
-            message = "请先登录 LA Studio 账号",
+            message = "请先登录 LastStudio 账号",
         )
     } catch (e: FeAccountApiException) {
         throw AccountAccessException(
@@ -30,7 +30,7 @@ internal class FeAccountAccess(private val manager: FeAccountManager) : AccountA
         throw AccountAccessException(
             statusCode = null,
             notAuthenticated = false,
-            message = e.message ?: "LA Studio 尚未连接",
+            message = e.message ?: "LastStudio 尚未连接",
         )
     }
 

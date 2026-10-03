@@ -28,7 +28,7 @@ fun InAppRegisterScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("注册 LA Studio 账号") },
+                title = { Text("注册 LastStudio 账号") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回登录")
@@ -59,7 +59,7 @@ fun InAppRegisterScreen(
                     )
                     Spacer(Modifier.width(10.dp))
                     Text(
-                        "这是 LA Studio 账号注册页，不是 e听说账号注册页。注册成功后会自动返回登录页，再输入刚注册的账号密码。",
+                        "这是 LastStudio 账号注册页，不是 e听说账号注册页。注册成功后会自动返回登录页，再输入刚注册的账号密码。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

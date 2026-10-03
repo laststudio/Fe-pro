@@ -155,7 +155,7 @@ fun FeAppMain(
         readAccessChecking = true
         readAccessIssue = withContext(Dispatchers.IO) {
             when {
-                !accountOnline -> "LA Studio 账号服务尚未就绪，请先登录或稍后重试"
+                !accountOnline -> "LastStudio 账号服务尚未就绪，请先登录或稍后重试"
                 currentMode == ActivationMode.DEFAULT -> "尚未选择运行模式，请先完成激活配置"
                 currentMode == ActivationMode.CLOUD && !ETS100AuthManager.isLoggedIn(context) ->
                     "云端模式尚未登录，请先完成云端账号绑定"

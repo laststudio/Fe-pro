@@ -47,7 +47,7 @@ internal fun FeLoginScreen(manager: FeAccountManager) {
 
     fun handleRegistrationFinished() {
         showRegister = false
-        Toast.makeText(context, "注册成功，请使用刚注册的 LA Studio 账号登录", Toast.LENGTH_LONG).show()
+        Toast.makeText(context, "注册成功，请使用刚注册的 LastStudio 账号登录", Toast.LENGTH_LONG).show()
     }
 
     fun submit(capToken: String? = pendingCaptchaToken) {
@@ -111,7 +111,7 @@ internal fun FeLoginScreen(manager: FeAccountManager) {
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "使用 LA Studio 账号继续",
+                    "使用 LastStudio 账号继续",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -178,7 +178,7 @@ internal fun FeLoginScreen(manager: FeAccountManager) {
                 TextButton(
                     enabled = !loading,
                     onClick = { showRegister = true },
-                ) { Text("注册 LA Studio 账号") }
+                ) { Text("注册 LastStudio 账号") }
             }
         }
     }

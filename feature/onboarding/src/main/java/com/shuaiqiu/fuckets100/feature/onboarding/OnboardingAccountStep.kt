@@ -105,7 +105,7 @@ internal fun AccountStep(
         Spacer(Modifier.height(16.dp))
 
         Text(
-            text = "连接 LA Studio 账号",
+            text = "连接 LastStudio 账号",
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
         )
@@ -127,7 +127,7 @@ internal fun AccountStep(
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "这是 LA Studio 账号，用来保存设置和使用云端服务。注册完成后回到这里登录；下一步会单独引导你绑定 e听说账号。",
+                    "这是 LastStudio 账号，用来保存设置和使用云端服务。注册完成后回到这里登录；下一步会单独引导你绑定 e听说账号。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -259,7 +259,7 @@ internal fun AccountStep(
                 showRegister = false
                 Toast.makeText(
                     context,
-                    "注册成功，请使用刚注册的 LA Studio 账号登录",
+                    "注册成功，请使用刚注册的 LastStudio 账号登录",
                     Toast.LENGTH_LONG,
                 ).show()
             },

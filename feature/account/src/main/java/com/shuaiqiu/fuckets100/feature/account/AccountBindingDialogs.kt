@@ -142,7 +142,7 @@ internal fun BindEts100Dialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    "绑定的 ETS100 账号凭据将安全加密存储于 LA Studio 后端，仅用于云端作业拉取。",
+                    "绑定的 ETS100 账号凭据将安全加密存储于 LastStudio 后端，仅用于云端作业拉取。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

@@ -107,7 +107,7 @@ fun CloudActivationScreen(
             account.optString("grade"),
             account.optString("class_id"),
         )
-        Toast.makeText(context, "已使用 LA Studio 绑定账号", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, "已使用 LastStudio 绑定账号", Toast.LENGTH_SHORT).show()
         onLoginSuccess()
     }
 
@@ -131,7 +131,7 @@ fun CloudActivationScreen(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                errorMessage = e.message ?: "无法读取 LA Studio 绑定账号"
+                errorMessage = e.message ?: "无法读取 LastStudio 绑定账号"
             } finally {
                 isLoading = false
             }
@@ -205,7 +205,7 @@ fun CloudActivationScreen(
                     )
                     Spacer(Modifier.height(12.dp))
                     Text(
-                        accountDisplay ?: "LA Studio 绑定账号",
+                        accountDisplay ?: "LastStudio 绑定账号",
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold,
                     )
@@ -214,7 +214,7 @@ fun CloudActivationScreen(
                         errorMessage ?: if (isLoading) {
                             "正在从后端读取绑定账号和设备码"
                         } else {
-                            "普通云端模式只使用当前 LA Studio 账号绑定的 ETS100 账号"
+                            "普通云端模式只使用当前 LastStudio 账号绑定的 ETS100 账号"
                         },
                         style = MaterialTheme.typography.bodyMedium,
                         color = if (errorMessage == null) {
@@ -269,7 +269,7 @@ fun CloudActivationScreen(
                     )
                     Spacer(Modifier.width(12.dp))
                     Text(
-                        "上方两种方式都能绑定 e听说（ETS100）学生账号：可以输入手机号和密码，也可以使用讯飞登录。LA Studio 账号只负责登录 Fe 和保存绑定关系。",
+                        "上方两种方式都能绑定 e听说（ETS100）学生账号：可以输入手机号和密码，也可以使用讯飞登录。LastStudio 账号只负责登录 Fe 和保存绑定关系。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

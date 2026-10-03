@@ -49,8 +49,8 @@ import com.shuaiqiu.fuckets100.FeAccountProfileApi
 /**
  * 云端模式共用的 e听说账号绑定卡片。
  *
- * 明确区分两类账号：这里填写的是 e听说/ETS100 的学生账号，不是 Fe 的 LA Studio 账号。
- * 绑定接口仍由 LA Studio 后端完成，但用户不再需要先跳到官网个人中心寻找入口。
+ * 明确区分两类账号：这里填写的是 e听说/ETS100 的学生账号，不是 Fe 的 LastStudio 账号。
+ * 绑定接口仍由 LastStudio 后端完成，但用户不再需要先跳到官网个人中心寻找入口。
  */
 @Composable
 fun EtingshuoBindingCard(
@@ -143,7 +143,7 @@ fun EtingshuoBindingCard(
                         )
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            "这里填写的是 e听说（ETS100）学生账号，不是刚才登录的 LA Studio 账号。通常使用你在 e听说客户端登录的手机号和密码。",
+                            "这里填写的是 e听说（ETS100）学生账号，不是刚才登录的 LastStudio 账号。通常使用你在 e听说客户端登录的手机号和密码。",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSecondaryContainer,
                         )

@@ -37,7 +37,7 @@ internal fun ModeExplanation(mode: ActivationMode) {
             "推荐给大多数用户",
             "不读取手机本地题库，作业和答案由云端服务处理。",
             listOf(
-                "需要：LA Studio 账号 + e听说账号",
+                "需要：LastStudio 账号 + e听说账号",
                 "优点：免 Root、免 Shizuku，配置最少",
                 "适合：想快速开始、只关心作业和答案的用户",
             ),

@@ -86,7 +86,7 @@ fun SettingsScreen(
                             fontWeight = FontWeight.SemiBold,
                         )
                         Text(
-                            accountSession?.user?.let { "LA Studio · ${it.tierDisplayName}" }
+                            accountSession?.user?.let { "LastStudio · ${it.tierDisplayName}" }
                                 ?: "查看账号信息",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

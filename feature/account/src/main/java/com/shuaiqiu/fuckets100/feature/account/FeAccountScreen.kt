@@ -57,7 +57,7 @@ fun FeAccountScreen(
     if (session == null) {
         AccountOfflineMessage(
             message = when (val current = state) {
-                is FeAccountGateState.Checking -> "正在连接 LA Studio…"
+                is FeAccountGateState.Checking -> "正在连接 LastStudio…"
                 is FeAccountGateState.Offline -> current.message
                 is FeAccountGateState.Blocked -> current.message
                 is FeAccountGateState.Ready -> ""
@@ -126,7 +126,7 @@ fun FeAccountScreen(
         ) {
             if (state is FeAccountGateState.Offline || state is FeAccountGateState.Checking) {
                 Text(
-                    text = if (state is FeAccountGateState.Checking) "正在连接 LA Studio…" else "已离线",
+                    text = if (state is FeAccountGateState.Checking) "正在连接 LastStudio…" else "已离线",
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.labelMedium,
                 )
@@ -150,7 +150,7 @@ fun FeAccountScreen(
                         fontWeight = FontWeight.Bold,
                     )
                     Text(
-                        "LA Studio 用户 #${cachedSession.user.id}",
+                        "LastStudio 用户 #${cachedSession.user.id}",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

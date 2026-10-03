@@ -233,7 +233,7 @@ open class ChangyanWebLoginActivity : ComponentActivity() {
         lifecycleScope.launch {
             try {
                 val savedEcardId = ETS100AuthManager.getSelectedEcardId(this@ChangyanWebLoginActivity).orEmpty()
-                // 讯飞登录凭据交给 LA Studio 后端完成校验和绑定。
+                // 讯飞登录凭据交给 LastStudio 后端完成校验和绑定。
                 // 后端返回的短期会话直接用于本地云端读取，避免 Android 端再单独登录一次 ETS100。
                 val session = withContext(Dispatchers.IO) {
                     accountManager.bindChangyanAccount(
@@ -292,7 +292,7 @@ open class ChangyanWebLoginActivity : ComponentActivity() {
         withContext(Dispatchers.Main) {
             Toast.makeText(
                 this@ChangyanWebLoginActivity,
-                "讯飞登录成功，已绑定 LA Studio：${account.name.ifBlank { account.grade }}",
+                "讯飞登录成功，已绑定 LastStudio：${account.name.ifBlank { account.grade }}",
                 Toast.LENGTH_SHORT
             ).show()
             setResult(Activity.RESULT_OK)

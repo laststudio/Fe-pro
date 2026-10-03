@@ -52,7 +52,7 @@ internal fun CloudBindingStep(
         )
         Spacer(Modifier.height(6.dp))
         Text(
-            text = "云端模式还需要一个 e听说（ETS100）学生账号来读取作业。它和刚才的 LA Studio 账号不是同一个账号。",
+            text = "云端模式还需要一个 e听说（ETS100）学生账号来读取作业。它和刚才的 LastStudio 账号不是同一个账号。",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

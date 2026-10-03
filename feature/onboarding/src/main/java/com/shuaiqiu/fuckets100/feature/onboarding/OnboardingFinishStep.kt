@@ -80,7 +80,7 @@ internal fun FinishStep(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 SummaryItem(text = "用户服务协议与免责声明已确认")
-                SummaryItem(text = "LA Studio 云端服务已连接")
+                SummaryItem(text = "LastStudio 云端服务已连接")
                 SummaryItem(text = "默认运行模式：${selectedMode.title}")
             }
         }

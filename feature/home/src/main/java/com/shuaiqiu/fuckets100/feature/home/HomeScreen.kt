@@ -229,10 +229,10 @@ fun StatusCard(
 
     // 根据当前状态显示不同的标题
     val displayTitle = when {
-        isConnecting -> "正在连接 LA Studio"
+        isConnecting -> "正在连接 LastStudio"
         needsLogin -> "需要登录"
-        isOffline -> "LA Studio 已离线"
-        isBlocked -> "LA Studio 当前不可用"
+        isOffline -> "LastStudio 已离线"
+        isBlocked -> "LastStudio 当前不可用"
         mode == ActivationMode.CLOUD && cloudLoggedIn -> "云端模式已激活"
         mode == ActivationMode.CLOUD -> "云端模式未激活"
         // 基础权限未授予时显示等待授权提示
@@ -250,8 +250,8 @@ fun StatusCard(
     }
     val summary = when {
         isConnecting -> "正在验证账号和软件授权，请稍候"
-        needsLogin -> "请先登录 LA Studio 账号后继续使用"
-        isOffline -> "LA Studio 已离线，部分功能受限"
+        needsLogin -> "请先登录 LastStudio 账号后继续使用"
+        isOffline -> "LastStudio 已离线，部分功能受限"
         isBlocked -> accountState.message
         mode == ActivationMode.CLOUD -> if (cloudLoggedIn) "云端作业与试卷解析服务已连接" else "未绑定或未配置云端凭据，点击前往配置"
         !hasAllBasicPermissions -> "需要文件访问权限才能读取题库，请授权"
