@@ -110,8 +110,9 @@ jobs:
           set -euo pipefail
           python scripts/release/extract_changelog.py \
             --version "${{ steps.meta.outputs.version }}" \
-            --apk-url "https://oplist.lastudio.cc/Fe_android" \
-            --release-notes release_notes.md
+            --apk-url "https://fe-web.lastudio.cc/dl/Fe/latest" \
+            --release-notes release_notes.md \
+            --changelog-output current_changelog.md
           printf '\n---\n\n解析器内核：ets_resolver %s\n' "${{ steps.resolver.outputs.resolver_tag }}" >> release_notes.md
 
       - name: Publish Official Release to Fuck_ets100
@@ -178,8 +179,37 @@ jobs:
           python scripts/release/update_remote_config.py \
             --version-code "${{ steps.meta.outputs.version_code }}" \
             --version-name "${{ steps.meta.outputs.version }}" \
-            --apk-url "https://oplist.lastudio.cc/Fe_android" \
+            --apk-url "https://fe-web.lastudio.cc/dl/Fe/latest" \
             --message-file release_notes.md \
             --local-config-file config/config.json \
             --source-changelog-file update.md
+
+      - name: 发送 OneBot 群通知
+        continue-on-error: true
+        shell: bash
+        env:
+          ONEBOT_HTTP_URL: ${{ secrets.ONEBOT_HTTP_URL }}
+          ONEBOT_GROUP_ID: ${{ secrets.ONEBOT_GROUP_ID }}
+          ONEBOT_ACCESS_TOKEN: ${{ secrets.ONEBOT_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${ONEBOT_HTTP_URL:-}" ] || [ -z "${ONEBOT_GROUP_ID:-}" ]; then
+            echo "OneBot 配置不完整，跳过群通知。"
+            exit 0
+          fi
+          {
+            echo "新版本发布啦喵~"
+            echo "最新版本为${{ steps.meta.outputs.version }}"
+            echo "前往下载:https://fe-web.lastudio.cc/dl/Fe/latest"
+            echo
+            echo "更新日志:"
+            sed -E '/^##[[:space:]]+/d; /^>[[:space:]]*内部版本号/d; /^[[:space:]]*$/d' current_changelog.md
+          } > onebot_message.txt
+          python scripts/release/notify_onebot.py \
+            --api-url "${ONEBOT_HTTP_URL}" \
+            --group-id "${ONEBOT_GROUP_ID}" \
+            --message-file onebot_message.txt \
+            --upload-file "https://github.com/${PUBLIC_RELEASE_REPOSITORY}/releases/download/${{ steps.meta.outputs.public_tag }}/${{ steps.meta.outputs.apk_name }}" \
+            --upload-name "${{ steps.meta.outputs.apk_name }}" \
+            --access-token "${ONEBOT_ACCESS_TOKEN:-}"
 

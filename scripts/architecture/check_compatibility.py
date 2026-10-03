@@ -72,7 +72,7 @@ def main() -> int:
             "https://oplist.lastudio.cc/Fe_android",
         ],
         "scripts/release/update_remote_config.py": [
-            "https://oplist.lastudio.cc/Fe_android",
+            "https://fe-web.lastudio.cc/dl/Fe/latest",
         ],
     }
     for relative, needles in urls.items():
