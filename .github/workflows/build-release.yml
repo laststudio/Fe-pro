@@ -13,7 +13,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  SO_REPO: laststudio/ets_resolver
   PUBLIC_RELEASE_REPOSITORY: laststudio/Fuck_ets100
 
 jobs:
@@ -37,27 +36,11 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Verify or download resolver/cloud SOs
-        env:
-          SO_TOKEN: ${{ secrets.PUBLIC_RELEASE_TOKEN }}
-        run: |
-          set -euo pipefail
-          mkdir -p app/src/main/jniLibs/arm64-v8a
-          if [ ! -f app/src/main/jniLibs/arm64-v8a/libresolver.so ] || [ ! -f app/src/main/jniLibs/arm64-v8a/libcloud.so ]; then
-            test -n "${SO_TOKEN}" || { echo "缺少 PUBLIC_RELEASE_TOKEN 用于读取 ets_resolver"; exit 1; }
-            GH_TOKEN="${SO_TOKEN}" gh release download \
-              --repo "${SO_REPO}" \
-              --pattern 'libresolver.so' \
-              --pattern 'libcloud.so' \
-              --dir app/src/main/jniLibs/arm64-v8a \
-              --clobber
-          else
-            echo "Using repository bundled libresolver.so and libcloud.so"
-          fi
-          file app/src/main/jniLibs/arm64-v8a/libresolver.so app/src/main/jniLibs/arm64-v8a/libcloud.so | grep -q 'ELF 64-bit LSB shared object'
-          sha256sum app/src/main/jniLibs/arm64-v8a/libresolver.so app/src/main/jniLibs/arm64-v8a/libcloud.so
-          readelf -s app/src/main/jniLibs/arm64-v8a/libresolver.so 2>/dev/null | grep -q JNI_OnLoad || nm -D --defined-only app/src/main/jniLibs/arm64-v8a/libresolver.so 2>/dev/null | grep -q JNI_OnLoad
-          readelf -s app/src/main/jniLibs/arm64-v8a/libcloud.so 2>/dev/null | grep -q JNI_OnLoad || nm -D --defined-only app/src/main/jniLibs/arm64-v8a/libcloud.so 2>/dev/null | grep -q JNI_OnLoad
+      - name: Fetch latest resolver/cloud SOs
+        id: resolver
+        uses: ./.github/actions/fetch-latest-resolver
+        with:
+          token: ${{ secrets.PUBLIC_RELEASE_TOKEN }}
 
       - name: Decode Android keystore
         env:
@@ -113,6 +96,7 @@ jobs:
         with:
           tag_name: ${{ steps.meta.outputs.ci_tag }}
           name: "Fe ${{ steps.meta.outputs.ci_tag }}"
+          body: "解析器内核：ets_resolver ${{ steps.resolver.outputs.resolver_tag }}"
           draft: false
           prerelease: false
           generate_release_notes: true
@@ -128,6 +112,7 @@ jobs:
             --version "${{ steps.meta.outputs.version }}" \
             --apk-url "https://oplist.lastudio.cc/Fe_android" \
             --release-notes release_notes.md
+          printf '\n---\n\n解析器内核：ets_resolver %s\n' "${{ steps.resolver.outputs.resolver_tag }}" >> release_notes.md
 
       - name: Publish Official Release to Fuck_ets100
         env:
