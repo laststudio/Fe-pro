@@ -71,6 +71,7 @@ class FeAccountApi(
             .put("platform_device_id", platformDeviceId())
             .put("application_id", buildInfo.applicationId)
             .put("signing_certificate_sha256", signingCertificateSha256())
+            .put("is_debuggable", isDebuggableBuild())
             .put("version_code", buildInfo.versionCode)
             .put("device_name", "${Build.MANUFACTURER} ${Build.MODEL}".trim())
             .put("platform_version", "Android ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})")
@@ -290,6 +291,9 @@ class FeAccountApi(
             .orEmpty()
         return sha256LowerHex("${buildInfo.applicationId}:$androidId")
     }
+
+    private fun isDebuggableBuild(): Boolean =
+        (context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
 
     @Suppress("DEPRECATION")
     private fun signingCertificateSha256(): String {
