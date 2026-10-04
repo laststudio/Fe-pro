@@ -158,7 +158,8 @@ internal fun FeRootActivationPanel(
 
     suspend fun refreshRootAvailability() {
         isRootAvailable = withContext(Dispatchers.IO) {
-            RootManager.isRootAvailable()
+            // 手动在 Magisk 管理器里授权不会产生任何回调，刷新必须绕过进程级缓存真实重检
+            RootManager.isRootAvailable(refresh = true)
         }
     }
 
@@ -217,8 +218,7 @@ internal fun FeRootActivationPanel(
                         isChecking = true
                         refreshScope.launch {
                             val available = withContext(Dispatchers.IO) {
-                                RootManager.clearCache()
-                                RootManager.isRootAvailable()
+                                RootManager.isRootAvailable(refresh = true)
                             }
                             isRootAvailable = available
                             isChecking = false

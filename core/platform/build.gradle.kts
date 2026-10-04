@@ -34,6 +34,7 @@ dependencies {
     implementation(project(":core:model"))
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.runtime)
+    implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.core.ktx)
     // Shizuku support allows privileged file access without bundling a root daemon.
     api(libs.shizuku.api)

@@ -39,8 +39,9 @@ internal fun FeModeStatusCard(
     val refreshScope = rememberCoroutineScope()
 
     suspend fun refreshAvailability() {
+        // 手动授权不会产生任何回调，刷新必须绕过 RootManager 的进程级缓存真实重检
         val availability = withContext(Dispatchers.IO) {
-            RootManager.isRootAvailable() to ZWCHelper.isDirectReadAvailable()
+            RootManager.isRootAvailable(refresh = true) to ZWCHelper.isDirectReadAvailable()
         }
         isRootAvailable = availability.first
         isDirectReadAvailable = availability.second

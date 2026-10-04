@@ -15,18 +15,22 @@ object RootManager {
     
     private const val TAG = "RootManager"
     
-    // 缓存 Root 运行时状态，避免重复检测
+    // 缓存 Root 运行时状态，避免重复检测；IO 线程与主线程都会读写，需 @Volatile 保证可见性
+    @Volatile
     private var cachedRootAvailable: Boolean? = null
-    
+
     /**
      * 检测 Root 运行时是否可用
      * 优先使用 `id` 命令检测当前用户是否为 Root 用户
+     * @param refresh true 表示忽略缓存强制重新检测。手动在 Magisk 等管理器里授权不会产生
+     * 任何回调，"从外部授权后回来刷新"的场景必须传 true，否则会一直读到授权前的旧结果
      * @return true 表示拥有 Root 权限的设备已获取 Root 权限
      */
-    fun isRootAvailable(): Boolean {
-        // 使用缓存避免重复检测
-        cachedRootAvailable?.let { return it }
-        
+    fun isRootAvailable(refresh: Boolean = false): Boolean {
+        if (!refresh) {
+            cachedRootAvailable?.let { return it }
+        }
+
         val result = execCommand("id")
         val isRoot = result?.contains("uid=0") == true
         

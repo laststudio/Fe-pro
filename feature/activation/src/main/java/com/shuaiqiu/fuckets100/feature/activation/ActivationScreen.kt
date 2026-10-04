@@ -77,8 +77,8 @@ fun ActivationSettingsScreen(
     }
 
     // 处理 Shizuku 权限请求回调
-    LaunchedEffect(Unit) {
-        val permissionListener: (Int, Int) -> Unit = { requestCode, grantResult ->
+    DisposableEffect(Unit) {
+        val permissionListener = ShizukuManager.addPermissionResultListener { requestCode, grantResult ->
             if (requestCode == ShizukuManager.REQUEST_CODE_SHIZUKU_PERMISSION) {
                 pendingPermissionRequest = false
                 if (grantResult == PackageManager.PERMISSION_GRANTED) {
@@ -90,7 +90,9 @@ fun ActivationSettingsScreen(
                 }
             }
         }
-        ShizukuManager.addPermissionResultListener(permissionListener)
+        onDispose {
+            ShizukuManager.removePermissionResultListener(permissionListener)
+        }
     }
 
     val successColor = MaterialTheme.colorScheme.primary

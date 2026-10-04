@@ -144,6 +144,29 @@ fun FeAppMain(
 
     var readAccessChecking by remember { mutableStateOf(true) }
     var readAccessIssue by remember { mutableStateOf<String?>(null) }
+    // Shizuku/Root 在 App 外手动授权不会产生任何回调，ON_RESUME 时递增以触发预检重算
+    var readAccessRefreshRevision by remember { mutableIntStateOf(0) }
+    var computedReadAccessRevision by remember { mutableIntStateOf(0) }
+
+    suspend fun computeReadAccessIssue(): String? = withContext(Dispatchers.IO) {
+        when {
+            !accountOnline -> "LastStudio 账号服务尚未就绪，请先登录或稍后重试"
+            currentMode == ActivationMode.DEFAULT -> "尚未选择运行模式，请先完成激活配置"
+            currentMode == ActivationMode.CLOUD && !ETS100AuthManager.isLoggedIn(context) ->
+                "云端模式尚未登录，请先完成云端账号绑定"
+            currentMode != ActivationMode.CLOUD && !PermissionsHelper.hasAllFilesAccess() ->
+                "缺少文件访问权限，无法读取本地答题数据"
+            currentMode == ActivationMode.SHIZUKU && !shizukuState.isRunning ->
+                "Shizuku 服务未运行，暂时无法读取本地答题数据"
+            currentMode == ActivationMode.SHIZUKU && !shizukuState.permissionGranted ->
+                "Shizuku 尚未授权，请先完成 Shizuku 授权"
+            currentMode == ActivationMode.ROOT && !RootManager.isRootAvailable(refresh = true) ->
+                "Root 权限尚未获取，暂时无法读取本地答题数据"
+            currentMode == ActivationMode.DIRECT_READ && !ZWCHelper.isDirectReadAvailable() ->
+                "漏洞直读尚未就绪，请先在激活页面测试可用性"
+            else -> null
+        }
+    }
 
     // 进入读取页前先做一次统一预检，避免把未激活/未授权状态转化成底层异常。
     LaunchedEffect(
@@ -151,33 +174,23 @@ fun FeAppMain(
         accountOnline,
         shizukuState.isRunning,
         shizukuState.permissionGranted,
+        readAccessRefreshRevision,
     ) {
-        readAccessChecking = true
-        readAccessIssue = withContext(Dispatchers.IO) {
-            when {
-                !accountOnline -> "LastStudio 账号服务尚未就绪，请先登录或稍后重试"
-                currentMode == ActivationMode.DEFAULT -> "尚未选择运行模式，请先完成激活配置"
-                currentMode == ActivationMode.CLOUD && !ETS100AuthManager.isLoggedIn(context) ->
-                    "云端模式尚未登录，请先完成云端账号绑定"
-                currentMode != ActivationMode.CLOUD && !PermissionsHelper.hasAllFilesAccess() ->
-                    "缺少文件访问权限，无法读取本地答题数据"
-                currentMode == ActivationMode.SHIZUKU && !shizukuState.isRunning ->
-                    "Shizuku 服务未运行，暂时无法读取本地答题数据"
-                currentMode == ActivationMode.SHIZUKU && !shizukuState.permissionGranted ->
-                    "Shizuku 尚未授权，请先完成 Shizuku 授权"
-                currentMode == ActivationMode.ROOT && !RootManager.isRootAvailable() ->
-                    "Root 权限尚未获取，暂时无法读取本地答题数据"
-                currentMode == ActivationMode.DIRECT_READ && !ZWCHelper.isDirectReadAvailable() ->
-                    "漏洞直读尚未就绪，请先在激活页面测试可用性"
-                else -> null
-            }
+        // 仅由 ON_RESUME 触发的重算不进入 checking 态，保留旧结果直到新结果落定，避免读取页闪烁
+        val resumedOnlyRefresh = readAccessRefreshRevision != computedReadAccessRevision
+        computedReadAccessRevision = readAccessRefreshRevision
+        if (!resumedOnlyRefresh) {
+            readAccessChecking = true
         }
+        readAccessIssue = computeReadAccessIssue()
         readAccessChecking = false
     }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
+                // 从 Magisk/Shizuku 等外部完成授权返回时没有任何回调，强制重算读取预检
+                readAccessRefreshRevision++
                 currentMode = SettingsManager.getSavedActivationMode() ?: ShizukuManager.getCurrentActivationMode()
                 currentTheme = ThemeManager.getSavedTheme()
                 isDarkMode = ThemeManager.getSavedDarkMode()

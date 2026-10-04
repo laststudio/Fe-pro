@@ -28,6 +28,9 @@ class HomeRuntimeStatusRepository @Inject constructor(
     suspend fun load(force: Boolean): HomeRuntimeStatus {
         cachedOrNull(force)?.let { return it }
         return withContext(Dispatchers.IO) {
+            // force 表示用户主动要求刷新（下拉/回到前台），而手动在 Magisk 管理器里授权
+            // 不会产生任何回调，必须绕过 RootManager 的进程级缓存，否则永远读到授权前的旧结果
+            if (force) RootManager.clearCache()
             HomeRuntimeStatus(
                 hasFilesPerm = PermissionsHelper.hasAllFilesAccess(),
                 hasRootAvailable = RootManager.isRootAvailable(),
