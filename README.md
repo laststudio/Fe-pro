@@ -1,11 +1,30 @@
 # Fuck ets100 - e听说答案提取器 📱
 
+> 本仓库现作为面向用户的公开文档、教程、问题反馈与 Release 下载入口维护。项目源码已转为私有维护，后续版本仍会在本仓库的 Releases 页面发布。
+>
+> 🌐 **官方发布平台与主站**：[https://lastudio.cc](https://lastudio.cc)  
+> ⚡ **Fe (Fuck_ets100) 官方极速直链下载**：[https://lastudio.cc/download?app=fe](https://lastudio.cc/download?app=fe)（免登录、不限速）
+
 ![License](https://img.shields.io/badge/License-Proprietary-red.svg)
-[![Kotlin](https://img.shields.io/badge/kotlin-2.3.21-7F52FF)](https://kotlinlang.org/)
-[![Compose Multiplatform](https://img.shields.io/badge/compose-1.10.3-4285F4)](https://www.jetbrains.com/compose-multiplatform)
+[![Kotlin](https://img.shields.io/badge/kotlin-2.4.10-7F52FF)](https://kotlinlang.org/)
+[![Compose](https://img.shields.io/badge/compose-4285F4)](https://developer.android.com/compose)
 ![Android](https://img.shields.io/badge/Android-3DDC84?logo=android&logoColor=white)
 
+## 🔒 关于项目闭源
 
+本项目已经停止公开源代码，后续开发和维护将在私有仓库中进行。本仓库继续面向普通用户，保留软件下载、使用教程、更新日志和问题反馈功能。
+
+作出闭源决定的主要原因如下：
+
+- 本项目的主要服务对象是软件用户，而不是二次开发者；对绝大多数用户而言，稳定的安装包、清晰的教程和可靠的更新比公开源码更有实际意义。
+- 在此前的开源维护过程中，项目几乎没有收到有效的 Pull Request，公开源码没有带来预期中的共同维护、技术反馈或社区协作。
+- 实际收到的有效问题反馈非常有限，开源并未明显改善软件质量或降低维护成本。
+- 公开源码反而增加了未经授权搬运、低质量二次修改、重新打包、冒名分发以及利用项目圈钱的风险，也容易造成版本混乱和用户安全问题。
+- 为了集中维护精力、保证正式版本来源清晰，并减少滥用和不负责任的二次分发，项目决定转为闭源维护。
+
+闭源不代表停止维护。用户仍可通过本仓库下载正式版本、阅读文档、查看更新日志，并通过 Issues 提交可复现的问题或合理建议。源码、构建细节及私有仓库访问权限不再对外提供。
+
+自闭源版本起，本项目不再以开源软件形式发布。仓库中保留的历史资料仅用于文档展示和版本说明，不代表授予复制、修改、重新打包、分发或商业使用当前版本的许可。
 
 你是否还在面对数不尽的听说题而难堪，是否还在为没有人给你提供 e听说答案而困扰，是否还在为了达到老师要求的听说 30 分而感到不可能完成 ❓
 
@@ -34,8 +53,8 @@ Fuck ets100 是一款专门为 e听说（ETS 100）用户打造的答案提取�
 
 ### 第一步：先装上
 
-1. 打开 [官方网盘](https://oplist.lastudio.cc/Fe_android)
-2. 下载最新版本的 APK
+1. 打开 [官方极速直链下载](https://lastudio.cc/download?app=fe) 或 [Releases 页面](https://github.com/laststudio/Fuck_ets100/releases) / [网盘分流](https://oplist.lastudio.cc/Fe_release)
+2. 下载最新版本的 APK（推荐使用官方高速直链，免登录不限速）
 3. 安装到你的手机上
 4. 打开 Fuck ets100 App
 
@@ -153,7 +172,6 @@ Fuck ets100 现在有几种读取方式，不知道选哪个的话，看这张�
 
 
 
-
 **关于数据安全：**
 - 本地读取模式不会上传你的本地文件
 - 云端模式需要使用你的 ETS100 账号登录 ETS100 接口
@@ -172,7 +190,7 @@ Fuck ets100 还会继续更新迭代，以下是一些计划中的功能 💡
 - 📊 显示更多统计信息，比如正确率等
 - 🌐 支持更多 e听说 以外的平台
 
-如果你有什么好的建议或想法，欢迎在 [issues](https://github.com/qiuqiqiuqid/Fe/issues) 里提出来 ~
+如果你有什么好的建议或想法，欢迎在 [Issues](https://github.com/laststudio/Fuck_ets100/issues) 里提出来 ~
 
 ---
 
@@ -192,6 +210,7 @@ Fuck ets100 的诞生离不开这些"小伙伴"的帮助 💕
 
 **人类贡献者：**
 - [leitianshuo1337](https://github.com/code-leitianshuo) - 提供了全新api读取逻辑
+- [Ken-gugugaga](https://github.com/Ken-gugugaga) - 提供了一键完成的方法和代码
 - [Shizuku](https://shizuku.rikka.app/) - 让你不用 Root 也能管理文件
 - [Jetpack Compose](https://developer.android.com/compose) - 让界面开发更简单
 - [hicccc77](https://github.com/hicccc77) - 提供了全新的读取逻辑([WeFlow](https://github.com/hicccc77/WeFlow)作者)
@@ -201,13 +220,14 @@ Fuck ets100 的诞生离不开这些"小伙伴"的帮助 💕
 ---
 ## 📄 参考文档
 
+- [@软件使用协议与免责声明](./USER_AGREEMENT.md)
 - [@ETS100读取文档索引](./ets读取/README.md)
 - [@答案解析方法](./ets读取/ets100答案解析方法.md)
 - [@本地模式读取逻辑](./ets读取/本地模式读取逻辑.md)
 - [@云端API与跨平台实现](./ets读取/API_DOC.md)
 - [@云端模式逻辑](./ets读取/云端模式逻辑文档.md)
 - [@企业登录_畅言](./ets读取/畅言网页登录.md)
-- [@更新日志](/update.md)
+- [@更新日志](./update.md)
 
 ---
 
@@ -219,9 +239,11 @@ Fuck ets100 的诞生离不开这些"小伙伴"的帮助 💕
 ---
 
 **有问题？找作者：**
-- GitHub: [issues 页面](https://github.com/qiuqiqiuqid/Fe/issues)
-- 抖音:[抖音主页](https://v.douyin.com/P0GrWYTqi4s/)
-- b站:[b站主页](https://space.bilibili.com/2116040615h)
+- 官方发布平台: [LastStudio (lastudio.cc)](https://lastudio.cc)
+- 极速直链下载: [Fe 官方极速下载通道](https://lastudio.cc/download?app=fe)
+- GitHub: [Issues 页面](https://github.com/laststudio/Fuck_ets100/issues)
+- 抖音: [抖音主页](https://v.douyin.com/P0GrWYTqi4s/)
+- B站: [B站主页](https://space.bilibili.com/2116040615h)
 
 
 
@@ -237,4 +259,4 @@ Fuck ets100 的诞生离不开这些"小伙伴"的帮助 💕
 |:---:|:---:|
 | ![支付宝](./donate/alipay.png) | ![微信](./donate/wechat.png) |
 
-> 💖 每一份赞赏与支持都是持续更新的最大动力，感谢大家！
+> 💖 感谢每一份对项目持续维护的支持！
