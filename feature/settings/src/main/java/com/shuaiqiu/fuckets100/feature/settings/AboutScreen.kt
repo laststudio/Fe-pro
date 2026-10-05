@@ -104,7 +104,7 @@ fun AboutScreen(
                 AboutLinkRow(
                     icon = Icons.Default.Info,
                     title = "版本与软件说明",
-                    subtitle = "Fe ${buildInfo.versionName} (${buildInfo.versionCode}) · 专有商业软件",
+                    subtitle = "Fe ${buildInfo.versionName} (${buildInfo.versionCode}) · 非商业学习交流项目",
                     trailingIcon = null,
                 )
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)

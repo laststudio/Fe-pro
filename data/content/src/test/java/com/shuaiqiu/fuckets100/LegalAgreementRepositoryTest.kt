@@ -12,8 +12,8 @@ class LegalAgreementRepositoryTest {
     fun `fallback agreement is well formed with all core sections`() {
         val agreement = LegalAgreementRepository.FALLBACK_AGREEMENT
         assertEquals("LastStudio 服务协议、隐私政策与免责声明", agreement.title)
-        assertEquals("2026-09-25", agreement.version)
-        assertEquals("2026 年 9 月 25 日", agreement.effectiveDate)
+        assertEquals("2026-10-03", agreement.version)
+        assertEquals("2026 年 10 月 3 日", agreement.effectiveDate)
         assertTrue(agreement.scope.contains("Fuck ETS100"))
         assertEquals(6, agreement.sections.size)
 
