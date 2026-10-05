@@ -54,6 +54,28 @@ object ResolverNative {
     /** 授权后批量解析: tasks 为 JSON 数组字符串。返回包裹结果 JSON。 */
     external fun parseBatchAuthorized(tasksJson: String): String
 
+    /**
+     * 跨平台固定接口（推荐入口）：`{"version":1,"op":"...","payload":{...}}` -> 响应信封。
+     *
+     * 解析器新增能力只加 `op`，**不需要**在这里加声明、也不用发新版客户端。
+     * 响应：`{"ok":true,"version":1,"op":"...","result":...,"meta":{...}}`
+     * 失败：`{"ok":false,...,"error":{"code","message","hint"}}`
+     * 可用 op / 官方题型全集 / 错误码：见 [capabilities]。
+     */
+    external fun resolveRequest(requestJson: String): String
+
+    /** 能力清单：ops（含 status）、官方题型全集、作业分类枚举、错误码、覆盖率。 */
+    external fun capabilities(): String
+
+    /** 解析诊断：命中层/家族/形状指纹/告警（**不含题目文本**，可安全打日志）。 */
+    external fun diagnose(content: String, info: String, content2: String): String
+
+    /** 作业分类：含 `is_exercise_set`（老师布置的一整套多卷/习题集）与卷面满分口径。 */
+    external fun classifyHomework(homeworkJson: String): String
+
+    /** 作业列表批量分类：返回 `category_counts` 与 `exercise_set_ids`。 */
+    external fun classifyHomeworkList(listJson: String): String
+
     /** so 自身完整性自校验（反调试 TracerPid + 内存段完整性）。返回 JSON。 */
     external fun selfIntegrityCheck(): String
 }
