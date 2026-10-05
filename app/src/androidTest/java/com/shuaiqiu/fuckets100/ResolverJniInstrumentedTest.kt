@@ -130,7 +130,13 @@ class ResolverJniInstrumentedTest {
                 """{"structure_type":"collector.role","group_name":"听选信息","code_id":"st1",
                     "questions":[{"question":"Q1","answers":["A"]},{"question":"Q2","answers":["B"]}]}""".trimIndent(),
             ),
+        ).put(
+            JSONObject(
+                """{"structure_type":"collector.picture","group_name":"信息转述","code_id":"st2",
+                    "questions":[{"question":"Q3","answers":["C"]}]}""".trimIndent(),
+            ),
         )
+        // 两个包才会触发整卷合并（单包不做）
         val resp = ResolverContract.parseHomeworkSet(packages, resJson.toString())
         assertTrue("合并应成功: ${resp.errorCode} ${resp.errorMessage}", resp.ok)
         val paper = resp.result!!.optJSONObject("paper")!!
@@ -140,6 +146,17 @@ class ResolverJniInstrumentedTest {
         val questions = sections.getJSONObject(0).optJSONArray("questions")!!
         assertEquals("3.0", questions.getJSONObject(0).optString("score"))
         assertEquals("1", questions.getJSONObject(0).optString("no"))
+
+        // 完整性对账：设备上必须能拿到（缺题提示依赖它）
+        val completeness = resp.result!!.optJSONObject("completeness")
+        assertNotNull("新版解析器应返回 completeness", completeness)
+        assertTrue(
+            "第 2 个包没有对应模板大题，应判为不完整并点名: $completeness",
+            !completeness!!.optBoolean("is_complete", true),
+        )
+        val notCovered = completeness.optJSONArray("sections_not_covered")
+        assertNotNull(notCovered)
+        assertTrue(notCovered!!.length() >= 1)
     }
 
     @Test
