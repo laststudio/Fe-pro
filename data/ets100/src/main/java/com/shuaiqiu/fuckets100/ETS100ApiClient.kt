@@ -44,6 +44,9 @@ object ETS100ApiClient {
         const val HOMEWORK_LIST = "/g/homework/list"
         const val HOMEWORK_PK_INFO = "/g/homework/pk-info"
         const val HOMEWORK_STRUCT = "/g/homework/struct"
+
+        /** 试卷集结构（含模板包地址 -> 官方 res.json 的权威题号与逐题满分） */
+        const val HOMEWORK_STRUCT_M = "/m/homework/struct"
         const val HOMEWORK_SCORE_DETAIL = "/g/homework/score-detail"
         const val WORD_STRUCT = "/g/word/struct"
         const val SEND_USER_EXIST = "/code/send-user-exist"
@@ -255,7 +258,10 @@ object ETS100ApiClient {
 
     data class HomeworkContent(
         val groupName: String,
-        val url: String
+        val url: String,
+        /** 官方资源标识：与 /m/homework/struct 的 contents[].real_id / code_id 对应，
+         *  用于把资源包挂到官方模板大题（听选信息1/2/3 这类同名多包必须靠它区分）。 */
+        val realId: String = ""
     )
 
 
@@ -323,6 +329,14 @@ object ETS100ApiClient {
         resourceId: String = "",
         parentAccountId: String = "",
     ): Result<org.json.JSONObject> = ets100GetHomeworkStruct(token, homeworkId, resourceId, parentAccountId)
+
+    /** 试卷集结构（含官方模板包地址 -> res.json 的卷面题号与逐题满分）。 */
+    suspend fun getHomeworkStructM(
+        token: String,
+        homeworkId: String,
+        resourceId: String = "",
+        parentAccountId: String = "",
+    ): Result<org.json.JSONObject> = ets100GetHomeworkStructM(token, homeworkId, resourceId, parentAccountId)
 
     suspend fun getScoreDetail(
         token: String,

@@ -7,6 +7,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import org.json.JSONArray
 import org.json.JSONObject
 
 /**
@@ -82,7 +83,9 @@ object ETS100AnswerReader {
         val downloadTime: Long = 0L,  // 宝贝添加了下载时间喵~
         val regionLabel: String = "未知",  // 喵~ 添加地区标签：初中/高中/未知
         val paperName: String? = null,  // 喵~ 添加试卷名称（来自resource索引）
-        val source: PaperSource? = null
+        val source: PaperSource? = null,
+        /** 官方卷面总分（来自 res.json 的 set_score）；本地模式或旧路径为 null */
+        val totalScore: Double? = null
     )
 
     /**
@@ -113,7 +116,9 @@ object ETS100AnswerReader {
         val originalText: String?,      // 原始文本内容
         val category: String = "",       // category 分类
         val displayOrder: Int? = null,
-        val content: AnswerContent = AnswerContent.Reading("")  // 用于UI显示
+        val content: AnswerContent = AnswerContent.Reading(""),  // 用于UI显示
+        /** 官方逐题满分（来自 res.json 的 question_score）；本地模式或旧路径为 null */
+        val score: Double? = null
     ) {
         // 兼容性别名 - ReadScreen 使用 question.question
         val question: String get() = cleanQuestionText(questionText)
@@ -542,12 +547,38 @@ object ETS100AnswerReader {
         infoJson: String = "",
         content2Json: String = "",
     ): Pair<List<Question>, String?> {
-        val originalContent = json.optJSONObject("info")
-            ?.optString("value", "")
-            ?.takeIf { it.isNotBlank() }
-            ?.replace(Regex("<[^>]*>"), "")
-            ?.trim()
+        val originalContent = nativeOriginalContent(json)
+        val native = parseContentNative(json, infoJson, content2Json)
+        val questions = mapNativeQuestions(
+            native = native,
+            json = json,
+            startIndex = startIndex,
+            category = category,
+            typeName = typeName,
+            sectionCaption = sectionCaption,
+            originalContent = originalContent,
+        )
+        return Pair(questions, originalContent)
+    }
 
+    /** 从 content.json 抽"朗读原文"（info.value，去标签）。 */
+    fun nativeOriginalContent(json: JSONObject): String? = json.optJSONObject("info")
+        ?.optString("value", "")
+        ?.takeIf { it.isNotBlank() }
+        ?.replace(Regex("<[^>]*>"), "")
+        ?.trim()
+
+    /**
+     * 只调用解析器（不映射为 UI 模型），返回**解析器原始题目数组**。
+     *
+     * 用途：云端整卷合并要把各包的原始题目交给 `op: parse_homework_set`，
+     * 由它按官方 `res.json` 排大题、定题号、盖逐题满分；映射到 UI 模型留到合并之后。
+     */
+    fun parseContentNative(
+        json: JSONObject,
+        infoJson: String = "",
+        content2Json: String = "",
+    ): JSONArray {
         // 走解析器的跨平台固定契约（与后端/Fe_web 同一条 op 通道）：
         //   ① 响应里多了 meta（layer / family / shape / spec_known），便于诊断与上报；
         //   ② 解析器新增能力只加 op，客户端不需要再改 JNI 声明；
@@ -557,34 +588,47 @@ object ETS100AnswerReader {
             info = infoJson,
             content2 = content2Json,
         )
-        val response = contract.raw
-
         if (!contract.ok) {
             // 解析为空/失败时把结构指纹记下来：官方出了新题型时这是唯一的发现渠道
             ResolverContract.reportUnparsed(
                 content = json.toString(),
                 info = infoJson,
                 content2 = content2Json,
-                tag = "ETS100AnswerReader.parseContentJson",
+                tag = "ETS100AnswerReader.parseContentNative",
             )
             throw ResolverAuthorizationDeniedException(
                 contract.errorMessage?.takeIf { it.isNotBlank() }
                     ?: "答案解析功能当前不可用"
             )
         }
+        return contract.resultArray ?: run {
+            ResolverContract.reportUnparsed(
+                content = json.toString(),
+                info = infoJson,
+                content2 = content2Json,
+                tag = "ETS100AnswerReader.parseContentNative(no-result)",
+            )
+            throw ResolverAuthorizationDeniedException("解析器未返回题目数据")
+        }
+    }
 
-        val result = contract.resultArray
-            ?: run {
-                ResolverContract.reportUnparsed(
-                    content = json.toString(),
-                    info = infoJson,
-                    content2 = content2Json,
-                    tag = "ETS100AnswerReader.parseContentJson(no-result)",
-                )
-                throw ResolverAuthorizationDeniedException("解析器未返回题目数据")
-            }
-        val questions = (0 until result.length()).mapNotNull { index ->
-            val item = result.optJSONObject(index) ?: return@mapNotNull null
+    /**
+     * 把解析器原始题目映射为 UI 模型（原 `parseContentJson` 的映射逻辑，行为不变）。
+     *
+     * @param scoreOf 可选：逐题满分（来自官方 res.json 的 `question_score`）
+     */
+    fun mapNativeQuestions(
+        native: JSONArray,
+        json: JSONObject,
+        startIndex: Int,
+        category: String,
+        typeName: String,
+        sectionCaption: String,
+        originalContent: String?,
+        scoreOf: ((Int) -> Double?)? = null,
+    ): List<Question> {
+        val questions = (0 until native.length()).mapNotNull { index ->
+            val item = native.optJSONObject(index) ?: return@mapNotNull null
             val collectorType = item.optString("type", json.optString("structure_type", ""))
             val rawNumber = item.opt("no")
             val nativeNumber = (rawNumber as? Number)?.toInt()
@@ -645,10 +689,10 @@ object ETS100AnswerReader {
                 category = category,
                 displayOrder = displayOrder,
                 content = answerContent,
+                score = scoreOf?.invoke(index),
             )
         }
-
-        return Pair(sortQuestionsByOfficialOrder(questions), originalContent)
+        return sortQuestionsByOfficialOrder(questions)
     }
 
     private fun org.json.JSONArray?.toStringList(): List<String> {

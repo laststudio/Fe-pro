@@ -448,10 +448,12 @@ internal suspend fun ets100GetHomeworkList(
                     val content = contentsArray.getJSONObject(j)
                     val groupName = content.optString("group_name", "")
                     val url = content.optString("url", "")
-                    Log.i(TAG, "homework[$i].content[$j]: groupName=$groupName, url=$url")
+                    val realId = content.optString("real_id", content.optString("entity_id", ""))
+                    Log.i(TAG, "homework[$i].content[$j]: groupName=$groupName, url=$url, realId=$realId")
                     contents.add(ETS100ApiClient.HomeworkContent(
                         groupName = groupName,
-                        url = url
+                        url = url,
+                        realId = realId
                     ))
                 }
 
@@ -562,6 +564,53 @@ internal suspend fun ets100GetHomeworkStruct(
             }
             extractBody(json)
         }
+    }
+
+    /**
+     * 获取试卷集结构 (含模板包地址)
+     * POST /m/homework/struct
+     *
+     * 这是拿官方 `res.json`（卷面题号 + 逐题满分权威来源）的唯一入口：
+     * `body.audio[0].template.url` 是模板包（未加密），`contents[].code_id` 与模板
+     * `exam_list[].exam_id`（`{{st1}}`）一一对应，用作"资源包 → 官方大题"的挂载键。
+     *
+     * @param token 登录返回的 token
+     * @param homeworkId 作业 ID
+     * @param resourceId 资源 ID（如 58/1783/1784，影响题目池）
+     * @param parentAccountId 父账户 ID（可选）
+     */
+    internal suspend fun ets100GetHomeworkStructM(
+        token: String,
+        homeworkId: String,
+        resourceId: String = "",
+        parentAccountId: String = ""
+    ): Result<org.json.JSONObject> {
+        Log.d(TAG, "getHomeworkStructM: homeworkId=$homeworkId, resourceId=$resourceId")
+        val params = mutableMapOf<String, Any>(
+            "sn" to ETS100ApiClient.RequestConfig.DEFAULT_SN,
+            "token" to token,
+            "id" to homeworkId,
+            "version" to ETS100ApiClient.RequestConfig.DEFAULT_VERSION,
+            "system" to ETS100ApiClient.RequestConfig.DEFAULT_SYSTEM,
+            "global_client_version" to ETS100ApiClient.RequestConfig.DEFAULT_GLOBAL_CLIENT_VERSION,
+            "sign_response" to 1
+        )
+        if (resourceId.isNotBlank()) {
+            params["resource_id"] = resourceId
+        }
+        if (parentAccountId.isNotBlank()) {
+            params["parent_account_id"] = parentAccountId
+        }
+        val bodyData = mapOf("r" to "m/homework/struct", "params" to params)
+        return ETS100ApiClient.postRequest(ETS100ApiClient.Endpoints.HOMEWORK_STRUCT_M, bodyData)
+            .mapCatching { responseBody ->
+                val json = responseBody.parseJson()
+                val code = json.optInt("code", -999)
+                if (code != -999 && code != 0) {
+                    throw Exception("m/homework/struct 失败: ${json.optString("msg", "")} ($code)")
+                }
+                extractBody(json)
+            }
     }
 
     /**

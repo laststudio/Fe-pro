@@ -5,6 +5,8 @@ import com.shuaiqiu.fuckets100.CloudContent
 import com.shuaiqiu.fuckets100.CloudHomeworkState
 import com.shuaiqiu.fuckets100.ETS100AnswerReader
 import com.shuaiqiu.fuckets100.ETS100ApiClient
+import com.shuaiqiu.fuckets100.ETS100CloudMerge
+import com.shuaiqiu.fuckets100.ETS100CloudTemplate
 import com.shuaiqiu.fuckets100.ETS100AuthManager
 import com.shuaiqiu.fuckets100.PaperSource
 import com.shuaiqiu.fuckets100.PaperSourceExporter
@@ -86,6 +88,8 @@ internal suspend fun downloadAndParseCloudPaper(
             homeworkInfo.contents.map { CloudContent(it.groupName, it.url) }
         ).apply { mkdirs() }
         val allSections = mutableListOf<ETS100AnswerReader.Section>()
+        // 每包的解析器原始题目 + 官方挂载键（整卷合并用；见下方 officialMerge）
+        val nativePackages = mutableListOf<ETS100CloudTemplate.PackageQuestions>()
         var questionIndex = 0
 
         val isPkOrVocab = homeworkInfo.contents.isEmpty() || homeworkInfo.pk == 1 || homeworkInfo.setType == 6
@@ -107,6 +111,7 @@ internal suspend fun downloadAndParseCloudPaper(
                     cloudBaseUrl = cloudBaseUrl,
                     onProgress = onProgress,
                     allSections = allSections,
+                    nativePackages = nativePackages,
                 )
             }
         }
@@ -115,11 +120,36 @@ internal suspend fun downloadAndParseCloudPaper(
             throw Exception("未能解析到任何题目")
         }
 
-        val normalizedSections = normalizeCloudParsedSections(allSections)
-        if (normalizedSections.size != allSections.size) {
-            ReadCloudLog.info("🔀 已合并云端听后选择分包并按正式题号排序")
+        // 官方模板口径：从 /m/homework/struct 取模板包 -> res.json -> op: parse_homework_set
+        // 成功时用官方大题顺序、卷面题号与逐题满分；失败则保持原有逐包结果（不降级数据）。
+        val official = ETS100CloudMerge.merge(
+            context = context,
+            homeworkId = homeworkInfo.id,
+            homeworkName = homeworkInfo.name,
+            resourceId = homeworkInfo.resourceId,
+            setType = homeworkInfo.setType,
+            pk = homeworkInfo.pk,
+            contents = homeworkInfo.contents,
+            packages = nativePackages,
+            cacheDir = cacheDir,
+            // 模板包未加密：只解压，不需要密码（zip4j 只在 feature 层，故注入）
+            unzip = { zipFile, destDir ->
+                net.lingala.zip4j.ZipFile(zipFile).extractAll(destDir.absolutePath)
+            },
+        )
+        official?.logs?.forEach { line -> ReadCloudLog.info(line) }
+        val sectionsForPaper = official?.sections ?: run {
+            val normalized = normalizeCloudParsedSections(allSections)
+            if (normalized.size != allSections.size) {
+                ReadCloudLog.info("🔀 已合并云端听后选择分包并按正式题号排序")
+            }
+            normalized
         }
-        ReadCloudLog.success("📝 共解析到 ${normalizedSections.size} 个题型，$questionIndex 道题")
+        questionIndex = sectionsForPaper.sumOf { it.questions.size }
+        ReadCloudLog.success(
+            "📝 共解析到 ${sectionsForPaper.size} 个题型，$questionIndex 道题" +
+                (official?.let { "（官方模板：${it.totalScore} 分）" } ?: "（未取到官方模板）")
+        )
 
         val isPk = homeworkInfo.pk == 1 || homeworkInfo.setType == 6
         val paper = ETS100AnswerReader.Paper(
@@ -127,7 +157,8 @@ internal suspend fun downloadAndParseCloudPaper(
             title = homeworkInfo.name,
             dataFileName = cacheKey,
             fileSize = 0L,
-            sections = normalizedSections,
+            sections = sectionsForPaper,
+            totalScore = official?.totalScore,
             downloadTime = System.currentTimeMillis(),
             regionLabel = if (isPk) "词汇PK" else "云端",
             paperName = homeworkInfo.name,
@@ -297,6 +328,7 @@ private suspend fun parseOnlineHomework(
     }
 }
 
+
 private suspend fun parseZipContent(
     context: Context,
     homeworkInfo: ETS100ApiClient.HomeworkInfo,
@@ -307,6 +339,7 @@ private suspend fun parseZipContent(
     cloudBaseUrl: String,
     onProgress: suspend (CloudHomeworkState.DownloadProgress?) -> Unit,
     allSections: MutableList<ETS100AnswerReader.Section>,
+    nativePackages: MutableList<ETS100CloudTemplate.PackageQuestions>,
 ): Int {
     // 1. 构造完整 URL
     val zipUrl = if (content.url.startsWith("http")) {
@@ -428,21 +461,29 @@ private suspend fun parseZipContent(
         ReadCloudLog.info("   ├─ group_name: ${content.groupName}")
         ReadCloudLog.info("   ├─ raw数量: question=$questionCountInJson, xtlist=$chooseCountInJson, std=$stdCountInJson")
 
+        val infoJson = File(extractDir, "info.json").takeIf { it.isFile }?.readText().orEmpty()
+        val content2Json = File(extractDir, "content2.json").takeIf { it.isFile }?.readText().orEmpty()
         val (questions, originalContent) = ETS100AnswerReader.parseContentJson(
             json = json,
             startIndex = startIndex,
             category = "",
             typeName = content.groupName,
             sectionCaption = content.groupName,
-            infoJson = File(extractDir, "info.json")
-                .takeIf { it.isFile }
-                ?.readText()
-                .orEmpty(),
-            content2Json = File(extractDir, "content2.json")
-                .takeIf { it.isFile }
-                ?.readText()
-                .orEmpty(),
+            infoJson = infoJson,
+            content2Json = content2Json,
         )
+        // 同时留一份解析器原始题目：整卷合并要把它们交给 parse_homework_set
+        runCatching {
+            nativePackages.add(
+                ETS100CloudTemplate.PackageQuestions(
+                    structureType = structureType,
+                    groupName = content.groupName,
+                    questions = ETS100AnswerReader.parseContentNative(json, infoJson, content2Json),
+                    realId = content.realId ?: "",
+                    order = contentIndex,
+                ),
+            )
+        }.onFailure { ReadCloudLog.warn("   └─ 记录原始题目失败（不影响解析）: ${it.message}") }
 
         if (questions.isEmpty()) {
             ReadCloudLog.warn("   └─ ⚠️ 未解析到任何题目！")
