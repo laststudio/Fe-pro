@@ -1,5 +1,6 @@
 package com.shuaiqiu.fuckets100
 
+import android.util.Log
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -175,4 +176,39 @@ object ResolverContract {
         if (content2.isNotBlank()) payload.put("content2", content2)
         return call("shape_fingerprint", payload).result?.optString("hash")?.takeIf { it.isNotBlank() }
     }
+
+    /**
+     * 解析器出不了题时的诊断上报（**不含题目文本**，可安全进日志）。
+     *
+     * 这是"官方又出了新题型"在端侧唯一的发现渠道：形状指纹相同 = 只是改名，
+     * 出现新指纹 = 结构变了、需要补适配。失败一律静默，绝不影响解析主流程。
+     */
+    fun reportUnparsed(
+        content: String,
+        info: String = "",
+        content2: String = "",
+        tag: String,
+    ) {
+        try {
+            val report = diagnose(content, info, content2)
+            if (!report.ok) {
+                Log.w(TAG, "[$tag] 诊断请求失败: ${report.errorCode} ${report.errorMessage}")
+                return
+            }
+            val detail = report.result ?: return
+            if (detail.optInt("question_count", 0) > 0) return  // 有题目就不上报，避免噪音
+            val shape = detail.optJSONObject("shape")?.optString("hash", "").orEmpty()
+            Log.w(
+                TAG,
+                "[$tag] 解析为空 -> structure_type=${detail.optString("structure_type")} " +
+                    "layer=${detail.optString("layer")} family=${detail.optString("family")} " +
+                    "shape=$shape spec_known=${report.specKnown} " +
+                    "warnings=${detail.optJSONArray("warnings")}",
+            )
+        } catch (_: Throwable) {
+            // 诊断是尽力而为，任何异常都不允许影响解析主流程
+        }
+    }
+
+    private const val TAG = "ResolverContract"
 }

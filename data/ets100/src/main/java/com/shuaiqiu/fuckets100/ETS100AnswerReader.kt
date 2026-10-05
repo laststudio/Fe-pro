@@ -548,28 +548,41 @@ object ETS100AnswerReader {
             ?.replace(Regex("<[^>]*>"), "")
             ?.trim()
 
-        val response = runCatching {
-            JSONObject(
-                ResolverNative.parseTaskAuthorized(
+        // 走解析器的跨平台固定契约（与后端/Fe_web 同一条 op 通道）：
+        //   ① 响应里多了 meta（layer / family / shape / spec_known），便于诊断与上报；
+        //   ② 解析器新增能力只加 op，客户端不需要再改 JNI 声明；
+        //   ③ 旧接口 parseTaskAuthorized 仍保留，但业务层统一走契约。
+        val contract = ResolverContract.parseTask(
+            content = json.toString(),
+            info = infoJson,
+            content2 = content2Json,
+        )
+        val response = contract.raw
+
+        if (!contract.ok) {
+            // 解析为空/失败时把结构指纹记下来：官方出了新题型时这是唯一的发现渠道
+            ResolverContract.reportUnparsed(
+                content = json.toString(),
+                info = infoJson,
+                content2 = content2Json,
+                tag = "ETS100AnswerReader.parseContentJson",
+            )
+            throw ResolverAuthorizationDeniedException(
+                contract.errorMessage?.takeIf { it.isNotBlank() }
+                    ?: "答案解析功能当前不可用"
+            )
+        }
+
+        val result = contract.resultArray
+            ?: run {
+                ResolverContract.reportUnparsed(
                     content = json.toString(),
                     info = infoJson,
                     content2 = content2Json,
+                    tag = "ETS100AnswerReader.parseContentJson(no-result)",
                 )
-            )
-        }.getOrElse {
-            throw ResolverAuthorizationDeniedException("解析器返回结果异常")
-        }
-
-        if (!response.optBoolean("ok", false)) {
-            val error = response.optJSONObject("error")
-            val message = error?.optString("message")
-                ?.takeIf { it.isNotBlank() }
-                ?: "答案解析功能当前不可用"
-            throw ResolverAuthorizationDeniedException(message)
-        }
-
-        val result = response.optJSONArray("result")
-            ?: throw ResolverAuthorizationDeniedException("解析器未返回题目数据")
+                throw ResolverAuthorizationDeniedException("解析器未返回题目数据")
+            }
         val questions = (0 until result.length()).mapNotNull { index ->
             val item = result.optJSONObject(index) ?: return@mapNotNull null
             val collectorType = item.optString("type", json.optString("structure_type", ""))
