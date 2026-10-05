@@ -104,7 +104,10 @@ object ETS100CloudTemplate {
             if (!zipFile.isFile || zipFile.length() <= 0L) {
                 zipFile.parentFile?.mkdirs()
                 val tmp = File(zipFile.parentFile, "${zipFile.name}.part").also { it.delete() }
-                download(url, tmp)
+                // 复用作业包同一套下载实现：ETS100 的 CDN 证书本身不可信，
+                // 客户端统一按宽松校验处理（与 ETS100ApiDownload 保持一致）。
+                val downloaded = ETS100ApiClient.downloadFile(url, tmp)
+                downloaded.getOrElse { throw IllegalStateException("模板包下载失败: ${it.message}") }
                 if (!tmp.renameTo(zipFile)) {
                     tmp.copyTo(zipFile, overwrite = true)
                     tmp.delete()
@@ -125,25 +128,6 @@ object ETS100CloudTemplate {
         } catch (e: Exception) {
             Log.w(TAG, "获取官方 res.json 失败: ${e.message}")
             null
-        }
-    }
-
-    /** 与作业包下载一致的 CDN 处理（该主机证书名不匹配，只对精确主机放宽）。 */
-    private fun download(url: String, dest: File) {
-        val connection = URL(url).openConnection() as java.net.HttpURLConnection
-        connection.connectTimeout = 30_000
-        connection.readTimeout = 120_000
-        connection.setRequestProperty("Host", "cdn.subject.ets100.com")
-        connection.setRequestProperty("User-Agent", "libcurl-agent/1.0")
-        connection.setRequestProperty("Accept", "*/*")
-        if (connection is javax.net.ssl.HttpsURLConnection) {
-            connection.sslSocketFactory = EtsCdnTls.socketFactory
-            connection.hostnameVerifier = EtsCdnTls.hostnameVerifier
-        }
-        try {
-            connection.inputStream.use { input -> dest.outputStream().use { input.copyTo(it) } }
-        } finally {
-            connection.disconnect()
         }
     }
 
@@ -176,40 +160,4 @@ object ETS100CloudTemplate {
         val realId: String = "",
         val order: Int = -1,
     )
-
-    /** CDN TLS：与解析器 cloud_download_file 同策略（仅精确主机跳过主机名匹配，证书链仍校验）。 */
-    object EtsCdnTls {
-        private val trustManager = object : javax.net.ssl.X509TrustManager {
-            private val default = javax.net.ssl.TrustManagerFactory
-                .getInstance(javax.net.ssl.TrustManagerFactory.getDefaultAlgorithm())
-                .apply { init(null as java.security.KeyStore?) }
-                .trustManagers
-                .filterIsInstance<javax.net.ssl.X509TrustManager>()
-                .firstOrNull()
-
-            override fun checkClientTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) =
-                default?.checkClientTrusted(chain, authType) ?: Unit
-
-            override fun checkServerTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) =
-                default?.checkServerTrusted(chain, authType) ?: Unit
-
-            override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> =
-                default?.acceptedIssuers ?: arrayOf()
-        }
-
-        val socketFactory: javax.net.ssl.SSLSocketFactory by lazy {
-            javax.net.ssl.SSLContext.getInstance("TLS")
-                .apply { init(null, arrayOf(trustManager), java.security.SecureRandom()) }
-                .socketFactory
-        }
-
-        /** 只对 ETS 的 CDN 主机跳过主机名匹配；其余主机走默认校验。 */
-        val hostnameVerifier = javax.net.ssl.HostnameVerifier { hostname, session ->
-            if (hostname.equals("cdn.subject.ets100.com", ignoreCase = true)) {
-                true
-            } else {
-                javax.net.ssl.HttpsURLConnection.getDefaultHostnameVerifier().verify(hostname, session)
-            }
-        }
-    }
 }
