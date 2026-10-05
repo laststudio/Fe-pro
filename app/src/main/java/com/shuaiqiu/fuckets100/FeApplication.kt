@@ -42,7 +42,13 @@ class FeApplication : Application() {
         // 初始化设置管理器
         SettingsManager.init(this)
 
-        ResolverAuthorizer.init(buildInfo, accountAccess)
+        // 验签公钥优先取后端下发值（/software/fe/config 的 signingPublicKey），
+        // 换钥无需发版；配置尚未拉到时回退编译期内置公钥。
+        ResolverAuthorizer.init(
+            buildInfo = buildInfo,
+            accountAccess = accountAccess,
+            signingPublicKeyProvider = { remoteConfigManager.signingPublicKey() },
+        )
         updateStatusRepository.remoteRefreshRequest = { ignoreVerification ->
             checkRemoteConfig(ignoreVerification)
         }

@@ -37,6 +37,16 @@ class RemoteConfigManager(
 
     fun isFeatureEnabled(featureKey: String, defaultValue: Boolean = true): Boolean =
         cachedConfig?.features?.get(featureKey) ?: defaultValue
+
+    /**
+     * 授权验签公钥：优先用后端下发值（换钥无需发版），拿不到时返回 null 由调用方回退内置常量。
+     *
+     * 注意这里**只做取值**，不参与任何"是否放行"的判断 —— 放行与否始终由解析器内的
+     * Ed25519 验签决定，配置只影响"用哪把公钥去验"。
+     */
+    fun signingPublicKey(): String? = cachedConfig?.signingPublicKey?.takeIf { it.isNotBlank() }
+
+    fun signingKeyId(): String? = cachedConfig?.signingKeyId?.takeIf { it.isNotBlank() }
     
     /**
      * 网络异常 - 用于标识网络问题导致配置获取失败
@@ -237,6 +247,8 @@ class RemoteConfigManager(
                     verificationMessage = verificationMessage,
                     donateEnabled = json.optBoolean("donateEnabled", true),
                     integrityCheckEnabled = json.optBoolean("integrityCheckEnabled", true),
+                    signingPublicKey = json.optString("signingPublicKey", ""),
+                    signingKeyId = json.optString("signingKeyId", ""),
                     features = features
                 )
                 

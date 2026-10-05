@@ -44,7 +44,12 @@ data class RemoteConfig(
     val verificationMessage: String = "",
     val donateEnabled: Boolean = true,
     val integrityCheckEnabled: Boolean = true,
-    val features: Map<String, Boolean> = emptyMap()
+    val features: Map<String, Boolean> = emptyMap(),
+    /** 后端下发的 Ed25519 验签公钥（urlsafe base64 no-pad）。传给解析器用于授权验签，
+     *  这样换钥只需服务端改配置，无需发版。为空时客户端回退到编译期内置公钥。 */
+    val signingPublicKey: String = "",
+    /** 与 signingPublicKey 配套的密钥 ID（sha256(公钥原始字节) 前 16 hex），仅用于诊断/选钥。 */
+    val signingKeyId: String = ""
 )
 
 /**

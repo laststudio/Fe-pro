@@ -24,10 +24,31 @@ object ResolverAuthorizer : AuthCacheInvalidator {
     @Volatile private var buildInfo: AppBuildInfo? = null
     @Volatile private var accountAccess: AccountAccess? = null
 
-    fun init(buildInfo: AppBuildInfo, accountAccess: AccountAccess) {
+    /**
+     * 动态验签公钥提供者（由 app 层注入，通常是 RemoteConfigManager.signingPublicKey()）。
+     *
+     * 后端 `/software/fe/config` 会下发 `signingPublicKey`，客户端把它传给解析器，
+     * 于是**换钥只需服务端改配置，无需发版**。
+     *
+     * 安全说明：这里只决定"用哪把公钥去验签"，不参与"是否放行"——
+     * 解析器内部仍然强制 Ed25519 验签；服务端若下发了错误的公钥，结果只是验签失败，
+     * 绝不会变成"免验签放行"。
+     */
+    @Volatile private var signingPublicKeyProvider: (() -> String?)? = null
+
+    fun init(
+        buildInfo: AppBuildInfo,
+        accountAccess: AccountAccess,
+        signingPublicKeyProvider: (() -> String?)? = null,
+    ) {
         this.buildInfo = buildInfo
         this.accountAccess = accountAccess
+        this.signingPublicKeyProvider = signingPublicKeyProvider
     }
+
+    /** 当前应使用的验签公钥：优先后端下发值，回退编译期内置常量。 */
+    private fun currentSigningPublicKey(): String =
+        signingPublicKeyProvider?.invoke()?.trim()?.takeIf { it.isNotBlank() } ?: PUBLIC_KEY_B64
 
     private fun account(): AccountAccess = accountAccess
         ?: error("AccountAccess 尚未初始化")
@@ -176,7 +197,7 @@ object ResolverAuthorizer : AuthCacheInvalidator {
                 baseUrl = BASE_URL,
                 softwareKey = SOFTWARE_KEY,
                 featureKey = FEATURE_KEY,
-                publicKeyB64 = PUBLIC_KEY_B64,
+                publicKeyB64 = currentSigningPublicKey(),
                 appVersionCode = (buildInfo?.versionCode ?: 0).toLong(),
             )
             if (rc != 0) {
@@ -206,7 +227,7 @@ object ResolverAuthorizer : AuthCacheInvalidator {
                 baseUrl = BASE_URL,
                 softwareKey = SOFTWARE_KEY,
                 featureKey = "cloud_mode",
-                publicKeyB64 = PUBLIC_KEY_B64,
+                publicKeyB64 = currentSigningPublicKey(),
                 appVersionCode = (buildInfo?.versionCode ?: 0).toLong(),
             )
             if (rc != 0) return@withContext "云端库授权配置失败 (code=$rc)"
