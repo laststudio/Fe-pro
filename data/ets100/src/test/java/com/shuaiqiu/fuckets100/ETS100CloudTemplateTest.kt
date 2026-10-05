@@ -2,6 +2,7 @@ package com.shuaiqiu.fuckets100
 
 import org.json.JSONArray
 import org.json.JSONObject
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -113,5 +114,79 @@ class ETS100CloudTemplateTest {
         val struct = ETS100CloudTemplate.parseStruct(real)!!
         assertTrue(struct.setName.contains("听说能力监测"))
         assertEquals("st2", struct.codeIdForRealId("10102"))
+    }
+}
+
+class PaperIntegrityTest {
+
+    private fun result(
+        isComplete: Boolean,
+        missing: Int = 0,
+        below: List<String> = emptyList(),
+        notCovered: List<String> = emptyList(),
+        missingPackages: Int = 0,
+    ): ETS100AnswerReader.PaperIntegrity? = ETS100AnswerReader.PaperIntegrity.fromResolverResult(
+        completeness = JSONObject()
+            .put("is_complete", isComplete)
+            .put("template_questions", 14)
+            .put("parsed_questions", 14 - missing)
+            .put("missing_vs_template", missing)
+            .put("sections_below_template", JSONArray(below))
+            .put("sections_not_covered", JSONArray(notCovered)),
+        coverage = JSONObject().put("missing_packages", missingPackages),
+        warnings = emptyList(),
+    )
+
+    @Test
+    fun completePaperHasNoNotice() {
+        val integrity = result(isComplete = true)!!
+        assertTrue(integrity.isComplete)
+        assertNull("完整卷不应给出提示", integrity.notice)
+    }
+
+    @Test
+    fun missingQuestionsProduceActionableNotice() {
+        val integrity = result(isComplete = false, missing = 2, below = listOf("回答问题: 2 题（官方模板 4 题）"))!!
+        assertFalse(integrity.isComplete)
+        val notice = integrity.notice!!
+        assertTrue("提示应说明少了几题", notice.contains("少 2 题"))
+        assertTrue("提示应点名是哪一节", notice.contains("回答问题"))
+    }
+
+    @Test
+    fun uncoveredSectionIsReported() {
+        val integrity = result(isComplete = false, notCovered = listOf("故事复述"))!!
+        assertTrue(integrity.notice!!.contains("故事复述"))
+    }
+
+    @Test
+    fun missingPackagesReportedFirst() {
+        // 有包没取到时优先提示"包"（更接近根因）
+        val integrity = result(isComplete = false, missingPackages = 3)!!
+        assertTrue(integrity.notice!!.contains("3 个资源包"))
+    }
+
+    @Test
+    fun absentCompletenessMeansUnknownNotIncomplete() {
+        // 旧解析器 / 无官方模板时不该误报
+        val integrity = ETS100AnswerReader.PaperIntegrity.fromResolverResult(null, null, emptyList())
+        assertNull(integrity)
+    }
+
+    @Test
+    fun resolverWarningsAreFilteredToIntegrityRelated() {
+        val integrity = ETS100AnswerReader.PaperIntegrity.fromResolverResult(
+            completeness = JSONObject().put("is_complete", false).put("missing_vs_template", 1),
+            coverage = JSONObject(),
+            warnings = listOf(
+                "question_count_below_template: 少 1 题",
+                "partial_template_coverage:3/7",
+                "package_mounted_by_family_fallback: 听选信息1",
+                "无关噪音",
+            ),
+        )!!
+        assertEquals(2, integrity.warnings.size)
+        assertTrue(integrity.warnings.any { it.contains("below_template") })
+        assertTrue(integrity.warnings.any { it.contains("family_fallback") })
     }
 }

@@ -26,6 +26,8 @@ object ETS100CloudMerge {
         val sections: List<ETS100AnswerReader.Section>,
         val totalScore: Double?,
         val logs: List<String>,
+        /** 完整性对账：缺题时界面要能提示（卷面分照旧是官方值，看不出缺题） */
+        val integrity: ETS100AnswerReader.PaperIntegrity? = null,
     )
 
     /**
@@ -157,7 +159,22 @@ object ETS100CloudMerge {
 
             val totalScore = paper.optDouble("totalScore", Double.NaN).takeIf { v -> !v.isNaN() }
             logs.add("✅ 官方模板合并完成: ${sections.size} 大题 / $running 题" + (totalScore?.let { " / 卷面分 $it" } ?: ""))
-            MergedPaper(sections, totalScore, logs)
+
+            // 完整性对账：解析器逐节与官方 res.json 比过题数了
+            val integrity = ETS100AnswerReader.PaperIntegrity.fromResolverResult(
+                completeness = resp.result?.optJSONObject("completeness"),
+                coverage = resp.result?.optJSONObject("coverage"),
+                warnings = resp.result?.optJSONArray("warnings")
+                    ?.let { arr -> (0 until arr.length()).mapNotNull { arr.optString(it).takeIf { s -> s.isNotBlank() } } }
+                    ?: emptyList(),
+            )
+            if (integrity != null && !integrity.isComplete) {
+                logs.add("⚠️ 本卷不完整：${integrity.notice}")
+                integrity.warnings.forEach { logs.add("   ├─ $it") }
+            } else if (integrity != null) {
+                logs.add("✅ 完整性对账通过（官方 ${integrity.templateQuestions} 题 / 实际 ${integrity.parsedQuestions} 题）")
+            }
+            MergedPaper(sections, totalScore, logs, integrity)
         } catch (e: Exception) {
             Log.w(TAG, "官方模板合并异常（保持逐包结果）", e)
             null

@@ -137,7 +137,13 @@ internal suspend fun downloadAndParseCloudPaper(
                 net.lingala.zip4j.ZipFile(zipFile).extractAll(destDir.absolutePath)
             },
         )
-        official?.logs?.forEach { line -> ReadCloudLog.info(line) }
+        official?.logs?.forEach { line ->
+            if (line.startsWith("⚠️")) ReadCloudLog.warn(line) else ReadCloudLog.info(line)
+        }
+        // 缺题必须在日志里显眼：卷面分是官方值，光看总分看不出少题
+        official?.integrity?.takeIf { !it.isComplete }?.let {
+            ReadCloudLog.warn("⚠️ 本卷题目不完整（可能少题/有包未取到）：${it.notice}")
+        }
         val sectionsForPaper = official?.sections ?: run {
             val normalized = normalizeCloudParsedSections(allSections)
             if (normalized.size != allSections.size) {
@@ -159,6 +165,7 @@ internal suspend fun downloadAndParseCloudPaper(
             fileSize = 0L,
             sections = sectionsForPaper,
             totalScore = official?.totalScore,
+            integrity = official?.integrity,
             downloadTime = System.currentTimeMillis(),
             regionLabel = if (isPk) "词汇PK" else "云端",
             paperName = homeworkInfo.name,
