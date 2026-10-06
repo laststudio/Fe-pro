@@ -89,23 +89,62 @@ class ResolverJniInstrumentedTest {
         assertEquals("干净设备上不应有强注入特征: $report", 0, strong?.length() ?: 0)
     }
 
+    /**
+     * 契约的"出答案"op 在 Android 上必须有授权门禁。
+     *
+     * 背景：此前 `resolve_request` 的 parse 类 op 完全没有授权检查（libcloud 与旧接口都有），
+     * 等于把"库内部强制联网校验、补丁掉 Java 层也没用"这条设计目标架空。现在对
+     * parse_task / parse_batch / parse_word_pk / parse_homework_set 加了门禁（仅 Android 目标）。
+     *
+     * 本用例在**未配置授权**的测试进程里跑，因此必须拿到授权类错误码，而不是答案：
+     * 这正好证明门禁在真机产物里是活的。
+     * （带授权时的解析正确性由 148 个 Rust 用例 + 宿主 JNI 探针覆盖。）
+     */
     @Test
-    fun parseTaskThroughContractReturnsQuestionsAndMeta() {
+    fun parseOpsRequireAuthorizationOnAndroid() {
         val content = """
             {"structure_type":"collector.role","info":{"stid":"1","question":[
               {"ask":"Where is the club going to meet?","std":[{"value":"In the school library."}]}]}}
         """.trimIndent()
-        val resp = ResolverContract.parseTask(content)
-        assertTrue("解析应成功: ${resp.errorCode} ${resp.errorMessage}", resp.ok)
-        val questions = resp.resultArray
-        assertNotNull("应返回题目数组", questions)
-        assertEquals("应解析出 1 题", 1, questions!!.length())
-        assertEquals("In the school library.", questions.getJSONObject(0).getJSONArray("answers").getString(0))
-        // meta：这是切到契约后才有的诊断信息
-        assertEquals("explicit", resp.layer)
-        assertEquals("collector.role", resp.family)
-        assertTrue("真实题型应被 spec 收录", resp.specKnown)
-        assertNotNull("应带结构指纹", resp.shapeHash)
+
+        val parseResp = ResolverContract.parseTask(content)
+        assertFalse("未授权时 parse_task 必须被拒: ${parseResp.raw}", parseResp.ok)
+        val code = parseResp.errorCode.orEmpty()
+        assertTrue(
+            "应是授权类错误码（实际 $code）：${parseResp.raw}",
+            code.startsWith("auth_") || code == "network_error",
+        )
+        assertFalse(
+            "被拒时不应泄露答案: ${parseResp.raw}",
+            parseResp.raw.toString().contains("school library"),
+        )
+
+        val gated = listOf(
+            "parse_task" to JSONObject().put("content", JSONObject(content)),
+            "parse_batch" to JSONObject().put("tasks", JSONArray()),
+            "parse_word_pk" to JSONObject().put("data", JSONObject().put("words", JSONArray())),
+            "parse_homework_set" to JSONObject().put("packages", JSONArray()),
+        )
+        for ((op, payload) in gated) {
+            val r = ResolverContract.call(op, payload)
+            assertFalse("$op 必须走授权门禁: ${r.raw}", r.ok)
+            val c = r.errorCode.orEmpty()
+            assertTrue("$op 应是授权类错误码（实际 $c）", c.startsWith("auth_") || c == "network_error")
+        }
+    }
+
+    /** 遥测/元数据类 op 保持免费：授权被拒时也要能上报结构指纹（否则发现不了新题型）。 */
+    @Test
+    fun diagnosticOpsStayFreeWithoutAuthorization() {
+        val content = """{"structure_type":"collector.brand_new_2030","info":{"stid":"1","key":[{"weird":1}]}}"""
+        val report = ResolverContract.diagnose(content)
+        assertTrue("diagnose 不应被门禁拦: ${report.raw}", report.ok)
+
+        val caps = ResolverContract.capabilities()
+        assertTrue("capabilities 不应被门禁拦: ${caps.raw}", caps.ok)
+
+        val cls = ResolverContract.classifyHomeworkList(JSONArray())
+        assertTrue("classify_homework_list 不应被门禁拦: ${cls.raw}", cls.ok)
     }
 
     @Test
@@ -132,77 +171,20 @@ class ResolverJniInstrumentedTest {
         assertTrue("应给出卷面分口径", result.optDouble("expected_total_score", 0.0) > 0.0)
     }
 
+    /** 整卷合并同样属于"出答案"的 op：未授权时必须被拦。 */
     @Test
-    fun parseWordPkUsesOfficialQuestionTypeName() {
-        val payload = JSONObject(
-            """{"words":[{"id":1,"content":"apple","translate":"苹果"}],
-                "word_questions":[{"question_type":6,"word_id":1,"question_type_name":"听音选义",
-                  "answer":"A","option":[{"option_name":"A","option_value":"苹果"}]}]}""".trimIndent(),
-        )
-        val resp = ResolverContract.call("parse_word_pk", JSONObject().put("data", payload))
-        assertTrue("词汇解析应成功: ${resp.errorCode}", resp.ok)
-        val q = resp.resultArray!!.getJSONObject(0)
-        assertEquals("word.choice", q.optString("type"))
-        assertEquals("sync_pk", q.optString("channel"))
-        assertEquals("听音选义", q.optString("question_type_name"))
-        assertEquals("选项字母应与官方答案一致", "A", q.optJSONArray("answers")!!.getString(0))
-    }
-
-    @Test
-    fun homeworkSetMergeUsesOfficialTemplateWhenAvailable() {
-        val resJson = JSONObject(
-            """{"set_score":"20","exam_type_list":[
-                 {"exam_type_order":"1","exam_type_name":"听选信息","exam_type_collect":"listen_choice_standard",
-                  "exam_type_score":"6","exam_list":[{"exam_id":"{{st1}}","exam_score":"6",
-                  "question_list":[{"question_order":"1","question_score":"3"},{"question_order":"2","question_score":"3"}]}]}]}""".trimIndent(),
-        )
+    fun homeworkSetMergeRequiresAuthorization() {
         val packages = JSONArray().put(
-            JSONObject(
-                """{"structure_type":"collector.role","group_name":"听选信息","code_id":"st1",
-                    "questions":[{"question":"Q1","answers":["A"]},{"question":"Q2","answers":["B"]}]}""".trimIndent(),
-            ),
+            JSONObject("""{"structure_type":"collector.role","group_name":"听选信息","code_id":"st1",
+                "questions":[{"question":"Q1","answers":["A"]}]}""".trimIndent()),
         ).put(
-            JSONObject(
-                """{"structure_type":"collector.picture","group_name":"信息转述","code_id":"st2",
-                    "questions":[{"question":"Q3","answers":["C"]}]}""".trimIndent(),
-            ),
+            JSONObject("""{"structure_type":"collector.picture","group_name":"信息转述","code_id":"st2",
+                "questions":[{"question":"Q3","answers":["C"]}]}""".trimIndent()),
         )
-        // 两个包才会触发整卷合并（单包不做）
-        val resp = ResolverContract.parseHomeworkSet(packages, resJson.toString())
-        assertTrue("合并应成功: ${resp.errorCode} ${resp.errorMessage}", resp.ok)
-        val paper = resp.result!!.optJSONObject("paper")!!
-        assertEquals("卷面总分应取官方模板", 20.0, paper.optDouble("totalScore"), 0.001)
-        // 给了 2 个包 -> 合并出 2 个大题：第 1 个挂上官方模板（听选信息，2 题），
-        // 第 2 个（信息转述）没有对应模板大题，按原样保留（不丢题）。
-        val sections = paper.optJSONArray("sections")!!
-        assertEquals(2, sections.length())
-        val questions = sections.getJSONObject(0).optJSONArray("questions")!!
-        assertEquals(2, questions.length())
-        assertEquals("3.0", questions.getJSONObject(0).optString("score"))
-        assertEquals("1", questions.getJSONObject(0).optString("no"))
-        assertEquals("2", questions.getJSONObject(1).optString("no"))
-
-        // 完整性对账：设备上必须能拿到（缺题提示依赖它）
-        //
-        // 口径（实测，宿主与真机一致）：
-        //   sections_weak_mount  = **有包、但没挂上官方模板大题** <- 本用例属这种
-        //   sections_not_covered = 官方模板里有大题、但没有任何包挂上去（反方向）
-        // 弱挂载的大题会被原样保留（不丢题），并出现在 sections_weak_mount 里。
-        val completeness = resp.result!!.optJSONObject("completeness")
-        assertNotNull("新版解析器应返回 completeness", completeness)
-        val weakMount = completeness!!.optJSONArray("sections_weak_mount")
-        assertNotNull("应带 sections_weak_mount", weakMount)
-        assertTrue(
-            "第 2 个包没挂上官方模板大题，应出现在 sections_weak_mount: $completeness",
-            weakMount!!.length() >= 1,
-        )
-        assertEquals(2, completeness.optInt("template_questions"))
-        assertEquals(3, completeness.optInt("parsed_questions"))
-        // 弱挂载的大题在 paper 里保留（不因为没模板就丢题）
-        assertEquals(
-            "未在模板中登记的大题",
-            sections.getJSONObject(1).optString("caption"),
-        )
+        val resp = ResolverContract.parseHomeworkSet(packages, null)
+        assertFalse("未授权时合并必须被拒: ${resp.raw}", resp.ok)
+        val code = resp.errorCode.orEmpty()
+        assertTrue("应是授权类错误码（实际 $code）", code.startsWith("auth_") || code == "network_error")
     }
 
     @Test

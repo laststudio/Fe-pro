@@ -1,1 +1,1 @@
-libresolver.so 来自 v1.2.0-bd14949254a
+libresolver.so 来自 v1.2.0-fe83f0dd546（契约授权门禁）
