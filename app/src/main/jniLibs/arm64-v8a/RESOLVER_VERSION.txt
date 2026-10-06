@@ -1,1 +1,1 @@
-libresolver.so 来自 v1.2.0-9689c54fc59
+libresolver.so 来自 v1.2.0-bd14949254a
