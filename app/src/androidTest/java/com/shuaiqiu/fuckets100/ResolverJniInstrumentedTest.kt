@@ -58,6 +58,37 @@ class ResolverJniInstrumentedTest {
         assertFalse("不应检出 hook: $report", report.optBoolean("hook_detected", false))
     }
 
+    /**
+     * 可执行段自校验在**真机**上是否成立。
+     *
+     * 这是"自校验能不能开强制"的前置验证：运行期摘要由 Android 的映射形态决定，
+     * 必须先证明它等于构建期注入的期望值（也就是静态工具从文件算出的那个），
+     * 否则一旦开启强制模式，正常用户会被自己的自校验拦死。
+     *
+     * 无论通过与否都把完整报告打进 logcat，便于采集各机型的映射形态：
+     *   adb logcat -s TestRunner:I | grep SELFCHECK
+     */
+    @Test
+    fun selfCheckDigestMatchesInjectedExpectation() {
+        val report = JSONObject(ResolverNative.selfIntegrityCheck())
+        android.util.Log.i("TestRunner", "SELFCHECK $report")
+
+        val digest = report.optString("text_digest", "")
+        val expected = report.optString("expected_digest", "")
+        assertTrue("应算出可执行段摘要（长度 64）: $digest", digest.length == 64)
+        assertTrue("产物应带构建期注入的期望摘要: $expected", expected.length == 64)
+        assertTrue(
+            "运行期摘要必须等于注入的期望摘要（否则强制模式会误拦正常用户）\n" +
+                "  runtime = $digest\n  expected= $expected",
+            report.optBoolean("text_digest_match", false),
+        )
+        // 灰度观察期：只上报不拦截
+        assertFalse("当前应为灰度（不强制）: $report", report.optBoolean("digest_enforced", true))
+        assertFalse("灰度期不应因摘要而拒绝: $report", report.optBoolean("deny", false))
+        val strong = report.optJSONArray("injection_strong")
+        assertEquals("干净设备上不应有强注入特征: $report", 0, strong?.length() ?: 0)
+    }
+
     @Test
     fun parseTaskThroughContractReturnsQuestionsAndMeta() {
         val content = """
@@ -141,22 +172,37 @@ class ResolverJniInstrumentedTest {
         assertTrue("合并应成功: ${resp.errorCode} ${resp.errorMessage}", resp.ok)
         val paper = resp.result!!.optJSONObject("paper")!!
         assertEquals("卷面总分应取官方模板", 20.0, paper.optDouble("totalScore"), 0.001)
+        // 给了 2 个包 -> 合并出 2 个大题：第 1 个挂上官方模板（听选信息，2 题），
+        // 第 2 个（信息转述）没有对应模板大题，按原样保留（不丢题）。
         val sections = paper.optJSONArray("sections")!!
-        assertEquals(1, sections.length())
+        assertEquals(2, sections.length())
         val questions = sections.getJSONObject(0).optJSONArray("questions")!!
+        assertEquals(2, questions.length())
         assertEquals("3.0", questions.getJSONObject(0).optString("score"))
         assertEquals("1", questions.getJSONObject(0).optString("no"))
+        assertEquals("2", questions.getJSONObject(1).optString("no"))
 
         // 完整性对账：设备上必须能拿到（缺题提示依赖它）
+        //
+        // 口径（实测，宿主与真机一致）：
+        //   sections_weak_mount  = **有包、但没挂上官方模板大题** <- 本用例属这种
+        //   sections_not_covered = 官方模板里有大题、但没有任何包挂上去（反方向）
+        // 弱挂载的大题会被原样保留（不丢题），并出现在 sections_weak_mount 里。
         val completeness = resp.result!!.optJSONObject("completeness")
         assertNotNull("新版解析器应返回 completeness", completeness)
+        val weakMount = completeness!!.optJSONArray("sections_weak_mount")
+        assertNotNull("应带 sections_weak_mount", weakMount)
         assertTrue(
-            "第 2 个包没有对应模板大题，应判为不完整并点名: $completeness",
-            !completeness!!.optBoolean("is_complete", true),
+            "第 2 个包没挂上官方模板大题，应出现在 sections_weak_mount: $completeness",
+            weakMount!!.length() >= 1,
         )
-        val notCovered = completeness.optJSONArray("sections_not_covered")
-        assertNotNull(notCovered)
-        assertTrue(notCovered!!.length() >= 1)
+        assertEquals(2, completeness.optInt("template_questions"))
+        assertEquals(3, completeness.optInt("parsed_questions"))
+        // 弱挂载的大题在 paper 里保留（不因为没模板就丢题）
+        assertEquals(
+            "未在模板中登记的大题",
+            sections.getJSONObject(1).optString("caption"),
+        )
     }
 
     @Test

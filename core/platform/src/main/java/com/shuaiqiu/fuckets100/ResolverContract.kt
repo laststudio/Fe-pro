@@ -96,10 +96,20 @@ object ResolverContract {
     }
 
     /** 能力清单：ops / 官方题型全集 / 分类枚举 / 错误码 / 覆盖率。 */
-    fun capabilities(): Response = try {
-        parse(ResolverNative.capabilities())
+    /**
+     * 能力清单（契约信封形态：`{ok,result:{contract_version, ops[], …}}`）。
+     *
+     * 注意：`ResolverNative.capabilities()` 返回的是**裸能力对象**（库内 `capabilities_value()`，
+     * 没有 `{ok,result}` 信封），不能直接交给 [parse] —— 早期实现就是那样，导致
+     * `ok=false`、`supports()` 恒为 false。这里统一走契约 op；需要裸对象时用 [capabilitiesRaw]。
+     */
+    fun capabilities(): Response = call("capabilities")
+
+    /** 裸能力对象（无信封）。仅在需要与旧接口对齐时使用。 */
+    fun capabilitiesRaw(): JSONObject? = try {
+        JSONObject(ResolverNative.capabilities())
     } catch (_: Throwable) {
-        call("capabilities") // 兜底：走统一入口（通常会拿回同样的错误码）
+        null
     }
 
     /** 某 op 是否可用（`status == "stable"`）。 */
