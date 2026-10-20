@@ -18,6 +18,12 @@ sealed interface FeRoute : NavKey, Parcelable {
     data object Account : FeRoute
 
     @Parcelize
+    data class AccountBindings(val isEtingshuo: Boolean) : FeRoute
+
+    @Parcelize
+    data object AccountChangePassword : FeRoute
+
+    @Parcelize
     data object AccountDevices : FeRoute
 
     @Parcelize

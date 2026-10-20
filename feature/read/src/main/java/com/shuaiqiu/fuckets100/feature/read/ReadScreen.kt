@@ -115,13 +115,6 @@ fun ReadScreen(
     var showCloudDirectoryExport by remember { mutableStateOf(false) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }  // 宝贝添加了删除确认对话框状态喵~
 
-    // 展开状态 - 宝贝现在使用 PaperListItem，不需要这些展开状态了喵~
-    // var expandedPapers by remember { mutableStateOf(setOf<Int>()) }
-    // var expandedSections by remember { mutableStateOf(setOf<Pair<Int, Int>>()) }
-    // 搜索相关状态 - 已移除喵~
-    // var questionSearchQuery by remember { mutableStateOf("") }
-    // var showOnlyAnswered by remember { mutableStateOf(false) }
-
     // 可展开 FAB 相关状态
     var showCloudReadConfirmDialog by remember { mutableStateOf(false) }
     var showReadActionsMenu by remember { mutableStateOf(false) }
@@ -207,24 +200,31 @@ fun ReadScreen(
     var isRefreshing by remember { mutableStateOf(false) }
     val pullRefreshState = rememberPullToRefreshState()
 
+    val loadCloudHomework: () -> Unit = {
+        scope.launch {
+            isRefreshing = true
+            try {
+                viewModel.loadCloudHomeworkList(accountOnline = accountOnline)
+            } finally {
+                isRefreshing = false
+            }
+        }
+    }
+    val requestCloudRead: () -> Unit = {
+        requestCloudReadWithWarning(
+            skipWarning = SettingsManager.getSkipCloudReadWarning(),
+            onWarningRequired = { showCloudReadConfirmDialog = true },
+            onRead = loadCloudHomework,
+        )
+    }
+
     val onRefresh: () -> Unit = {
         if (readAccessChecking || readAccessIssue != null) {
             onNavigateToActivation()
         } else if (!accountOnline) {
             Toast.makeText(context, "已离线", Toast.LENGTH_SHORT).show()
         } else if (currentMode == ActivationMode.CLOUD) {
-            if (homeworkListsByStatus.isNotEmpty()) {
-                scope.launch {
-                    isRefreshing = true
-                    try {
-                        viewModel.loadCloudHomeworkList(accountOnline = accountOnline)
-                    } finally {
-                        isRefreshing = false
-                    }
-                }
-            } else {
-                showCloudReadConfirmDialog = true
-            }
+            requestCloudRead()
         } else {
             scope.launch {
                 isRefreshing = true
@@ -314,7 +314,7 @@ fun ReadScreen(
                         return@SmallExtendedFloatingActionButton
                     }
                     if (currentMode == ActivationMode.CLOUD) {
-                        showCloudReadConfirmDialog = true
+                        requestCloudRead()
                     } else {
                         viewModel.reloadLocalWithClearedCache(currentMode)
                     }
@@ -468,7 +468,7 @@ fun ReadScreen(
                     onDismiss = { showCloudReadConfirmDialog = false },
                     onConfirm = {
                         showCloudReadConfirmDialog = false
-                        scope.launch { viewModel.loadCloudHomeworkList(accountOnline = accountOnline) }
+                        loadCloudHomework()
                     }
                 )
             }

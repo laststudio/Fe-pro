@@ -29,6 +29,31 @@ class FeNavigatorTest {
     }
 
     @Test
+    fun accountFormsBackReturnToAccount() {
+        listOf(
+            FeRoute.AccountBindings(false),
+            FeRoute.AccountBindings(true),
+            FeRoute.AccountChangePassword,
+            FeRoute.AccountSessions,
+        ).forEach { route ->
+            val navigator = FeNavigator(FeRoute.Main)
+            navigator.push(FeRoute.Account)
+            navigator.push(route)
+            navigator.pop()
+            assertEquals(FeRoute.Account, navigator.current())
+        }
+    }
+
+    @Test
+    fun passwordChangeNavigationCanReturnToRoot() {
+        val navigator = FeNavigator(FeRoute.Main)
+        navigator.push(FeRoute.Account)
+        navigator.push(FeRoute.AccountChangePassword)
+        navigator.popUntil { it is FeRoute.Main }
+        assertEquals(FeRoute.Main, navigator.current())
+    }
+
+    @Test
     fun legalBackReturnsToAbout() {
         val navigator = FeNavigator(FeRoute.Main)
         navigator.push(FeRoute.About)

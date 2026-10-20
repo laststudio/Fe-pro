@@ -329,6 +329,7 @@ fun FeAppMain(
                             avatar = {
                                 AccountInitialAvatar(
                                     username = feAccountState.cachedSessionOrNull?.user?.username.orEmpty(),
+                                    size = 48,
                                     avatarUrl = feAccountState.cachedSessionOrNull?.user?.avatarUrl,
                                     userId = feAccountState.cachedSessionOrNull?.user?.id,
                                 )

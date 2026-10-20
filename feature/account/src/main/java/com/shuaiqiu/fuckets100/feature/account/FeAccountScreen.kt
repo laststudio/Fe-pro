@@ -1,332 +1,197 @@
 package com.shuaiqiu.fuckets100.feature.account
 
-import com.shuaiqiu.fuckets100.feature.shared.AccountInitialAvatar
-import com.shuaiqiu.fuckets100.feature.shared.AccountViewModel
-import com.shuaiqiu.fuckets100.feature.shared.ACCOUNT_CENTER_URL
-
 import android.content.Intent
-import android.net.Uri
-import android.widget.Toast
+import androidx.core.net.toUri
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
-import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Phone
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.shuaiqiu.fuckets100.FeAccountGateState
 import com.shuaiqiu.fuckets100.cachedSessionOrNull
-import kotlinx.coroutines.CancellationException
+import com.shuaiqiu.fuckets100.core.designsystem.SegmentedColumn
+import com.shuaiqiu.fuckets100.feature.shared.ACCOUNT_CENTER_URL
+import com.shuaiqiu.fuckets100.feature.shared.AccountInitialAvatar
+import com.shuaiqiu.fuckets100.feature.shared.AccountViewModel
 import kotlinx.coroutines.launch
 
-import com.shuaiqiu.fuckets100.FeAccountApiException
-import com.shuaiqiu.fuckets100.FeAccountGateState
-import com.shuaiqiu.fuckets100.FeAccountProfileApi
-import com.shuaiqiu.fuckets100.core.designsystem.SettingsListItem
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FeAccountScreen(
     onBack: () -> Unit,
     onNavigateToDevices: () -> Unit,
     onNavigateToSessions: () -> Unit,
+    onNavigateToBindings: (isEtingshuo: Boolean) -> Unit,
+    onNavigateToChangePassword: () -> Unit,
     onLogoutNavigate: () -> Unit,
     viewModel: AccountViewModel = hiltViewModel(),
+    bindingsViewModel: AccountBindingsViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
     val manager = viewModel.manager
     val state by manager.gateState.collectAsState()
     val session = state.cachedSessionOrNull
+    val bindingsState by bindingsViewModel.uiState.collectAsState()
     val scope = rememberCoroutineScope()
+    var showProfileDetails by remember { mutableStateOf(false) }
+    var showLogoutConfirm by remember { mutableStateOf(false) }
+    var isLoggingOut by remember { mutableStateOf(false) }
+    var logoutError by remember { mutableStateOf<String?>(null) }
 
     if (state is FeAccountGateState.LoginRequired) {
         FeLoginScreen(manager)
         return
     }
-
     if (session == null) {
         AccountOfflineMessage(
             message = when (val current = state) {
                 is FeAccountGateState.Checking -> "正在连接 LastStudio…"
                 is FeAccountGateState.Offline -> current.message
                 is FeAccountGateState.Blocked -> current.message
-                is FeAccountGateState.Ready -> ""
-                FeAccountGateState.LoginRequired -> ""
+                else -> "账号暂不可用"
             },
             showProgress = state is FeAccountGateState.Checking,
-            onRetry = { scope.launch { manager.checkGate() } },
+            onRetry = viewModel::checkGate,
             onBack = onBack,
         )
         return
     }
 
-    val cachedSession = session
-
-    var showChangePassword by remember { mutableStateOf(false) }
-    var showBindings by remember { mutableStateOf(false) }
-    var showBindEts100 by remember { mutableStateOf(false) }
-    var showUnbindConfirm by remember { mutableStateOf(false) }
-    var bindEts100Error by remember { mutableStateOf<String?>(null) }
-    var isBindingEts100 by remember { mutableStateOf(false) }
-    var isUnbindingEts100 by remember { mutableStateOf(false) }
-    var bindings by remember { mutableStateOf<FeAccountProfileApi.AccountBindings?>(null) }
-    var bindingsError by remember { mutableStateOf<String?>(null) }
-    var changePasswordError by remember { mutableStateOf<String?>(null) }
-    var logoutError by remember { mutableStateOf<String?>(null) }
-
-    fun refreshBindings() {
-        scope.launch {
-            bindingsError = null
-            runCatching { manager.accountBindings(force = true) }
-                .onSuccess { bindings = it }
-                .onFailure {
-                    if (it is FeAccountApiException && it.error.statusCode == 401) {
-                        manager.revalidateOnline()
-                    } else {
-                        bindingsError = it.message ?: "加载绑定信息失败"
-                    }
-                }
+    LaunchedEffect(state is FeAccountGateState.Ready) {
+        if (state is FeAccountGateState.Ready) bindingsViewModel.refresh()
+    }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, bindingsViewModel) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME && manager.gateState.value is FeAccountGateState.Ready) {
+                bindingsViewModel.refresh(force = true)
+            }
         }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    val bindings = bindingsState.bindings
+    val emailStatus = when {
+        bindings == null -> if (bindingsState.error != null) "暂不可用" else if (bindingsState.isRefreshing) "加载中" else "未知"
+        bindings.email == null -> "未绑定"
+        bindings.email?.isVerified == true -> "已验证"
+        else -> "未验证"
+    }
+    val etsStatus = when {
+        bindings == null -> if (bindingsState.error != null) "暂不可用" else if (bindingsState.isRefreshing) "加载中" else "未知"
+        bindings.etingshuo == null -> "未绑定"
+        else -> "已绑定"
     }
 
-    LaunchedEffect(cachedSession, state is FeAccountGateState.Ready) {
-        if (state is FeAccountGateState.Ready) {
-            refreshBindings()
+    AccountPageScaffold(
+        title = "个人中心",
+        onBack = onBack,
+        isRefreshing = bindingsState.isRefreshing,
+        onRefresh = { bindingsViewModel.refresh(force = true) },
+    ) {
+        if (state is FeAccountGateState.Offline || state is FeAccountGateState.Checking) {
+            AccountMessage(if (state is FeAccountGateState.Checking) "正在连接 LastStudio…" else "已离线，显示缓存账号信息")
         }
-    }
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("个人中心") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
-                    }
-                },
-            )
-        },
-    ) { padding ->
-        Column(
-            Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-            .padding(20.dp),
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(role = Role.Button, onClickLabel = "查看账号资料") { showProfileDetails = true }
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            if (state is FeAccountGateState.Offline || state is FeAccountGateState.Checking) {
+            AccountInitialAvatar(
+                username = session.user.username,
+                size = 64,
+                avatarUrl = session.user.avatarUrl,
+                userId = session.user.id,
+            )
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(session.user.username, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(
-                    text = if (state is FeAccountGateState.Checking) "正在连接 LastStudio…" else "已离线",
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.labelMedium,
+                    "${session.user.tierDisplayName} · LastStudio",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Spacer(Modifier.height(12.dp))
             }
-            Row(
-                Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                AccountInitialAvatar(
-                    username = cachedSession.user.username,
-                    size = 84,
-                    avatarUrl = cachedSession.user.avatarUrl,
-                    userId = cachedSession.user.id,
-                )
-                Spacer(Modifier.width(18.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        cachedSession.user.username,
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Text(
-                        "LastStudio 用户 #${cachedSession.user.id}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        cachedSession.user.tierDisplayName,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(24.dp))
-
-            OutlinedCard(modifier = Modifier.fillMaxWidth()) {
-                Column {
-                    SettingsListItem(
-                        icon = Icons.Default.Lock,
-                        title = "修改密码",
-                        sub = "定期更换密码更安全",
-                        onClick = {
-                            changePasswordError = null
-                            showChangePassword = true
-                        },
-                    )
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    SettingsListItem(
-                        icon = Icons.Default.Email,
-                        title = "账号绑定",
-                        sub = bindingsError
-                            ?: bindingsSummary(bindings),
-                        onClick = { showBindings = true },
-                    )
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    SettingsListItem(
-                        icon = Icons.Default.Phone,
-                        title = "我的设备",
-                        sub = "管理已登录的设备",
-                        onClick = onNavigateToDevices,
-                    )
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    SettingsListItem(
-                        icon = Icons.Default.Settings,
-                        title = "登录会话",
-                        sub = "查看和下线登录会话",
-                        onClick = onNavigateToSessions,
-                    )
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    SettingsListItem(
-                        icon = Icons.AutoMirrored.Filled.OpenInNew,
-                        title = "前往官网个人中心",
-                        sub = "前往 lastudio.cc 管理绑定、会员与账号安全",
-                        onClick = {
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(ACCOUNT_CENTER_URL))
-                            context.startActivity(intent)
-                        },
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(24.dp))
-
-            if (logoutError != null) {
-                Text(logoutError!!, color = MaterialTheme.colorScheme.error)
-                Spacer(Modifier.height(8.dp))
-            }
-            OutlinedButton(
-                modifier = Modifier.fillMaxWidth(),
-                onClick = {
-                    scope.launch {
-                        val result = manager.logout(onBeforeGateTransition = onLogoutNavigate)
-                        if (result.isFailure) {
-                            logoutError = result.exceptionOrNull()?.message ?: "退出登录失败"
-                        }
-                    }
-                },
-            ) {
-                Icon(Icons.AutoMirrored.Filled.Logout, null, Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("退出登录")
-            }
+            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-    }
-
-    if (showChangePassword) {
-        ChangePasswordDialog(
-            onDismiss = { showChangePassword = false },
-            onSubmit = { old, new, new2 ->
-                scope.launch {
-                    try {
-                        FeAccountProfileApi().changePassword(
-                            manager.requireAccessToken(),
-                            old,
-                            new,
-                            new2,
-                        )
-                        showChangePassword = false
-                        // token_version 已递增, 本地凭据失效 -> 强制重新登录
-                        manager.revalidateOnline()
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        changePasswordError = (e as? FeAccountApiException)?.error?.message
-                            ?: e.message ?: "修改失败"
-                    }
-                }
-            },
-            error = changePasswordError,
+        bindingsState.error?.let { AccountMessage(it, isError = true) }
+        SegmentedColumn(
+            title = "账号绑定",
+            items = listOf(
+                { AccountActionRow(0, 2, "邮箱", Icons.Default.Email, { onNavigateToBindings(false) }, trailingText = emailStatus) },
+                { AccountActionRow(1, 2, "e听说", Icons.Default.Cloud, { onNavigateToBindings(true) }, trailingText = etsStatus) },
+            ),
         )
-    }
-
-    if (showBindings) {
-        BindingsDialog(
-            bindings = bindings,
-            error = bindingsError,
-            onDismiss = { showBindings = false },
-            onOpenWebAccountCenter = {
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(ACCOUNT_CENTER_URL))
-                context.startActivity(intent)
-            },
-            onBindEts100 = {
-                bindEts100Error = null
-                showBindEts100 = true
-            },
-            onUnbindEts100 = {
-                showUnbindConfirm = true
-            },
+        SegmentedColumn(
+            title = "账号安全",
+            items = listOf(
+                { AccountActionRow(0, 3, "修改密码", Icons.Default.Lock, onNavigateToChangePassword) },
+                { AccountActionRow(1, 3, "我的设备", Icons.Default.Devices, onNavigateToDevices) },
+                { AccountActionRow(2, 3, "登录会话", Icons.Default.History, onNavigateToSessions) },
+            ),
         )
-    }
-
-    if (showBindEts100) {
-        BindEts100Dialog(
-            onDismiss = { showBindEts100 = false },
-            onSubmit = { phone, password ->
-                scope.launch {
-                    isBindingEts100 = true
-                    bindEts100Error = null
-                    try {
-                        manager.bindPlatformAccount(phone, password)
-                        showBindEts100 = false
-                        Toast.makeText(context, "绑定 ETS100 账号成功", Toast.LENGTH_SHORT).show()
-                        refreshBindings()
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        bindEts100Error = (e as? FeAccountApiException)?.error?.message ?: e.message ?: "绑定失败"
-                    } finally {
-                        isBindingEts100 = false
-                    }
-                }
-            },
-            error = bindEts100Error,
-            isLoading = isBindingEts100,
+        SegmentedColumn(
+            title = "其他",
+            items = listOf(
+                {
+                    AccountActionRow(0, 2, "官网个人中心", Icons.AutoMirrored.Filled.OpenInNew, {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, ACCOUNT_CENTER_URL.toUri()))
+                    })
+                },
+                {
+                    AccountActionRow(1, 2, "退出登录", Icons.AutoMirrored.Filled.Logout,
+                        onClick = { logoutError = null; showLogoutConfirm = true },
+                        destructive = true, enabled = !isLoggingOut,
+                    )
+                },
+            ),
         )
+        logoutError?.let { AccountMessage(it, isError = true) }
     }
-
-    if (showUnbindConfirm) {
-        UnbindConfirmDialog(
-            onDismiss = { showUnbindConfirm = false },
-            onConfirm = {
-                scope.launch {
-                    isUnbindingEts100 = true
-                    try {
-                        manager.unbindPlatformAccount()
-                        showUnbindConfirm = false
-                        Toast.makeText(context, "已解除 ETS100 账号绑定", Toast.LENGTH_SHORT).show()
-                        refreshBindings()
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        Toast.makeText(context, e.message ?: "解除绑定失败", Toast.LENGTH_SHORT).show()
-                    } finally {
-                        isUnbindingEts100 = false
-                    }
-                }
+    if (showProfileDetails) {
+        AccountProfileDialog(session.user, onDismiss = { showProfileDetails = false })
+    }
+    if (showLogoutConfirm) {
+        AlertDialog(
+            onDismissRequest = { if (!isLoggingOut) showLogoutConfirm = false },
+            title = { Text("退出登录？") },
+            text = { Text("退出后需要重新登录 LastStudio 账号。") },
+            confirmButton = {
+                TextButton(
+                    enabled = !isLoggingOut,
+                    onClick = {
+                        isLoggingOut = true
+                        scope.launch {
+                            try {
+                                val result = manager.logout(onBeforeGateTransition = onLogoutNavigate)
+                                if (result.isFailure) {
+                                    logoutError = result.exceptionOrNull()?.message ?: "退出登录失败"
+                                    showLogoutConfirm = false
+                                }
+                            } finally {
+                                isLoggingOut = false
+                            }
+                        }
+                    },
+                ) { Text(if (isLoggingOut) "正在退出…" else "退出登录", color = MaterialTheme.colorScheme.error) }
             },
-            isLoading = isUnbindingEts100,
+            dismissButton = {
+                TextButton(enabled = !isLoggingOut, onClick = { showLogoutConfirm = false }) { Text("取消") }
+            },
         )
     }
 }
@@ -338,27 +203,15 @@ internal fun AccountOfflineMessage(
     onRetry: () -> Unit,
     onBack: () -> Unit,
 ) {
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("个人中心") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
-                    }
-                },
-            )
-        },
-    ) { padding ->
+    AccountPageScaffold(title = "个人中心", onBack = onBack) {
         Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(28.dp),
+            modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             if (showProgress) CircularProgressIndicator()
-            Text(message, style = MaterialTheme.typography.bodyLarge)
-            Spacer(Modifier.height(16.dp))
-            Button(onClick = onRetry) { Text("重试连接") }
+            AccountMessage(message)
+            Button(onClick = onRetry, enabled = !showProgress) { Text("重试连接") }
         }
     }
 }

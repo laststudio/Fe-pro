@@ -32,6 +32,8 @@ import com.materialkolor.dynamiccolor.ColorSpec
 import com.shuaiqiu.fuckets100.feature.settings.ThemeSettingsScreen
 import com.shuaiqiu.fuckets100.feature.activation.ActivationSettingsScreen
 import com.shuaiqiu.fuckets100.feature.account.FeAccountScreen
+import com.shuaiqiu.fuckets100.feature.account.AccountBindingsScreen
+import com.shuaiqiu.fuckets100.feature.account.ChangePasswordScreen
 import com.shuaiqiu.fuckets100.feature.account.CloudActivationScreen
 import com.shuaiqiu.fuckets100.feature.account.AccountSessionsPage
 import com.shuaiqiu.fuckets100.feature.account.AccountDevicesPage
@@ -188,8 +190,22 @@ fun FeNavContainer(
                     FeAccountScreen(
                         onBack = navigator::pop,
                         onNavigateToDevices = { navigator.push(FeRoute.AccountDevices) },
+                        onNavigateToBindings = { navigator.push(FeRoute.AccountBindings(it)) },
+                        onNavigateToChangePassword = { navigator.push(FeRoute.AccountChangePassword) },
                         onNavigateToSessions = { navigator.push(FeRoute.AccountSessions) },
                         onLogoutNavigate = {
+                            navigator.popUntil { route -> route is FeRoute.Main }
+                            onSelectRootPage(0)
+                        },
+                    )
+                }
+                entry<FeRoute.AccountBindings> { route ->
+                    AccountBindingsScreen(isEtingshuo = route.isEtingshuo, onBack = navigator::pop)
+                }
+                entry<FeRoute.AccountChangePassword> {
+                    ChangePasswordScreen(
+                        onBack = navigator::pop,
+                        onPasswordChanged = {
                             navigator.popUntil { route -> route is FeRoute.Main }
                             onSelectRootPage(0)
                         },

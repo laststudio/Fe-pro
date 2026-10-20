@@ -20,6 +20,7 @@ object SettingsManager {
     private const val KEY_PREDICTIVE_BACK_EXIT_DIRECTION = "predictive_back_exit_direction"
     private const val KEY_LOCAL_VERIFICATION_CODE = "local_verification_code"
     private const val KEY_COMPACT_ANSWER_DISPLAY = "compact_answer_display"
+    private const val KEY_SKIP_CLOUD_READ_WARNING = "skip_cloud_read_warning"
     private const val KEY_LAST_SEEN_ANNOUNCEMENT = "last_seen_announcement_updated_at"
     
     private lateinit var prefs: SharedPreferences
@@ -77,6 +78,16 @@ object SettingsManager {
 
     fun getCompactAnswerDisplay(): Boolean {
         return prefs.getBoolean(KEY_COMPACT_ANSWER_DISPLAY, false)
+    }
+
+    fun saveSkipCloudReadWarning(enabled: Boolean) {
+        prefs.edit {
+            putBoolean(KEY_SKIP_CLOUD_READ_WARNING, enabled)
+        }
+    }
+
+    fun getSkipCloudReadWarning(): Boolean {
+        return prefs.getBoolean(KEY_SKIP_CLOUD_READ_WARNING, false)
     }
 
     fun saveLegalAccepted(accepted: Boolean) {
