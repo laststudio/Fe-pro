@@ -60,17 +60,13 @@ object ResolverAuthorizer : AuthCacheInvalidator {
     // 生产后端 Ed25519 公钥 (urlsafe base64 no-pad)。换钥时需同步更新。
     const val PUBLIC_KEY_B64 = "8i06qnGdq6lm6wj8NDm22Nh0_nP6_k38Kg_Lz0xHIiY"
 
-    @Volatile private var lastCloudAuthTime = 0L
-    @Volatile private var lastCloudAuthToken: String? = null
-    @Volatile private var lastResolverAuthTime = 0L
-    @Volatile private var lastResolverAuthToken: String? = null
+    @Volatile private var lastCloudAuthorization: FeatureAuthorizationCache? = null
+    @Volatile private var lastResolverAuthorization: FeatureAuthorizationCache? = null
     private const val AUTH_CACHE_TTL_MS = 3 * 60 * 1000L // 3 分钟内存缓存，避免频繁点击重复请求网络
 
     override fun invalidateAuthCache() {
-        lastCloudAuthTime = 0L
-        lastCloudAuthToken = null
-        lastResolverAuthTime = 0L
-        lastResolverAuthToken = null
+        lastCloudAuthorization = null
+        lastResolverAuthorization = null
     }
 
     /**
@@ -106,10 +102,11 @@ object ResolverAuthorizer : AuthCacheInvalidator {
             return@withContext "请先登录 LastStudio 账号"
         }
         val now = System.currentTimeMillis()
-        if (now - lastCloudAuthTime < AUTH_CACHE_TTL_MS && lastCloudAuthToken == token) {
+        val integrityEnabled = manager.isIntegrityCheckEnabled()
+        if (lastCloudAuthorization?.isValid(token, now, integrityEnabled, AUTH_CACHE_TTL_MS) == true) {
             return@withContext null
         }
-        configureCloud(context)?.let {
+        configureCloud(context, integrityEnabled)?.let {
             invalidateAuthCache()
             return@withContext it
         }
@@ -118,8 +115,9 @@ object ResolverAuthorizer : AuthCacheInvalidator {
             if (result.optBoolean("ok", false) &&
                 result.optJSONObject("result")?.optBoolean("allowed", false) == true
             ) {
-                lastCloudAuthTime = System.currentTimeMillis()
-                lastCloudAuthToken = token
+                lastCloudAuthorization = FeatureAuthorizationCache(
+                    token, System.currentTimeMillis(), integrityEnabled,
+                )
                 null
             } else {
                 invalidateAuthCache()
@@ -154,10 +152,11 @@ object ResolverAuthorizer : AuthCacheInvalidator {
             return@withContext "请先登录 LastStudio 账号"
         }
         val now = System.currentTimeMillis()
-        if (now - lastResolverAuthTime < AUTH_CACHE_TTL_MS && lastResolverAuthToken == token) {
+        val integrityEnabled = manager.isIntegrityCheckEnabled()
+        if (lastResolverAuthorization?.isValid(token, now, integrityEnabled, AUTH_CACHE_TTL_MS) == true) {
             return@withContext null
         }
-        configureResolver(context)?.let {
+        configureResolver(context, integrityEnabled)?.let {
             invalidateAuthCache()
             return@withContext it
         }
@@ -165,8 +164,9 @@ object ResolverAuthorizer : AuthCacheInvalidator {
             val json = ResolverNative.authorizeFeature()
             val obj = JSONObject(json)
             if (obj.optBoolean("allowed", false)) {
-                lastResolverAuthTime = System.currentTimeMillis()
-                lastResolverAuthToken = token
+                lastResolverAuthorization = FeatureAuthorizationCache(
+                    token, System.currentTimeMillis(), integrityEnabled,
+                )
                 null
             } else {
                 invalidateAuthCache()
@@ -185,14 +185,17 @@ object ResolverAuthorizer : AuthCacheInvalidator {
         }
     }
 
-    private suspend fun configureResolver(context: Context): String? = withContext(Dispatchers.IO) {
+    private suspend fun configureResolver(context: Context, integrityEnabled: Boolean? = null): String? = withContext(Dispatchers.IO) {
         try {
             val manager = account()
             if (manager.isGateChecking) {
                 manager.checkGate()
             }
-            AppIntegrityGuard.ensureResolver(context, buildInfo ?: return@withContext "授权信息未初始化", enabled = manager.isIntegrityCheckEnabled())
             val token = manager.requireAccessToken()
+            // 先验证/刷新会话，再同步策略，避免使用刷新前的旧开关。
+            val shouldCheck = integrityEnabled ?: manager.isIntegrityCheckEnabled()
+            ResolverNative.setIntegrityCheckEnabled(shouldCheck)
+            AppIntegrityGuard.ensureResolver(context, buildInfo ?: return@withContext "授权信息未初始化", enabled = shouldCheck)
             val rc = ResolverNative.setAuthConfig(
                 baseUrl = BASE_URL,
                 softwareKey = SOFTWARE_KEY,
@@ -215,14 +218,17 @@ object ResolverAuthorizer : AuthCacheInvalidator {
         }
     }
 
-    private suspend fun configureCloud(context: Context): String? = withContext(Dispatchers.IO) {
+    private suspend fun configureCloud(context: Context, integrityEnabled: Boolean? = null): String? = withContext(Dispatchers.IO) {
         try {
             val manager = account()
             if (manager.isGateChecking) {
                 manager.checkGate()
             }
-            AppIntegrityGuard.ensureCloud(context, buildInfo ?: return@withContext "授权信息未初始化", enabled = manager.isIntegrityCheckEnabled())
             val token = manager.requireAccessToken()
+            // 先验证/刷新会话，再同步策略，避免使用刷新前的旧开关。
+            val shouldCheck = integrityEnabled ?: manager.isIntegrityCheckEnabled()
+            CloudNative.setIntegrityCheckEnabled(shouldCheck)
+            AppIntegrityGuard.ensureCloud(context, buildInfo ?: return@withContext "授权信息未初始化", enabled = shouldCheck)
             val rc = CloudNative.setAuthConfig(
                 baseUrl = BASE_URL,
                 softwareKey = SOFTWARE_KEY,

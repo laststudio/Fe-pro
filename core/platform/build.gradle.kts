@@ -40,4 +40,5 @@ dependencies {
     api(libs.shizuku.api)
     implementation(libs.shizuku.provider)
     implementation(libs.kotlinx.coroutines.android)
+    testImplementation(libs.junit)
 }

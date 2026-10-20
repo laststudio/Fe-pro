@@ -17,8 +17,15 @@ android {
     val releaseKeystorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
     val releaseKeyAlias = System.getenv("ANDROID_KEY_ALIAS")
     val releaseKeyPassword = System.getenv("ANDROID_KEY_PASSWORD")
-    // CI 注入期望签名证书 sha256（十六进制小写，去掉冒号）。本地为空时不强制签名校验。
-    val expectedSignatureSha256 = System.getenv("EXPECTED_SIGNATURE_SHA256").orEmpty().trim()
+    // CI 可覆盖签名轮换后的证书；本地构建也绑定生产证书，不能因未注入而跳过校验。
+    val officialSignatureSha256 = "95fdebb3682f7c529584cfe11f27b73557426d211d53688beaa18434fdd84cfe"
+    val expectedSignatureSha256 = System.getenv("EXPECTED_SIGNATURE_SHA256")
+        ?.trim()
+        ?.takeIf { it.isNotEmpty() }
+        ?: officialSignatureSha256
+    require(expectedSignatureSha256.matches(Regex("[0-9a-fA-F]{64}"))) {
+        "EXPECTED_SIGNATURE_SHA256 必须是 64 位十六进制签名证书摘要"
+    }
     val hasReleaseSigningConfig = listOf(
         releaseKeystorePath,
         releaseKeystorePassword,

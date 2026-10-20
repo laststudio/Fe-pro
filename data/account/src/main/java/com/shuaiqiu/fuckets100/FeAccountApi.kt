@@ -66,13 +66,9 @@ class FeAccountApi(
     }
 
     suspend fun login(username: String, password: String, capToken: String?): LoginTokens {
-        val device = JSONObject()
+        val device = currentBuildPayload()
             .put("installation_id", installationId())
             .put("platform_device_id", platformDeviceId())
-            .put("application_id", buildInfo.applicationId)
-            .put("signing_certificate_sha256", signingCertificateSha256())
-            .put("is_debuggable", isDebuggableBuild())
-            .put("version_code", buildInfo.versionCode)
             .put("device_name", "${Build.MANUFACTURER} ${Build.MODEL}".trim())
             .put("platform_version", "Android ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})")
         val body = JSONObject()
@@ -91,6 +87,7 @@ class FeAccountApi(
             "POST",
             "/client-auth/refresh",
             authorization = "SoftwareRefresh $refreshToken",
+            body = JSONObject().put("device", currentBuildPayload()).toString(),
         )
         val json = JSONObject(response.body)
         return RefreshTokens(json.getString("access_token"), json.getString("refresh_token"))
@@ -292,6 +289,13 @@ class FeAccountApi(
         return sha256LowerHex("${buildInfo.applicationId}:$androidId")
     }
 
+    private fun currentBuildPayload(): JSONObject = clientBuildPayload(
+        applicationId = buildInfo.applicationId,
+        certificateSha256 = signingCertificateSha256(),
+        versionCode = buildInfo.versionCode,
+        isDebuggable = isDebuggableBuild(),
+    )
+
     private fun isDebuggableBuild(): Boolean =
         (context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
 
@@ -328,3 +332,15 @@ class FeAccountApi(
 
 class FeAccountApiException(val error: FeApiError) : Exception(error.message)
 class FeAccountNetworkException(message: String) : Exception(message)
+
+/** 登录与刷新共用当前包身份，不能从缓存会话中读取构建状态。 */
+internal fun clientBuildPayload(
+    applicationId: String,
+    certificateSha256: String,
+    versionCode: Int,
+    isDebuggable: Boolean,
+): JSONObject = JSONObject()
+    .put("application_id", applicationId)
+    .put("signing_certificate_sha256", certificateSha256)
+    .put("version_code", versionCode)
+    .put("is_debuggable", isDebuggable)

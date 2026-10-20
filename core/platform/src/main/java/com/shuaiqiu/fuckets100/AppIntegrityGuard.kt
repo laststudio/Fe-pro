@@ -15,7 +15,7 @@ import java.security.MessageDigest
  *
  * 校验三点，任一不符即判定为被篡改/重打包：
  * 1. 包名必须等于签名时预期值（防改包名）。
- * 2. 当 CI 注入了期望签名证书 sha256（正式版）时，运行时签名必须与之一致（防换签名/重打包）。
+ * 2. 期望签名证书 sha256 必须有效，且运行时签名必须与之一致（防换签名/重打包）。
  * 3. resolver/cloud 两个 so 分别自校验（防调试注入、so 被替换或内存段被篡改）。
  */
 object AppIntegrityGuard {
@@ -90,14 +90,9 @@ object AppIntegrityGuard {
                 if (expectedPackage.isNotBlank() && context.packageName != expectedPackage) {
                     add("包名不匹配")
                 }
-                // 2) 签名（仅 CI 注入了期望值才强制，正式分发生效）
-                val expectedSignature = buildInfo.expectedSignatureSha256
-                if (expectedSignature.isNotBlank()) {
-                    val actual = runCatching { currentSigningCertSha256(context) }.getOrNull()
-                    if (actual == null || !actual.equals(expectedSignature, ignoreCase = true)) {
-                        add("签名证书不匹配")
-                    }
-                }
+                // 2) 签名：校验开启时，配置缺失也应拒绝，不能静默跳过。
+                val actual = runCatching { currentSigningCertSha256(context) }.getOrNull()
+                signingIntegrityFailure(buildInfo.expectedSignatureSha256, actual)?.let { add(it) }
                 // 3) so 自校验
                 val rawJson = runCatching { nativeCheck() }.getOrNull()
                 val integrity = runCatching { rawJson?.let { JSONObject(it) } }.getOrNull()
@@ -112,4 +107,10 @@ object AppIntegrityGuard {
             throw IntegrityFailure("完整性校验失败：$failureSummary")
         }
     }
+}
+
+internal fun signingIntegrityFailure(expected: String, actual: String?): String? = when {
+    !expected.matches(Regex("[0-9a-fA-F]{64}")) -> "签名校验配置缺失或无效，请使用官方安装包"
+    actual == null || !actual.equals(expected, ignoreCase = true) -> "签名证书不匹配"
+    else -> null
 }
