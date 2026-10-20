@@ -9,12 +9,11 @@ import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import android.content.Intent
 import android.net.Uri
@@ -43,7 +42,6 @@ fun SettingsScreen(
         topBar = {
             LargeFlexibleTopAppBar(
                 title = { Text("设置") },
-                subtitle = { Text("配置应用行为与个性化选项") },
                 windowInsets = WindowInsets.safeDrawing.only(
                     WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
                 ),
@@ -65,35 +63,39 @@ fun SettingsScreen(
         ) {
             Spacer(Modifier.height(16.dp))
 
-            Card(
-                onClick = onNavigateAccount,
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.extraLarge,
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            SegmentedColumn(
+                title = "账号",
+                items = listOf(
+                    {
+                        ExpressiveSegmentedListItem(
+                            index = 0,
+                            count = 1,
+                            onClick = onNavigateAccount,
+                            leadingContent = { avatar() },
+                            headlineContent = {
+                                Text(
+                                    accountSession?.user?.username ?: "Fe 账号",
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            },
+                            supportingContent = {
+                                Text(
+                                    accountSession?.user?.let { "${it.tierDisplayName} · LastStudio" }
+                                        ?: "查看账号信息",
+                                )
+                            },
+                            trailingContent = {
+                                Icon(
+                                    Icons.Default.ChevronRight,
+                                    contentDescription = "进入个人中心",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            },
+                        )
+                    },
                 ),
-            ) {
-                Row(
-                    Modifier.fillMaxWidth().padding(20.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    avatar()
-                    Spacer(Modifier.width(16.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            accountSession?.user?.username ?: "Fe 账号",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Text(
-                            accountSession?.user?.let { "LastStudio · ${it.tierDisplayName}" }
-                                ?: "查看账号信息",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    Icon(Icons.Default.ChevronRight, contentDescription = "进入账号")
-                }
-            }
+            )
 
             Spacer(Modifier.height(24.dp))
 

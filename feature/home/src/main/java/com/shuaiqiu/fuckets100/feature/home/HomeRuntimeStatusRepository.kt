@@ -36,6 +36,7 @@ class HomeRuntimeStatusRepository @Inject constructor(
                 hasRootAvailable = RootManager.isRootAvailable(),
                 hasDirectReadAvailable = ZWCHelper.isDirectReadAvailable(),
                 cloudLoggedIn = ETS100AuthManager.isLoggedIn(context),
+                etsAppInfo = loadEtsAppInfo(context),
             ).also(::update)
         }
     }
@@ -43,6 +44,18 @@ class HomeRuntimeStatusRepository @Inject constructor(
     fun update(status: HomeRuntimeStatus) {
         cached = status
         lastRefreshTime = SystemClock.elapsedRealtime()
+    }
+
+    private fun loadEtsAppInfo(
+        context: Context,
+        packageName: String = "com.ets100.secondary",
+    ): Pair<Boolean, String>? = try {
+        val packageInfo = context.packageManager.getPackageInfo(packageName, 0)
+        Pair(true, packageInfo.versionName ?: "未知")
+    } catch (e: android.content.pm.PackageManager.NameNotFoundException) {
+        Pair(false, "")
+    } catch (e: Exception) {
+        null
     }
 
     private companion object {

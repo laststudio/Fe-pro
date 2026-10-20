@@ -1,6 +1,5 @@
 package com.shuaiqiu.fuckets100.feature.settings
 
-import android.content.Context
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -19,15 +18,16 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.Update
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeFlexibleTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -44,13 +44,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.shuaiqiu.fuckets100.core.designsystem.ExpressiveScaffold
-import com.shuaiqiu.fuckets100.core.common.AppBuildInfo
 import com.shuaiqiu.fuckets100.core.designsystem.TonalCard
 import com.shuaiqiu.fuckets100.core.designsystem.TopBarBackButton
 import com.shuaiqiu.fuckets100.core.designsystem.expressiveTopAppBarColors
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 import com.shuaiqiu.fuckets100.UpdateStatus
 data class RemoteContent(
@@ -91,25 +89,78 @@ fun RemoteContentScreen(
     var updateDialogStatus by remember {
         mutableStateOf<UpdateStatus?>(null)
     }
+    var displayedContent by remember(content) { mutableStateOf(content) }
+    var isRefreshing by remember(content) { mutableStateOf(false) }
+    val pullRefreshState = rememberPullToRefreshState()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
-    LaunchedEffect(content) {
-        val announcementResult = viewModel.fetchTextOrNull(content.announcementUrl)
+    suspend fun syncContent(nextContent: RemoteContent, forceRefresh: Boolean = false) {
+        val announcementResult = viewModel.fetchTextOrNull(nextContent.announcementUrl, forceRefresh)
         var successCount = 0
-        if (!announcementResult.isNullOrBlank()) {
-            announcementBody = parseRemoteContent(announcementResult)
+        announcementBody = if (!announcementResult.isNullOrBlank()) {
             successCount++
+            parseRemoteContent(announcementResult)
+        } else {
+            nextContent.announcementMessage.ifBlank { "暂无公告" }
         }
-        if (content.changelogContent.isNotBlank()) {
-            changelogBody = parseCurrentVersionChangelog(content.changelogContent, appVersionName)
-                .ifBlank { parseRemoteContent(content.changelogContent) }
+        changelogBody = if (nextContent.changelogContent.isNotBlank()) {
             successCount++
+            parseCurrentVersionChangelog(nextContent.changelogContent, appVersionName)
+                .ifBlank { parseRemoteContent(nextContent.changelogContent) }
+        } else {
+            nextContent.changelogSummary.ifBlank { "暂无更新内容" }
         }
+        displayedContent = nextContent
         fetchStatus = when {
-            content.announcementUrl.isBlank() && content.changelogContent.isBlank() ->
+            nextContent.announcementUrl.isBlank() && nextContent.changelogContent.isBlank() ->
                 "显示本地缓存内容"
             successCount > 0 -> "远程内容同步完成"
             else -> "获取失败，已显示缓存内容"
+        }
+    }
+
+    LaunchedEffect(content) {
+        isRefreshing = true
+        try {
+            syncContent(content)
+        } finally {
+            isRefreshing = false
+        }
+    }
+
+    val onRefresh: () -> Unit = {
+        if (!isRefreshing) {
+            scope.launch {
+                isRefreshing = true
+                fetchStatus = "正在同步远程内容..."
+                try {
+                    val status = viewModel.checkStatus()
+                    syncContent(
+                        nextContent = RemoteContent(
+                            announcementTitle = status.announcementTitle,
+                            announcementMessage = status.announcementMessage,
+                            announcementUpdatedAt = status.announcementUpdatedAt,
+                            announcementUrl = status.announcementUrl,
+                            changelogTitle = status.changelogTitle,
+                            changelogSummary = status.changelogSummary.ifBlank { status.message },
+                            changelogContent = status.changelogContent,
+                        ),
+                        forceRefresh = true,
+                    )
+                    if (status.showDialog) {
+                        updateDialogStatus = status
+                    } else {
+                        Toast.makeText(context, "当前已是最新版本", Toast.LENGTH_SHORT).show()
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    fetchStatus = "刷新失败，已保留当前内容"
+                    Toast.makeText(context, "刷新失败", Toast.LENGTH_SHORT).show()
+                } finally {
+                    isRefreshing = false
+                }
+            }
         }
     }
 
@@ -120,27 +171,6 @@ fun RemoteContentScreen(
             LargeFlexibleTopAppBar(
                 title = { Text("公告与更新") },
                 navigationIcon = { TopBarBackButton(onClick = onBack) },
-                actions = {
-                    IconButton(
-                        onClick = {
-                            scope.launch {
-                                runCatching { viewModel.checkStatus() }
-                                    .onSuccess { status ->
-                                        if (status.showDialog) {
-                                            updateDialogStatus = status
-                                        } else {
-                                            Toast.makeText(context, "当前已是最新版本", Toast.LENGTH_SHORT).show()
-                                        }
-                                    }
-                                    .onFailure {
-                                        Toast.makeText(context, "检测更新失败", Toast.LENGTH_SHORT).show()
-                                    }
-                            }
-                        }
-                    ) {
-                        Icon(Icons.Default.Refresh, contentDescription = "检测更新")
-                    }
-                },
                 windowInsets = WindowInsets.safeDrawing.only(
                     WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
                 ),
@@ -152,34 +182,47 @@ fun RemoteContentScreen(
             WindowInsetsSides.Top + WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom,
         ),
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+        PullToRefreshBox(
+            state = pullRefreshState,
+            isRefreshing = isRefreshing,
+            onRefresh = onRefresh,
+            modifier = Modifier.fillMaxSize().padding(padding),
+            indicator = {
+                PullToRefreshDefaults.LoadingIndicator(
+                    modifier = Modifier.align(Alignment.TopCenter),
+                    state = pullRefreshState,
+                    isRefreshing = isRefreshing,
+                )
+            },
         ) {
-            Text(
-                fetchStatus,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Text(
+                    fetchStatus,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
 
-            RemoteContentSection(
-                icon = Icons.Default.Campaign,
-                title = content.announcementTitle.ifBlank { "公告" },
-                body = announcementBody,
-                meta = content.announcementUpdatedAt
-            )
+                RemoteContentSection(
+                    icon = Icons.Default.Campaign,
+                    title = displayedContent.announcementTitle.ifBlank { "公告" },
+                    body = announcementBody,
+                    meta = displayedContent.announcementUpdatedAt
+                )
 
-            RemoteContentSection(
-                icon = Icons.Default.Update,
-                title = content.changelogTitle.ifBlank { "更新日志" },
-                body = changelogBody,
-                meta = "",
-            )
+                RemoteContentSection(
+                    icon = Icons.Default.Update,
+                    title = displayedContent.changelogTitle.ifBlank { "更新日志" },
+                    body = changelogBody,
+                    meta = "",
+                )
 
+            }
         }
     }
 

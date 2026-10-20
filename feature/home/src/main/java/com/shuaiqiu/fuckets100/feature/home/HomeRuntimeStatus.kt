@@ -5,4 +5,5 @@ data class HomeRuntimeStatus(
     val hasRootAvailable: Boolean,
     val hasDirectReadAvailable: Boolean,
     val cloudLoggedIn: Boolean,
+    val etsAppInfo: Pair<Boolean, String>? = null,
 )

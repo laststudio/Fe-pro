@@ -10,7 +10,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 import com.shuaiqiu.fuckets100.core.designsystem.ExpressiveScaffold
@@ -21,7 +20,7 @@ import com.shuaiqiu.fuckets100.core.designsystem.expressiveTopAppBarColors
 
 /**
  * 通用设置页面
- * 包含答案显示相关的通用选项。
+ * 包含答案显示和云端读取相关的通用选项。
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -62,13 +61,23 @@ fun GeneralSettingsScreen(
                     {
                         ExpressiveSegmentedSwitchItem(
                             index = 0,
-                            count = 1,
+                            count = 2,
                             checked = uiState.compactAnswerDisplay,
                             onCheckedChange = viewModel::setCompactAnswerDisplay,
                             headlineContent = { Text("精简答案") },
                             supportingContent = { Text("开启后按题型只显示最常用的 1-2 个参考答案") },
                             leadingContent = { Icon(Icons.AutoMirrored.Filled.ShortText, null, tint = MaterialTheme.colorScheme.primary) },
-                            modifier = Modifier.clip(MaterialTheme.shapes.extraLarge),
+                        )
+                    },
+                    {
+                        ExpressiveSegmentedSwitchItem(
+                            index = 1,
+                            count = 2,
+                            checked = uiState.skipCloudReadWarning,
+                            onCheckedChange = viewModel::setSkipCloudReadWarning,
+                            headlineContent = { Text("跳过云端模式顶号警告") },
+                            supportingContent = { Text("开启后点击或下拉读取不再确认，仍可能使 e听说退出登录") },
+                            leadingContent = { Icon(Icons.Default.Cloud, null, tint = MaterialTheme.colorScheme.primary) },
                         )
                     },
                 ),

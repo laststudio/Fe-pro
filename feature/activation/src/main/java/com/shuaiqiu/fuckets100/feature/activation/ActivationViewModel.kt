@@ -21,7 +21,6 @@ data class ActivationPageSnapshot(
     val hasFilesPermission: Boolean,
     val cloudLoggedIn: Boolean,
     val cloudPhone: String?,
-    val etsAppInfo: Pair<Boolean, String>?,
 )
 
 data class ActivationUiState(
@@ -51,25 +50,12 @@ class ActivationViewModel @Inject constructor(
                     hasFilesPermission = PermissionsHelper.hasAllFilesAccess(),
                     cloudLoggedIn = ETS100AuthManager.isLoggedIn(context),
                     cloudPhone = ETS100AuthManager.getPhone(context),
-                    etsAppInfo = loadEtsAppInfo(context),
                 )
             }
             cached = snapshot
             updatedAt = SystemClock.elapsedRealtime()
             _uiState.update { it.copy(snapshot = snapshot) }
         }
-    }
-
-    private fun loadEtsAppInfo(
-        context: Context,
-        packageName: String = "com.ets100.secondary",
-    ): Pair<Boolean, String>? = try {
-        val packageInfo = context.packageManager.getPackageInfo(packageName, 0)
-        Pair(true, packageInfo.versionName ?: "未知")
-    } catch (e: android.content.pm.PackageManager.NameNotFoundException) {
-        Pair(false, "")
-    } catch (e: Exception) {
-        null
     }
 
     private companion object {

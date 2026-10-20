@@ -17,7 +17,8 @@ class RemoteContentViewModel @Inject constructor(
     val appVersionName: String = buildInfo.versionName
 
     /** 远程公告文本读取（带本地缓存），供界面层调用。 */
-    suspend fun fetchTextOrNull(url: String): String? = remoteContentRepository.fetchTextOrNull(url)
+    suspend fun fetchTextOrNull(url: String, forceRefresh: Boolean = false): String? =
+        remoteContentRepository.fetchTextOrNull(url, forceRefresh)
 
     suspend fun checkStatus(): UpdateStatus = remoteConfigManager.checkStatus()
 }

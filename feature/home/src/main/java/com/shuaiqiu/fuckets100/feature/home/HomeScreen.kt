@@ -171,10 +171,11 @@ fun HomeScreen(
                     onNavigateToActivation = onNavigateToActivation
                 )
 
-                // 版本信息（设备、Android、管理器版本）
+                // 版本信息（设备、Android、管理器版本、e听说状态）
                 HomeVersionInfoSection(
                     context = context,
                     appVersion = uiState.appVersion,
+                    etsAppInfo = runtimeStatus.etsAppInfo,
                 )
 
                 // 公告

@@ -16,7 +16,7 @@ import java.security.MessageDigest
 class RemoteContentRepository(
     private val context: Context,
 ) {
-    suspend fun fetchTextOrNull(url: String): String? {
+    suspend fun fetchTextOrNull(url: String, forceRefresh: Boolean = false): String? {
         if (url.isBlank()) return null
         return withContext(Dispatchers.IO) {
             val cacheFile = runCatching {
@@ -24,7 +24,7 @@ class RemoteContentRepository(
             }.getOrNull()
             val cached = cacheFile?.takeIf { it.isFile }?.let { file ->
                 val age = System.currentTimeMillis() - file.lastModified()
-                if (age in 0..CACHE_TTL_MS) file.readText() else null
+                if (!forceRefresh && age in 0..CACHE_TTL_MS) file.readText() else null
             }
             if (!cached.isNullOrBlank()) return@withContext cached
 

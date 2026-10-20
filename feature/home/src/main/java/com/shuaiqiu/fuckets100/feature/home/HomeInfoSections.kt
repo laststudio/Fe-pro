@@ -54,9 +54,15 @@ import androidx.lifecycle.LifecycleEventObserver
 internal fun HomeVersionInfoSection(
     context: android.content.Context,
     appVersion: String,
+    etsAppInfo: Pair<Boolean, String>?,
 ) {
     val deviceModel = remember { DeviceInfoHelper.getDeviceModel() }
     val androidVersion = remember { DeviceInfoHelper.getAndroidVersion() }
+    val etsStatus = when (etsAppInfo?.first) {
+        true -> "已安装 · ${etsAppInfo.second.ifBlank { "未知版本" }}"
+        false -> "未安装"
+        null -> "未知"
+    }
 
     SegmentedColumn(
         title = "版本信息",
@@ -64,7 +70,7 @@ internal fun HomeVersionInfoSection(
             {
                 ExpressiveSegmentedListItem(
                     index = 0,
-                    count = 3,
+                    count = 4,
                     onClick = { copyToClipboard(context, "设备型号", deviceModel) },
                     headlineContent = { Text("设备") },
                     supportingContent = {
@@ -80,7 +86,7 @@ internal fun HomeVersionInfoSection(
             {
                 ExpressiveSegmentedListItem(
                     index = 1,
-                    count = 3,
+                    count = 4,
                     onClick = { copyToClipboard(context, "Android 版本", androidVersion) },
                     headlineContent = { Text("Android 版本") },
                     supportingContent = {
@@ -96,7 +102,7 @@ internal fun HomeVersionInfoSection(
             {
                 ExpressiveSegmentedListItem(
                     index = 2,
-                    count = 3,
+                    count = 4,
                     onClick = { copyToClipboard(context, "管理器版本", appVersion) },
                     headlineContent = { Text("管理器版本") },
                     supportingContent = {
@@ -107,6 +113,22 @@ internal fun HomeVersionInfoSection(
                             overflow = TextOverflow.Ellipsis
                         )
                     }
+                )
+            },
+            {
+                ExpressiveSegmentedListItem(
+                    index = 3,
+                    count = 4,
+                    onClick = { copyToClipboard(context, "e听说状态", etsStatus) },
+                    headlineContent = { Text("e听说") },
+                    supportingContent = {
+                        Text(
+                            etsStatus,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    },
                 )
             }
         )

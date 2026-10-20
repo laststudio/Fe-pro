@@ -1,11 +1,9 @@
 package com.shuaiqiu.fuckets100.feature.activation
 
 import android.content.pm.PackageManager
-import android.os.Build
 import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.animation.core.MutableTransitionState
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
@@ -15,7 +13,6 @@ import androidx.compose.runtime.*
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -53,7 +50,6 @@ fun ActivationSettingsScreen(
     val hasFilesPerm = pageSnapshot?.hasFilesPermission == true
     val cloudLoggedIn = pageSnapshot?.cloudLoggedIn == true
     val cloudPhone = pageSnapshot?.cloudPhone
-    val etsAppInfo = pageSnapshot?.etsAppInfo
     var pendingPermissionRequest by remember { mutableStateOf(false) }
     var statusRefreshRevision by remember { mutableIntStateOf(0) }
 
@@ -126,7 +122,7 @@ fun ActivationSettingsScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            // 当前模式状态卡片：单独作为页面首个信息区块，和设备信息明确分组。
+            // 当前模式状态卡片：单独作为页面首个信息区块。
             item {
                 ActivationSectionLabel(text = "当前授权状态")
                 FeModeStatusCard(
@@ -138,11 +134,6 @@ fun ActivationSettingsScreen(
                     context = context,
                     refreshRevision = statusRefreshRevision,
                 )
-            }
-
-            item {
-                ActivationSectionLabel(text = "设备与 e听说")
-                ActivationDeviceCard(etsAppInfo = etsAppInfo)
             }
 
             // 基础权限申请区域：仅保留本地文件访问权限。
@@ -284,75 +275,4 @@ internal fun ActivationSectionLabel(text: String) {
         color = MaterialTheme.colorScheme.primary,
         modifier = Modifier.padding(start = 16.dp, bottom = 8.dp),
     )
-}
-
-@Composable
-internal fun ActivationDeviceCard(etsAppInfo: Pair<Boolean, String>?) {
-    val installed = etsAppInfo?.first == true
-    val statusColor = if (installed) {
-        MaterialTheme.colorScheme.primary
-    } else {
-        MaterialTheme.colorScheme.error
-    }
-
-    OutlinedCard(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.outlinedCardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-        ),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-        ) {
-            DeviceInfoRow(
-                icon = Icons.Default.Smartphone,
-                iconTint = MaterialTheme.colorScheme.primary,
-                title = Build.MODEL ?: "Unknown",
-                label = "设备",
-                trailingLabel = "Android ${Build.VERSION.RELEASE}",
-                trailingTitle = "系统版本",
-            )
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
-            DeviceInfoRow(
-                icon = Icons.Default.Memory,
-                iconTint = statusColor,
-                title = if (installed) "已安装" else "未安装",
-                label = "e听说",
-                titleColor = statusColor,
-                trailingLabel = etsAppInfo?.second?.takeIf { it.isNotEmpty() } ?: "未知",
-                trailingTitle = "版本",
-            )
-        }
-    }
-}
-
-@Composable
-internal fun DeviceInfoRow(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    iconTint: Color,
-    title: String,
-    label: String,
-    trailingLabel: String,
-    trailingTitle: String,
-    titleColor: Color = MaterialTheme.colorScheme.onSurface,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(22.dp))
-        Spacer(Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, color = titleColor, maxLines = 1)
-        }
-        Column(horizontalAlignment = Alignment.End) {
-            Text(trailingTitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(trailingLabel, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
-        }
-    }
 }
