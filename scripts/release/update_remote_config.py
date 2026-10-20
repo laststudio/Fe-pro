@@ -36,7 +36,7 @@ MIRROR_EXCLUDED_FIELDS = {
     "configRevision",
     "changelogContent",
 }
-RETRY_ATTEMPTS = 4
+RETRY_ATTEMPTS = 6
 
 DEFAULT_GITHUB_REPO = "laststudio/Fe_config"
 DEFAULT_GITHUB_BRANCH = "main"

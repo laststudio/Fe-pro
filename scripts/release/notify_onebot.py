@@ -20,6 +20,9 @@ def build_action_url(api_url: str, action: str) -> str:
     normalized = api_url.strip().rstrip("/")
     if not normalized:
         raise ValueError("OneBot HTTP API URL is empty.")
+    # secret 里常写成 "host:port"，缺协议头时 urllib 会报 unknown url type。
+    if "://" not in normalized:
+        normalized = f"http://{normalized}"
     if normalized.endswith(f"/{action}"):
         return normalized
     return f"{normalized}/{action}"
