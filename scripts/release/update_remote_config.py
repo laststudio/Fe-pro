@@ -167,7 +167,7 @@ def request_publisher_config(
 
 def publish_config(token: str, release_fields: dict, version_code: int, version_name: str) -> dict:
     identity = f"fe:{version_code}:{version_name}".encode("utf-8")
-    idempotency_key = f"fe-config-{hashlib.sha256(identity).hexdigest()}"
+    base_key = f"fe-config-{hashlib.sha256(identity).hexdigest()}"
     for attempt in range(RETRY_ATTEMPTS):
         current_config = request_publisher_config("GET", token)
         if "configRevision" not in current_config:
@@ -182,6 +182,9 @@ def publish_config(token: str, release_fields: dict, version_code: int, version_
         }
         updated_config.update(release_fields)
 
+        # 幂等键必须跟随 revision：重试时 payload 已变，复用旧键会被后端判定为
+        # "Idempotency-Key 已用于不同请求" 并返回 409，形成永远失败的死循环。
+        idempotency_key = f"{base_key}-r{current_config['configRevision']}"
         try:
             published_config = request_publisher_config(
                 "PUT",
