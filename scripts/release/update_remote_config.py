@@ -26,7 +26,7 @@ if hasattr(sys.stdout, "reconfigure"):
 DEFAULT_LOCAL_CONFIG_FILE = "config/config.json"
 DEFAULT_CONFIG_FILE = "config.json"
 DEFAULT_CHANGELOG_FILE = "update.md"
-DEFAULT_DOWNLOAD_URL = "https://fe-web.lastudio.cc/dl/Fe/latest"
+DEFAULT_DOWNLOAD_URL = "https://lastudio.cc/dl/Fe/latest"
 PUBLISHER_CONFIG_URL = "https://api.lastudio.cc/publisher/software/fe/config"
 READ_ONLY_FIELDS = {"key", "releaseId", "changelogUrl"}
 MIRROR_EXCLUDED_FIELDS = {

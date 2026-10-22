@@ -110,7 +110,7 @@ jobs:
           set -euo pipefail
           python scripts/release/extract_changelog.py \
             --version "${{ steps.meta.outputs.version }}" \
-            --apk-url "https://fe-web.lastudio.cc/dl/Fe/latest" \
+            --apk-url "https://lastudio.cc/dl/Fe/latest" \
             --release-notes release_notes.md \
             --changelog-output current_changelog.md
           printf '\n---\n\n解析器内核：ets_resolver %s\n' "${{ steps.resolver.outputs.resolver_tag }}" >> release_notes.md
@@ -179,7 +179,7 @@ jobs:
           python scripts/release/update_remote_config.py \
             --version-code "${{ steps.meta.outputs.version_code }}" \
             --version-name "${{ steps.meta.outputs.version }}" \
-            --apk-url "https://fe-web.lastudio.cc/dl/Fe/latest" \
+            --apk-url "https://lastudio.cc/dl/Fe/latest" \
             --message-file release_notes.md \
             --local-config-file config/config.json \
             --source-changelog-file update.md
@@ -201,7 +201,7 @@ jobs:
           {
             echo "新版本发布啦喵~"
             echo "最新版本为${{ steps.meta.outputs.version }}"
-            echo "前往下载:https://fe-web.lastudio.cc/dl/Fe/latest"
+            echo "前往下载:https://lastudio.cc/dl/Fe/latest"
             echo
             echo "更新日志:"
             sed -E '/^##[[:space:]]+/d; /^>[[:space:]]*内部版本号/d; /^[[:space:]]*$/d' current_changelog.md
