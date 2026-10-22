@@ -191,6 +191,7 @@ jobs:
           ONEBOT_HTTP_URL: ${{ secrets.ONEBOT_HTTP_URL }}
           ONEBOT_GROUP_ID: ${{ secrets.ONEBOT_GROUP_ID }}
           ONEBOT_ACCESS_TOKEN: ${{ secrets.ONEBOT_ACCESS_TOKEN }}
+          ONEBOT_INSECURE_TLS: ${{ vars.ONEBOT_INSECURE_TLS || '1' }}
         run: |
           set -euo pipefail
           if [ -z "${ONEBOT_HTTP_URL:-}" ] || [ -z "${ONEBOT_GROUP_ID:-}" ]; then

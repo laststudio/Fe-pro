@@ -28,9 +28,23 @@ def build_action_url(api_url: str, action: str) -> str:
     return f"{normalized}/{action}"
 
 
+def _ssl_context(url: str):
+    """自建 OneBot 常用 IP 直连，证书常与 IP 不匹配；显式开关才跳过校验。"""
+    import os
+    import ssl
+
+    if os.environ.get("ONEBOT_INSECURE_TLS", "").strip().lower() in {"1", "true", "yes"}:
+        context = ssl.create_default_context()
+        context.check_hostname = False
+        context.verify_mode = ssl.CERT_NONE
+        return context
+    return None
+
+
 def read_json_response(request: urllib.request.Request, step_name: str, timeout: int = 20) -> dict:
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        context = _ssl_context(request.full_url)
+        with urllib.request.urlopen(request, timeout=timeout, context=context) as response:
             body = response.read().decode("utf-8", errors="replace")
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")
