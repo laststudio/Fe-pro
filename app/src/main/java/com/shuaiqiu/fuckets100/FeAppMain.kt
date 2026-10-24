@@ -15,6 +15,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.shuaiqiu.fuckets100.core.designsystem.rememberFeMainPagerState
+import com.shuaiqiu.fuckets100.core.common.EtsAppVersion
 import com.shuaiqiu.fuckets100.feature.onboarding.OnboardingScreen
 import com.shuaiqiu.fuckets100.feature.account.FeAccountGate
 import com.shuaiqiu.fuckets100.feature.settings.AnnouncementDialog
@@ -27,6 +28,7 @@ import kotlinx.coroutines.withContext
 import com.shuaiqiu.fuckets100.ChangyanWebLoginActivity
 import com.shuaiqiu.fuckets100.feature.home.HomeScreen
 import com.shuaiqiu.fuckets100.feature.shared.AccountInitialAvatar
+import com.shuaiqiu.fuckets100.feature.shared.EtsEightSeriesLocalModeDialog
 import com.shuaiqiu.fuckets100.feature.read.ReadScreen
 import com.shuaiqiu.fuckets100.navigation.FeNavContainer
 import com.shuaiqiu.fuckets100.navigation.FeNavigator
@@ -140,6 +142,9 @@ fun FeAppMain(
             SettingsManager.getSavedActivationMode() ?: ShizukuManager.getCurrentActivationMode()
         )
     }
+    var etsEightSeriesVersion by remember { mutableStateOf<EtsAppVersion?>(null) }
+    var showEtsCompatibilityDialog by remember { mutableStateOf(false) }
+    var hasShownEtsCompatibilityWarning by remember { mutableStateOf(false) }
     var homeStatusRevision by remember { mutableIntStateOf(0) }
 
     var readAccessChecking by remember { mutableStateOf(true) }
@@ -148,6 +153,17 @@ fun FeAppMain(
     var readAccessRefreshRevision by remember { mutableIntStateOf(0) }
     var computedReadAccessRevision by remember { mutableIntStateOf(0) }
 
+    LaunchedEffect(Unit) {
+        if (currentMode != ActivationMode.CLOUD && !hasShownEtsCompatibilityWarning) {
+            etsEightSeriesVersion = withContext(Dispatchers.IO) {
+                EtsAppVersion.read(context)?.takeIf { it.isEightSeries }
+            }
+            if (etsEightSeriesVersion != null) {
+                showEtsCompatibilityDialog = true
+                hasShownEtsCompatibilityWarning = true
+            }
+        }
+    }
     suspend fun computeReadAccessIssue(): String? = withContext(Dispatchers.IO) {
         when {
             !accountOnline -> "LastStudio 账号服务尚未就绪，请先登录或稍后重试"
@@ -339,46 +355,66 @@ fun FeAppMain(
                 }
             },
         )
-        // 鏇存柊寮圭獥 - 鏀惧湪 Scaffold 澶栭潰纭繚鑳借鐩栧叾浠栧唴瀹瑰柕~
-        if (showUpdateDialog && updateDialogStatus != null) {
-            Log.d("FeAppMain", "鏄剧ず鏇存柊寮圭獥: ${updateDialogStatus!!.message}")
-            UpdateDialog(
-                status = updateDialogStatus!!,
-                onDismiss = {
-                    showUpdateDialog = false
-                    updateDialogStatus = null
-                    updateStatusRepository.setUpdateStatus(null)
-                }
-            )
-        }
+        // 应用级模态弹窗统一在这里仲裁，避免多个 AlertDialog 同时抢占焦点。
+        when {
+            verificationDialogStatus != null -> {
+                VerificationDialog(
+                    status = verificationDialogStatus!!,
+                    onVerified = {
+                        val status = verificationDialogStatus!!
+                        verificationDialogStatus = null
+                        updateStatusRepository.setRemoteStatus(status.copy(requiresVerification = false))
+                        updateStatusRepository.refreshAfterVerification()
+                    },
+                )
+            }
 
-        if (verificationDialogStatus != null) {
-            val status = verificationDialogStatus!!
-            VerificationDialog(
-                status = status,
-                onVerified = {
-                    verificationDialogStatus = null
-                    updateStatusRepository.setRemoteStatus(status.copy(requiresVerification = false))
-                    updateStatusRepository.refreshAfterVerification()
-                }
-            )
-        }
+            showUpdateDialog && updateDialogStatus != null -> {
+                val status = updateDialogStatus!!
+                Log.d("FeAppMain", "显示更新弹窗: ${status.message}")
+                UpdateDialog(
+                    status = status,
+                    onDismiss = {
+                        showUpdateDialog = false
+                        updateDialogStatus = null
+                        updateStatusRepository.setUpdateStatus(null)
+                    },
+                )
+            }
 
-        if (showAnnouncementDialog && remoteStatus != null) {
-            val status = remoteStatus!!
-            AnnouncementDialog(
-                title = status.announcementTitle.ifBlank { "公告" },
-                message = status.announcementMessage,
-                onViewDetail = {
-                    showAnnouncementDialog = false
-                    SettingsManager.saveLastSeenAnnouncementUpdatedAt(status.announcementUpdatedAt)
-                    navigator.push(status.toRemoteContentRoute())
-                },
-                onDismiss = {
-                    showAnnouncementDialog = false
-                    SettingsManager.saveLastSeenAnnouncementUpdatedAt(status.announcementUpdatedAt)
-                },
-            )
+            showEtsCompatibilityDialog -> {
+                etsEightSeriesVersion?.let { version ->
+                    EtsEightSeriesLocalModeDialog(
+                        versionName = version.versionName,
+                        mode = currentMode,
+                        onDismiss = { showEtsCompatibilityDialog = false },
+                        onUseCloudMode = {
+                            showEtsCompatibilityDialog = false
+                            SettingsManager.saveActivationMode(ActivationMode.CLOUD)
+                            currentMode = ActivationMode.CLOUD
+                        },
+                        onContinueLocalMode = { showEtsCompatibilityDialog = false },
+                    )
+                }
+            }
+
+            showAnnouncementDialog && remoteStatus != null -> {
+                val status = remoteStatus!!
+                AnnouncementDialog(
+                    title = status.announcementTitle.ifBlank { "公告" },
+                    message = status.announcementMessage,
+                    updatedAt = status.announcementUpdatedAt,
+                    onViewDetail = {
+                        showAnnouncementDialog = false
+                        SettingsManager.saveLastSeenAnnouncementUpdatedAt(status.announcementUpdatedAt)
+                        navigator.push(status.toRemoteContentRoute())
+                    },
+                    onDismiss = {
+                        showAnnouncementDialog = false
+                        SettingsManager.saveLastSeenAnnouncementUpdatedAt(status.announcementUpdatedAt)
+                    },
+                )
+            }
         }
         }
         }

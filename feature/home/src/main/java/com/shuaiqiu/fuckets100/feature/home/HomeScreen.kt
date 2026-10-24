@@ -28,6 +28,7 @@ import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
@@ -39,6 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.shuaiqiu.fuckets100.ActivationMode
 import com.shuaiqiu.fuckets100.FeAccountGateState
+import com.shuaiqiu.fuckets100.core.common.EtsAppVersion
 import com.shuaiqiu.fuckets100.core.designsystem.RighteousFont
 import com.shuaiqiu.fuckets100.ShizukuState
 import com.shuaiqiu.fuckets100.UpdateStatus
@@ -168,6 +170,7 @@ fun HomeScreen(
                     hasFilesPerm = runtimeStatus.hasFilesPerm,
                     hasAllBasicPermissions = hasAllBasicPermissions,
                     hasRootAvailable = runtimeStatus.hasRootAvailable,
+                    etsAppVersion = runtimeStatus.etsAppInfo?.second,
                     onNavigateToActivation = onNavigateToActivation
                 )
 
@@ -203,6 +206,7 @@ fun StatusCard(
     hasFilesPerm: Boolean,
     hasAllBasicPermissions: Boolean,
     hasRootAvailable: Boolean,
+    etsAppVersion: String?,
     onNavigateToActivation: () -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
@@ -210,9 +214,17 @@ fun StatusCard(
     val needsLogin = accountState is FeAccountGateState.LoginRequired
     val isOffline = accountState is FeAccountGateState.Offline
     val isBlocked = accountState is FeAccountGateState.Blocked
+    val isEightSeriesLocalMode = mode != ActivationMode.CLOUD &&
+        EtsAppVersion.parseMajorVersion(etsAppVersion.orEmpty()) == 8
+    val showLocalCompatibilityWarning = !isConnecting &&
+        !needsLogin &&
+        !isOffline &&
+        !isBlocked &&
+        isEightSeriesLocalMode
     val effectiveActivated = accountState is FeAccountGateState.Ready && isTrulyActivated
     val statusContainerColor = when {
         isConnecting -> MaterialTheme.colorScheme.surfaceContainerHighest
+        showLocalCompatibilityWarning -> Color(0xFFFFF3CD)
         effectiveActivated -> MaterialTheme.colorScheme.secondaryContainer
         else -> MaterialTheme.colorScheme.errorContainer
     }
@@ -234,6 +246,7 @@ fun StatusCard(
         needsLogin -> "需要登录"
         isOffline -> "LastStudio 已离线"
         isBlocked -> "LastStudio 当前不可用"
+        showLocalCompatibilityWarning -> "本地模式兼容性警告"
         mode == ActivationMode.CLOUD && cloudLoggedIn -> "云端模式已激活"
         mode == ActivationMode.CLOUD -> "云端模式未激活"
         // 基础权限未授予时显示等待授权提示
@@ -245,6 +258,7 @@ fun StatusCard(
     }
 
     val displayIcon = when {
+        showLocalCompatibilityWarning -> Icons.Outlined.Warning
         effectiveActivated -> Icons.Outlined.CheckCircle
         mode == ActivationMode.DEFAULT -> Icons.Outlined.Block
         else -> Icons.Outlined.Warning
@@ -254,6 +268,7 @@ fun StatusCard(
         needsLogin -> "请先登录 LastStudio 账号后继续使用"
         isOffline -> "LastStudio 已离线，部分功能受限"
         isBlocked -> accountState.message
+        showLocalCompatibilityWarning -> "检测到 E 听说 ${etsAppVersion.orEmpty()}，原有 7.x 本地读取方式可能无法读取数据"
         mode == ActivationMode.CLOUD -> if (cloudLoggedIn) "云端作业与试卷解析服务已连接" else "未绑定或未配置云端凭据，点击前往配置"
         !hasAllBasicPermissions -> "需要文件访问权限才能读取题库，请授权"
         mode == ActivationMode.SHIZUKU -> when {

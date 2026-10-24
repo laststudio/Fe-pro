@@ -4,7 +4,17 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.util.Log
-import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -13,49 +23,72 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
-
+import androidx.compose.ui.unit.dp
 import com.shuaiqiu.fuckets100.UpdateStatus
+import com.shuaiqiu.fuckets100.core.designsystem.ExpressiveDialog
+
 /**
- * 更新弹窗组件
- * 宝贝用于显示版本更新提示喵~
- *
- * @param status 更新状态，包含所有需要的信息
- * @param onDismiss 弹窗关闭回调
+ * 更新弹窗组件。
+ * 普通更新允许稍后处理，强制更新保持模态阻断。
  */
 @Composable
 fun UpdateDialog(
-    status: com.shuaiqiu.fuckets100.UpdateStatus,
-    onDismiss: () -> Unit
+    status: UpdateStatus,
+    onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
-    
+    var openError by remember(status.updateUrl) { mutableStateOf(false) }
+
     Log.d("UpdateDialog", "显示更新弹窗: message=${status.message}, isForce=${status.isForce}")
-    
-    AlertDialog(
+
+    ExpressiveDialog(
         onDismissRequest = {
-            // 强制更新时不允许关闭弹窗喵~
-            if (!status.isForce) {
-                onDismiss()
-            }
+            if (!status.isForce) onDismiss()
+        },
+        icon = {
+            Icon(
+                imageVector = if (status.isForce) Icons.Default.Warning else Icons.Default.SystemUpdate,
+                contentDescription = null,
+                tint = if (status.isForce) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    MaterialTheme.colorScheme.primary
+                },
+            )
         },
         title = {
-            Text(text = if (status.isForce) "🔴 强制更新" else "🆙 发现新版本")
+            Text(if (status.isForce) "需要更新后继续使用" else "发现新版本")
         },
         text = {
-            Text(text = status.message)
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    // 打开更新链接
-                    openUpdateUrl(context, status.updateUrl)
-                    // 如果不是强制更新，关闭弹窗
-                    if (!status.isForce) {
-                        onDismiss()
+            Box(
+                modifier = Modifier
+                    .heightIn(max = 240.dp)
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                androidx.compose.foundation.layout.Column {
+                    Text(
+                        text = status.message,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (openError) {
+                        Text(
+                            text = "无法打开更新地址，请检查网络后重试。",
+                            modifier = Modifier.padding(top = 12.dp),
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
                     }
                 }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val opened = openUpdateUrl(context, status.updateUrl)
+                    openError = !opened
+                    if (opened && !status.isForce) onDismiss()
+                },
             ) {
                 Text("立即更新")
             }
@@ -66,20 +99,20 @@ fun UpdateDialog(
                     Text("稍后再说")
                 }
             }
-        }
+        },
     )
 }
 
-/**
- * 打开更新链接
- * 宝贝使用浏览器打开更新地址喵~
- */
-private fun openUpdateUrl(context: Context, url: String) {
-    try {
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+private fun openUpdateUrl(context: Context, url: String): Boolean {
+    if (url.isBlank()) return false
+    return try {
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
         context.startActivity(intent)
+        true
     } catch (e: Exception) {
         Log.e("UpdateDialog", "打开更新链接失败: $url", e)
+        false
     }
 }

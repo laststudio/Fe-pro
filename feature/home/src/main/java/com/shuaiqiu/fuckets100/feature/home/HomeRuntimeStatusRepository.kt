@@ -6,6 +6,7 @@ import com.shuaiqiu.fuckets100.ETS100AuthManager
 import com.shuaiqiu.fuckets100.PermissionsHelper
 import com.shuaiqiu.fuckets100.RootManager
 import com.shuaiqiu.fuckets100.ZWCHelper
+import com.shuaiqiu.fuckets100.core.common.EtsAppVersion
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -46,15 +47,12 @@ class HomeRuntimeStatusRepository @Inject constructor(
         lastRefreshTime = SystemClock.elapsedRealtime()
     }
 
-    private fun loadEtsAppInfo(
-        context: Context,
-        packageName: String = "com.ets100.secondary",
-    ): Pair<Boolean, String>? = try {
-        val packageInfo = context.packageManager.getPackageInfo(packageName, 0)
-        Pair(true, packageInfo.versionName ?: "未知")
-    } catch (e: android.content.pm.PackageManager.NameNotFoundException) {
-        Pair(false, "")
-    } catch (e: Exception) {
+    private fun loadEtsAppInfo(context: Context): Pair<Boolean, String>? = try {
+        val packageInfo = context.packageManager.getPackageInfo(EtsAppVersion.PACKAGE_NAME, 0)
+        true to (packageInfo.versionName?.trim()?.takeIf { it.isNotEmpty() } ?: "未知")
+    } catch (_: android.content.pm.PackageManager.NameNotFoundException) {
+        false to ""
+    } catch (_: Exception) {
         null
     }
 

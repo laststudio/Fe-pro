@@ -31,6 +31,8 @@ import com.shuaiqiu.fuckets100.PermissionsHelper
 import com.shuaiqiu.fuckets100.ShizukuManager
 import com.shuaiqiu.fuckets100.ShizukuState
 import com.shuaiqiu.fuckets100.core.designsystem.FeThinDivider
+import com.shuaiqiu.fuckets100.core.common.EtsAppVersion
+import com.shuaiqiu.fuckets100.feature.shared.EtsEightSeriesLocalModeDialog
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun ActivationSettingsScreen(
@@ -52,6 +54,19 @@ fun ActivationSettingsScreen(
     val cloudPhone = pageSnapshot?.cloudPhone
     var pendingPermissionRequest by remember { mutableStateOf(false) }
     var statusRefreshRevision by remember { mutableIntStateOf(0) }
+    var etsEightSeriesVersion by remember { mutableStateOf<EtsAppVersion?>(null) }
+    var showEtsCompatibilityDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        etsEightSeriesVersion = EtsAppVersion.read(context)?.takeIf { it.isEightSeries }
+    }
+
+    fun selectMode(mode: ActivationMode) {
+        onModeSelected(mode)
+        if (mode != ActivationMode.CLOUD && etsEightSeriesVersion != null) {
+            showEtsCompatibilityDialog = true
+        }
+    }
 
     // 首次打开异步读取；已有短时缓存时直接沿用，不重复触发页面闪变。
     LaunchedEffect(cloudAuthRevision) {
@@ -80,7 +95,7 @@ fun ActivationSettingsScreen(
                 if (grantResult == PackageManager.PERMISSION_GRANTED) {
                     Toast.makeText(context, "Shizuku 权限授权成功！", Toast.LENGTH_SHORT).show()
                     statusRefreshRevision++
-                    onModeSelected(ActivationMode.SHIZUKU)
+                    selectMode(ActivationMode.SHIZUKU)
                 } else {
                     Toast.makeText(context, "Shizuku 权限被拒绝了", Toast.LENGTH_SHORT).show()
                 }
@@ -182,7 +197,7 @@ fun ActivationSettingsScreen(
                             ExpressiveSegmentedListItem(
                                 index = index,
                                 count = activationModes.size,
-                                onClick = { onModeSelected(mode) },
+                                onClick = { selectMode(mode) },
                                 headlineContent = {
                                     Text(
                                         mode.title,
@@ -263,6 +278,21 @@ fun ActivationSettingsScreen(
                 )
             }
             item { Spacer(Modifier.height(80.dp)) }
+        }
+    }
+
+    if (showEtsCompatibilityDialog) {
+        etsEightSeriesVersion?.let { version ->
+            EtsEightSeriesLocalModeDialog(
+                versionName = version.versionName,
+                mode = currentMode,
+                onDismiss = { showEtsCompatibilityDialog = false },
+                onUseCloudMode = {
+                    showEtsCompatibilityDialog = false
+                    selectMode(ActivationMode.CLOUD)
+                },
+                onContinueLocalMode = { showEtsCompatibilityDialog = false },
+            )
         }
     }
 }

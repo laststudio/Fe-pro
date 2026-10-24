@@ -312,24 +312,66 @@ object ShizukuManager {
         }
     }
 
+    data class CommandResult(
+        val exitCode: Int,
+        val stdout: String,
+        val stderr: String,
+    )
+
+    fun execCommandWithInput(command: String, input: InputStream): CommandResult? {
+        return try {
+            if (!isShizukuRunning() || checkSelfPermission() != PackageManager.PERMISSION_GRANTED) return null
+            val method = Shizuku::class.java.getDeclaredMethod(
+                "newProcess",
+                Array<String>::class.java,
+                Array<String>::class.java,
+                String::class.java,
+            ).apply { isAccessible = true }
+            val process = method.invoke(null, arrayOf("sh", "-c", command), null, null) as ShizukuRemoteProcess
+            input.use { source -> source.copyTo(process.outputStream) }
+            process.outputStream.close()
+            val stdout = process.inputStream.bufferedReader().readText()
+            val stderr = process.errorStream.bufferedReader().readText()
+            val exitCode = process.waitFor()
+            process.destroy()
+            CommandResult(exitCode, stdout, stderr)
+        } catch (e: Exception) {
+            Log.e(TAG, "execCommandWithInput failed: ${e.message}", e)
+            null
+        }
+    }
+
+    fun execCommandWithResult(command: String): CommandResult? {
+        return try {
+            if (!isShizukuRunning() || checkSelfPermission() != PackageManager.PERMISSION_GRANTED) return null
+            val method = Shizuku::class.java.getDeclaredMethod(
+                "newProcess",
+                Array<String>::class.java,
+                Array<String>::class.java,
+                String::class.java,
+            ).apply { isAccessible = true }
+            val process = method.invoke(null, arrayOf("sh", "-c", command), null, null) as ShizukuRemoteProcess
+            val stdout = process.inputStream.bufferedReader().readText()
+            val stderr = process.errorStream.bufferedReader().readText()
+            val exitCode = process.waitFor()
+            process.destroy()
+            CommandResult(exitCode, stdout, stderr)
+        } catch (e: Exception) {
+            Log.e(TAG, "execCommandWithResult failed: ${e.message}", e)
+            null
+        }
+    }
+
     fun openCommandInputStream(command: String): InputStream? {
         return try {
-            if (!isShizukuRunning() || checkSelfPermission() != PackageManager.PERMISSION_GRANTED) {
-                return null
-            }
+            if (!isShizukuRunning() || checkSelfPermission() != PackageManager.PERMISSION_GRANTED) return null
             val newProcessMethod: Method = Shizuku::class.java.getDeclaredMethod(
                 "newProcess",
                 Array<String>::class.java,
                 Array<String>::class.java,
-                String::class.java
-            )
-            newProcessMethod.isAccessible = true
-            val process = newProcessMethod.invoke(
-                null,
-                arrayOf("sh", "-c", command),
-                null,
-                null
-            ) as ShizukuRemoteProcess
+                String::class.java,
+            ).apply { isAccessible = true }
+            val process = newProcessMethod.invoke(null, arrayOf("sh", "-c", command), null, null) as ShizukuRemoteProcess
             object : FilterInputStream(process.inputStream) {
                 override fun close() {
                     try {

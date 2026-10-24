@@ -30,6 +30,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.shuaiqiu.fuckets100.core.designsystem.TonalCard
+import com.shuaiqiu.fuckets100.core.common.EtsAppVersion
+import com.shuaiqiu.fuckets100.feature.shared.EtsEightSeriesLocalModeDialog
 
 import com.shuaiqiu.fuckets100.ActivationMode
 import com.shuaiqiu.fuckets100.PermissionsHelper
@@ -56,6 +58,12 @@ internal fun ModeAndPermissionStep(
     var isRootGranted by remember { mutableStateOf(RootManager.isRootAvailable()) }
     var showMissingPermissionDialog by remember { mutableStateOf(false) }
     var pendingMissingList by remember { mutableStateOf<List<String>>(emptyList()) }
+    var etsEightSeriesVersion by remember { mutableStateOf<EtsAppVersion?>(null) }
+    var showEtsCompatibilityDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        etsEightSeriesVersion = EtsAppVersion.read(context)?.takeIf { it.isEightSeries }
+    }
 
     // 当用户从系统设置或授权软件返回时，刷新权限状态
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
@@ -65,6 +73,11 @@ internal fun ModeAndPermissionStep(
     }
 
     val isGeekMode = selectedMode == ActivationMode.SHIZUKU || selectedMode == ActivationMode.ROOT
+
+    fun selectLocalMode(mode: ActivationMode) {
+        selectedMode = mode
+        if (etsEightSeriesVersion != null) showEtsCompatibilityDialog = true
+    }
 
     fun getMissingPermissions(): List<String> {
         val missing = mutableListOf<String>()
@@ -159,7 +172,7 @@ internal fun ModeAndPermissionStep(
             selected = isGeekMode,
             onClick = {
                 if (!isGeekMode) {
-                    selectedMode = ActivationMode.SHIZUKU
+                    selectLocalMode(ActivationMode.SHIZUKU)
                 }
             },
             extraContent = if (isGeekMode) {
@@ -183,7 +196,7 @@ internal fun ModeAndPermissionStep(
                                     if (isShizuku) MaterialTheme.colorScheme.primary
                                     else Color.Transparent
                                 )
-                                .clickable { selectedMode = ActivationMode.SHIZUKU }
+                                .clickable { selectLocalMode(ActivationMode.SHIZUKU) }
                                 .padding(vertical = 8.dp),
                             contentAlignment = Alignment.Center,
                         ) {
@@ -205,7 +218,7 @@ internal fun ModeAndPermissionStep(
                                     if (isRoot) MaterialTheme.colorScheme.primary
                                     else Color.Transparent
                                 )
-                                .clickable { selectedMode = ActivationMode.ROOT }
+                                .clickable { selectLocalMode(ActivationMode.ROOT) }
                                 .padding(vertical = 8.dp),
                             contentAlignment = Alignment.Center,
                         ) {
@@ -230,7 +243,7 @@ internal fun ModeAndPermissionStep(
             badge = "无需 Root",
             icon = Icons.Default.Bolt,
             selected = selectedMode == ActivationMode.DIRECT_READ,
-            onClick = { selectedMode = ActivationMode.DIRECT_READ },
+            onClick = { selectLocalMode(ActivationMode.DIRECT_READ) },
         )
 
         Spacer(Modifier.height(14.dp))
@@ -390,7 +403,22 @@ internal fun ModeAndPermissionStep(
         Spacer(Modifier.height(16.dp))
     }
 
-    // 未完全授权提示弹窗
+    // E 听说 8.x 兼容性提示：只提示，不阻止继续使用本地模式
+    etsEightSeriesVersion?.let { version ->
+        if (showEtsCompatibilityDialog) {
+            EtsEightSeriesLocalModeDialog(
+                versionName = version.versionName,
+                mode = selectedMode,
+                onDismiss = { showEtsCompatibilityDialog = false },
+                onUseCloudMode = {
+                    showEtsCompatibilityDialog = false
+                    selectedMode = ActivationMode.CLOUD
+                },
+                onContinueLocalMode = { showEtsCompatibilityDialog = false },
+            )
+        }
+    }
+
     if (showMissingPermissionDialog) {
         AlertDialog(
             onDismissRequest = { showMissingPermissionDialog = false },

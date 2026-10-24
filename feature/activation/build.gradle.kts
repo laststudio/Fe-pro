@@ -46,6 +46,7 @@ dependencies {
     implementation(project(":core:platform"))
     implementation(project(":core:designsystem"))
     implementation(project(":data:ets100"))
+    implementation(project(":feature:shared"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(platform(libs.androidx.compose.bom))

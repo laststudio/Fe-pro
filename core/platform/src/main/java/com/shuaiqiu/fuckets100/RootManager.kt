@@ -88,6 +88,28 @@ object RootManager {
         }
     }
 
+    data class CommandResult(
+        val exitCode: Int,
+        val stdout: String,
+        val stderr: String,
+    )
+
+    fun execAsRootWithInput(command: String, input: InputStream): CommandResult? {
+        return try {
+            val process = Runtime.getRuntime().exec(arrayOf("su", "-c", command))
+            input.use { source -> source.copyTo(process.outputStream) }
+            process.outputStream.close()
+            val stdout = process.inputStream.bufferedReader().readText()
+            val stderr = process.errorStream.bufferedReader().readText()
+            val exitCode = process.waitFor()
+            process.destroy()
+            CommandResult(exitCode, stdout, stderr)
+        } catch (e: Exception) {
+            Log.e(TAG, "带输入的 Root 命令失败: ${e.message}", e)
+            null
+        }
+    }
+
     fun openInputStreamAsRoot(command: String): InputStream? {
         return try {
             val process = Runtime.getRuntime().exec(arrayOf("su", "-c", "$command 2>/dev/null"))
